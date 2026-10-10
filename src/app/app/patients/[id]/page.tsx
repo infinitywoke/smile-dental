@@ -3,13 +3,15 @@ import Link from 'next/link'
 import { Camera, ChevronRight, Pencil, Phone, Plus } from 'lucide-react'
 import { getPatient } from '@/lib/data/patients'
 import { getPatientVisits } from '@/lib/data/visits'
+import { getPatientBalance } from '@/lib/data/billing'
+import { formatRupees } from '@/lib/pricing'
 import { ageOn, formatDate } from '@/lib/dates'
 import { formatPhone } from '@/lib/phone'
 import { BackLink, Card, MedicalAlert, ScreenLoading, TestBadge } from '@/components/clinic/ui'
 
 async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
   const { id } = await params
-  const [patient, visits] = await Promise.all([getPatient(id), getPatientVisits(id)])
+  const [patient, visits, balance] = await Promise.all([getPatient(id), getPatientVisits(id), getPatientBalance(id)])
 
   return (
     <div className="space-y-5">
@@ -24,6 +26,12 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
       </div>
 
       <MedicalAlert alerts={patient.medical_alerts} />
+
+      {balance !== 0 && (
+        <p className={`rounded-xl px-3 py-2 text-sm font-semibold ring-1 ${balance > 0 ? 'bg-red-50 text-red-800 ring-red-200' : 'bg-green-50 text-green-800 ring-green-200'}`}>
+          {balance > 0 ? `Balance due: ${formatRupees(balance)}` : `Advance with us: ${formatRupees(-balance)}`}
+        </p>
+      )}
 
       <div className="flex gap-3">
         <Link href={`/app/patients/${patient.id}/visits/new`}

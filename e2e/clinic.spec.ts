@@ -71,6 +71,27 @@ test('saves a visit with notes and a captioned photo', async () => {
   await expect(visible(page.getByText(caption, { exact: true }))).toBeVisible()
 })
 
+test('bills the visit, shows a UPI QR, and records a cash payment', async () => {
+  await page.getByRole('link', { name: /Bill and payment/ }).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[^/]+\/bill$/)
+
+  await visible(page.getByLabel('What for')).fill(`${runId} scaling`)
+  await visible(page.locator('#charge-amount')).fill('1200')
+  await visible(page.getByRole('button', { name: 'Add to bill' })).click()
+  await expect(visible(page.getByText(`${runId} scaling`))).toBeVisible()
+  await expect(visible(page.getByText('Total').first())).toBeVisible()
+
+  // The QR is for the amount typed, and points at the clinic's UPI ID
+  await visible(page.locator('#payment-amount')).fill('1000')
+  await expect(visible(page.getByRole('img', { name: /UPI QR for ₹1,000/ }))).toBeVisible()
+  await visible(page.getByRole('button', { name: /Collected cash/ })).click()
+
+  await expect(visible(page.getByText('Paid by cash'))).toBeVisible()
+  await expect(visible(page.getByText('Balance this visit'))).toBeVisible()
+  await expect(visible(page.getByText('₹200').first())).toBeVisible()
+  await expect(visible(page.getByRole('link', { name: /Send bill on WhatsApp/ }))).toHaveAttribute('href', new RegExp(`wa\.me/91${phone}`))
+})
+
 test('lists the visit on Today', async () => {
   await page.getByRole('link', { name: 'Today', exact: true }).click()
   await expect(page).toHaveURL(/\/app$/)

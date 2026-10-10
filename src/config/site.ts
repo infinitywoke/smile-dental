@@ -22,6 +22,12 @@ export const siteConfig = {
   googleReviewsLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED]
   googlePhotosLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED]
   
+  // --- Payments (Clinic OS shows a UPI QR for this payee) ---
+  payments: {
+    upiId: "rahil.yusuf.k-1@okhdfcbank", // [VERIFIED]
+    payeeName: "Smile Dental Clinic", // [VERIFIED]
+  },
+
   operatingHours: [
     { day: "Everyday (Fridays Off)", hours: ["8:30 AM - 1:00 PM", "2:30 PM - 7:30 PM"] }, // [VERIFIED] matches Google Business Profile
   ],
