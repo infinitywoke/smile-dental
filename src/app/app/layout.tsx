@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { LogOut } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
+import { BottomNav } from '@/components/clinic/BottomNav'
 
 export const metadata: Metadata = {
   title: `Clinic OS - ${siteConfig.name}`,
@@ -45,7 +46,8 @@ async function DoctorGate({ children }: { children: React.ReactNode }) {
           </form>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-28">{children}</main>
+      <BottomNav />
     </>
   )
 }

@@ -1,0 +1,67 @@
+'use server'
+
+import { redirect } from 'next/navigation'
+import { getDoctor } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
+import { findPatientsByPhone } from '@/lib/data/patients'
+import { isValidPhone, normalizePhone } from '@/lib/phone'
+import { todayInIndia } from '@/lib/dates'
+
+export type PatientFormState = { error?: string }
+
+function readPatientForm(formData: FormData) {
+  const text = (key: string) => {
+    const value = String(formData.get(key) ?? '').trim()
+    return value.length > 0 ? value : null
+  }
+  return {
+    name: text('name'),
+    phone: normalizePhone(text('phone')),
+    date_of_birth: text('date_of_birth'),
+    address: text('address'),
+    medical_alerts: text('medical_alerts'),
+    heard_from: text('heard_from'),
+  }
+}
+
+function validate(patient: ReturnType<typeof readPatientForm>): string | null {
+  if (!patient.name) return 'Please enter the patient’s name.'
+  if (patient.phone && !isValidPhone(patient.phone)) return 'Please enter a 10-digit mobile number.'
+  if (patient.date_of_birth && patient.date_of_birth > todayInIndia()) return 'Date of birth can’t be in the future.'
+  return null
+}
+
+// New patients go straight to their first visit
+export async function createPatient(_prev: PatientFormState, formData: FormData): Promise<PatientFormState> {
+  await getDoctor()
+  const patient = readPatientForm(formData)
+  const problem = validate(patient)
+  if (problem) return { error: problem }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('patients').insert(patient).select('id').single()
+  if (error) return { error: 'Could not save the patient. Please try again.' }
+
+  redirect(`/app/patients/${data.id}/visits/new`)
+}
+
+export async function updatePatient(id: string, _prev: PatientFormState, formData: FormData): Promise<PatientFormState> {
+  await getDoctor()
+  const patient = readPatientForm(formData)
+  const problem = validate(patient)
+  if (problem) return { error: problem }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('patients').update(patient).eq('id', id)
+  if (error) return { error: 'Could not save the changes. Please try again.' }
+
+  redirect(`/app/patients/${id}`)
+}
+
+// Used while typing a phone number, to spot returning patients
+export async function lookupPhone(input: string) {
+  const phone = normalizePhone(input)
+  if (!isValidPhone(phone)) return []
+  const matches = await findPatientsByPhone(phone!)
+  return matches.map(({ id, name, date_of_birth }) => ({ id, name, date_of_birth }))
+}
