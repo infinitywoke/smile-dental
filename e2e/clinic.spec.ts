@@ -1,6 +1,8 @@
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { NO_TEST_LOGIN, testLogin } from './env'
+import { createClient } from '@supabase/supabase-js'
+import { addDays, blockInstant, formatBlock, formatDay, inIndia, isClosedDay } from '../src/lib/schedule'
+import { appEnv, NO_TEST_LOGIN, testLogin } from './env'
 
 // One patient's first visit, end to end, as the dedicated test account.
 // Every run makes its own patient and phone number, so runs never collide.
@@ -96,6 +98,84 @@ test('spots the returning patient when the same phone is typed', async () => {
 
   await expect(visible(page.getByText('Already a patient with this number'))).toBeVisible()
   await expect(visible(page.getByRole('link').filter({ hasText: patientName }))).toBeVisible()
+})
+
+test('the public booking page offers real times, no SOS, and a call note for evenings', async () => {
+  await page.goto('/book')
+  await expect(page.getByRole('heading', { name: 'Pick a time' })).toBeVisible()
+  await expect(page.getByText(/SOS|Emergency/i)).toHaveCount(0)
+  await expect(page.getByText(/after 7 PM/)).toBeVisible()
+
+  // Choose the first free day and time, fill the details, reach the review (nothing is sent)
+  await page.locator('button', { hasText: /^(Sun|Mon|Tue|Wed|Thu|Sat)/ }).first().click()
+  await page.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)$/ }).first().click()
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  await page.getByLabel('WhatsApp number').fill('9845021763')
+  await page.getByLabel('Full name').fill(`${runId} Public`)
+  await page.getByLabel('Date of birth').fill('1990-05-15')
+  await page.getByLabel('Address').fill('Pangala, Udupi')
+  await page.getByRole('button', { name: 'Tooth pain' }).click()
+  await page.getByRole('button', { name: 'Review' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Check and send' })).toBeVisible()
+  await expect(page.getByText(/in under 15 minutes|after 6 AM/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Send request' })).toBeVisible()
+})
+
+test('confirms a website request: slide to a block, save, WhatsApp confirmation for the patient', async () => {
+  // Make a request as the test account (the public form files requests under the clinic's own account)
+  let day = addDays(inIndia(new Date()).date, 2 + (Date.now() % 12))
+  while (isClosedDay(day)) day = addDays(day, 1)
+  const requestedStart = blockInstant(day, '10:30')
+
+  const supabase = createClient(appEnv.NEXT_PUBLIC_SUPABASE_URL!, appEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false },
+  })
+  const signedIn = await supabase.auth.signInWithPassword({ email: testLogin!.email, password: testLogin!.password })
+  expect(signedIn.error).toBeNull()
+  const requestPhone = `8${String(Date.now()).slice(-9)}`
+  const requestName = `${runId} Booker`
+  const inserted = await supabase.from('booking_requests').insert({
+    name: requestName, phone: requestPhone, date_of_birth: '1985-03-02', address: 'Katapadi',
+    medical_alerts: 'Diabetes', heard_from: 'Google', reason: 'Tooth pain', requested_start: requestedStart,
+    preferred_date: day, preferred_time: '10:30 AM', status: 'new', is_test: true,
+  }).select('id').single()
+  expect(inserted.error).toBeNull()
+
+  // It shows on Today, with the patient's details on the request screen
+  await page.goto('/app')
+  const card = visible(page.getByRole('link').filter({ hasText: requestName }))
+  await expect(card).toHaveCount(1)
+  await card.click()
+  await expect(page).toHaveURL(new RegExp(`/app/requests/${inserted.data!.id}`))
+  await expect(visible(page.getByText('Diabetes').first())).toBeVisible()
+  await expect(visible(page.getByText(`Asked for ${formatDay(day)}, ${formatBlock('10:30')}`))).toBeVisible()
+  await page.goto(`/app/requests/${inserted.data!.id}?d=${day}`)
+
+  // Move the name from 10:30 to 11:10 (tap), then save
+  await visible(page.getByRole('button', { name: /^11:10 AM/ })).click()
+  await expect(visible(page.getByText(/Placed at/))).toContainText('11:10 AM')
+
+  let whatsappUrl = ''
+  await page.route('https://wa.me/**', (route) => {
+    whatsappUrl = route.request().url()
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>WhatsApp</body></html>' })
+  })
+  await visible(page.getByRole('button', { name: 'Save and confirm' })).click()
+  await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
+
+  // The confirmation is addressed to the patient and names the new time
+  expect(whatsappUrl).toContain(`wa.me/91${requestPhone}`)
+  const text = new URL(whatsappUrl).searchParams.get('text') ?? ''
+  expect(text).toContain('confirmed')
+  expect(text).toContain(formatBlock('11:10'))
+
+  // The appointment is on the calendar, the request is gone from Today
+  await page.goto(`/app/calendar?d=${day}`)
+  await expect(visible(page.getByRole('link').filter({ hasText: requestName }))).toHaveCount(1)
+  await page.goto('/app')
+  await expect(visible(page.getByRole('link').filter({ hasText: requestName }))).toHaveCount(0)
 })
 
 test('deletes test patients in one go', async () => {

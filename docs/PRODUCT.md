@@ -11,7 +11,7 @@ The single source of truth for **what** we are building and **why**. Read this b
 
 ## Clinic facts the app must respect
 
-- **Hours:** 8:30 AM–1:00 PM and 2:30 PM–7:30 PM, every day **except Friday** (closed). Open Sundays. Lunch 1:00–2:30.
+- **Hours (from 2026-10-11):** 8:30 AM–12:30 PM and 2:00 PM–9:00 PM, every day **except Friday** (closed). Open Sundays. Break 12:30–2:00. Appointments are **40-minute blocks** (16 a day, last one ends 8:40 PM).
 - **Timezone:** India (Asia/Kolkata), whatever the server timezone.
 - **Price list:** `treatments` in `src/config/site.ts`, the same list the public website shows. **One price list for the website and the app.** Some prices are ranges (e.g. aligners `45,000/- to 65,000/-`) or formulas (`1,200/- + 400/-* number of additional teeth`); never strip digits blindly.
 - **UPI ID for payment QR codes:** `rahil.yusuf.k-1@okhdfcbank` (payee name "Smile Dental Clinic").
@@ -30,7 +30,7 @@ The single source of truth for **what** we are building and **why**. Read this b
 
 | # | Step | How it is captured |
 |---|---|---|
-| 0 | Before the visit: website booking, phone/WhatsApp, or walk-in | Website requests land in Today (Phase 5; for now they open WhatsApp to the clinic). Walk-ins are added directly. |
+| 0 | Before the visit: website booking, phone/WhatsApp, or walk-in | **Website:** the patient picks a free 40-minute block (at least 2 hours ahead, before 7 PM; evenings by phone), types the same details as a walk-in, and the request is saved and sent to the clinic's WhatsApp with a private link. In Clinic OS it appears on Today; Dr. Rahil opens it, slides the name into a block (or leaves it) and taps Save; the patient's WhatsApp confirmation opens ready to send. **Phone bookings** and time off are done on the Calendar tab. Walk-ins are added directly. |
 | 1 | Arrival and intake: name, date of birth, address, WhatsApp number, medical alerts, how they heard about us | **Typed** (no mic on this screen, by request). Returning patients are found by phone number. |
 | 2 | Examination and diagnosis | One **free-form note**, dictated or typed |
 | 3 | Treatment plan, quote and consent | Same free-form note |
@@ -73,3 +73,4 @@ The single source of truth for **what** we are building and **why**. Read this b
 - 2026-10-10 Sign-in is **email + password** via Supabase (Google was attempted but the Google console was unresponsive; may be added later). Sessions persist until Sign out.
 - 2026-10-10 Visits support **multiple photos with captions**. Camera and gallery are separate buttons (Android opens only the gallery when multiple selection is allowed).
 - 2026-10-10 No mic on the patient-details screen (typing is easier). Dictation **stays on until Stop**, with an animation.
+- 2026-10-11 **Online booking and calendar (Phase 5a).** Website SOS button removed. 40-minute blocks: 8:30 AM to 12:30 PM and 2:00 PM to 8:40 PM, Fridays closed. Patients may book only blocks starting **2+ hours ahead**; blocks from **7 PM** are by phone (clinic is open until 9 PM). Patient is told confirmation takes **under 15 minutes** (after 6 AM if requested between 9 PM and 6 AM). The request carries a private link into Clinic OS (a vCard is not possible from a WhatsApp link). Confirmation to the patient stays **one tap** on WhatsApp (Business API deferred).

@@ -78,7 +78,19 @@ export async function deleteTestPatients(): Promise<{ error?: string; deleted?: 
   const supabase = await createClient()
   const { data: testPatients, error } = await supabase.from('patients').select('id').eq('is_test', true)
   if (error) return { error: 'Could not find the test patients.' }
-  if (testPatients.length === 0) return { deleted: 0 }
+
+  // Test booking requests (from the website) go too, including ones not yet turned into patients
+  const { data: testRequests, error: requestsError } = await supabase
+    .from('booking_requests')
+    .delete()
+    .eq('is_test', true)
+    .select('id')
+  if (requestsError) return { error: 'Could not delete the test booking requests.' }
+
+  if (testPatients.length === 0) {
+    revalidatePath('/app', 'layout')
+    return { deleted: testRequests.length }
+  }
   const ids = testPatients.map((p) => p.id)
 
   // Collect photo files first; stop if that fails, so no files are orphaned

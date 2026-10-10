@@ -36,9 +36,12 @@ export default function PrivacyPage() {
         <Section title="1. What we collect">
           <p>
             <strong className="font-semibold text-gray-900">Through this website.</strong> If you
-            request an appointment, the form opens WhatsApp on your phone with a message to the clinic
-            containing the details you typed (such as your name, phone number, preferred time and reason
-            for the visit). Nothing is sent until you press Send in WhatsApp.
+            request an appointment, we save the details you typed (name, phone or WhatsApp number,
+            date of birth, address, any medical alerts, how you heard about us, the time you chose and
+            the reason for the visit) so the clinic can confirm your appointment and prepare for you.
+            The form then opens WhatsApp on your phone with a short message to the clinic; nothing is
+            sent on WhatsApp until you press Send. We keep these details in the same private records
+            as our patients' details, and only the clinic can see them.
           </p>
           <p>
             <strong className="font-semibold text-gray-900">At the clinic.</strong> When you visit us,

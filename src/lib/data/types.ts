@@ -127,13 +127,21 @@ export type BookingRequest = {
   owner_id: string
   name: string
   phone: string
+  // Older requests (before Phase 5a) have area + city instead of address
   area: string | null
   city: string | null
+  address: string | null
+  date_of_birth: string | null
+  medical_alerts: string | null
+  heard_from: string | null
   reason: string | null
   preferred_date: string | null
   preferred_time: string | null
+  // The block the patient asked for (a moment in time)
+  requested_start: string | null
   notes: string | null
   is_emergency: boolean
+  is_test: boolean
   // Sender's IP, kept only for rate limiting
   client_ip: string | null
   status: BookingRequestStatus
@@ -147,13 +155,24 @@ export type BookingRequest = {
 export type SubmitBookingRequestArgs = {
   p_name: string
   p_phone: string
-  p_area: string | null
-  p_city: string | null
+  p_date_of_birth: string | null
+  p_address: string | null
+  p_medical_alerts: string | null
+  p_heard_from: string | null
   p_reason: string | null
-  p_preferred_date: string | null
-  p_preferred_time: string | null
   p_notes: string | null
-  p_is_emergency: boolean
+  p_requested_start: string
+}
+
+// Time the doctor has blocked off; hidden from the website
+export type TimeOff = {
+  id: string
+  owner_id: string
+  starts_at: string
+  ends_at: string
+  note: string
+  created_at: string
+  updated_at: string
 }
 
 export type ReminderKind = 'appointment' | 'crown' | 'recall' | 'unfinished' | 'booking'

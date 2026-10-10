@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, UserPlus, Users, Wallet } from 'lucide-react'
+import { CalendarClock, CalendarDays, UserPlus, Users, Wallet } from 'lucide-react'
 
 const items = [
   { name: 'Today', href: '/app', icon: CalendarDays, match: (p: string) => p === '/app' || p.startsWith('/app/visits') },
+  { name: 'Calendar', href: '/app/calendar', icon: CalendarClock, match: (p: string) => p.startsWith('/app/calendar') || p.startsWith('/app/requests') || p.startsWith('/app/appointments') },
   { name: 'Patients', href: '/app/patients', icon: Users, match: (p: string) => p.startsWith('/app/patients') && p !== '/app/patients/new' },
   { name: 'New', href: '/app/patients/new', icon: UserPlus, match: (p: string) => p === '/app/patients/new' },
 ]

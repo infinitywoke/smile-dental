@@ -35,6 +35,9 @@ export default function LoginPage({ searchParams }: PageProps<'/login'>) {
         </Suspense>
 
         <form action={signIn} className="mt-8 space-y-4">
+          <Suspense fallback={null}>
+            <NextField searchParams={searchParams} />
+          </Suspense>
           <div>
             <label htmlFor="email" className="mb-1.5 block text-sm font-semibold text-gray-700">Email</label>
             <input id="email" name="email" type="email" autoComplete="email" required className={inputClass} />
@@ -57,6 +60,12 @@ export default function LoginPage({ searchParams }: PageProps<'/login'>) {
       </Link>
     </main>
   )
+}
+
+// Carries the page the doctor was opening through sign-in
+async function NextField({ searchParams }: { searchParams: PageProps<'/login'>['searchParams'] }) {
+  const { next } = await searchParams
+  return typeof next === 'string' ? <input type="hidden" name="next" value={next} /> : null
 }
 
 async function LoginError({ searchParams }: { searchParams: PageProps<'/login'>['searchParams'] }) {

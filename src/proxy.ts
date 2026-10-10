@@ -31,7 +31,10 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (pathname.startsWith('/app') && !signedIn) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    // Remember where they were going (e.g. a booking request opened from WhatsApp)
+    const login = new URL('/login', request.url)
+    if (pathname !== '/app') login.searchParams.set('next', pathname + request.nextUrl.search)
+    return NextResponse.redirect(login)
   }
   if (pathname === '/login' && signedIn) {
     return NextResponse.redirect(new URL('/app', request.url))

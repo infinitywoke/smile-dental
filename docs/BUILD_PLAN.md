@@ -30,7 +30,7 @@ Each item lists its **acceptance criteria**: what must be true on Dr. Rahil's ph
 - [ ] **Privacy page** rewritten: what's collected, AI processing by Anthropic, photos, WhatsApp.
 - [ ] **Home-screen app:** web manifest (name "Clinic OS", icon, standalone, start URL `/app`).
 
-### Phase 5a: online booking and calendar (NEXT; proposed 2026-10-11, awaiting owner go-ahead)
+### Phase 5a: online booking and calendar (BUILT 2026-10-11; waiting for the owner to run `supabase/patch-booking.sql`, then e2e and push)
 Owner request (2026-10-11): remove SOS, keep the booking page simple, show Dr. Rahil's real availability, and let him schedule or confirm a WhatsApp request in a few taps, with a confirmation going to the patient. Ships before the rest of Wave 1. When approved, update PRODUCT.md (hours, journey step 0, decision log).
 
 **Schedule (40-minute blocks, India time):**
@@ -42,7 +42,7 @@ Owner request (2026-10-11): remove SOS, keep the booking page simple, show Dr. R
 1. A block can be requested online only if it starts **at least 2 hours after the request**.
 2. Blocks starting **at 7 PM or later** (7:20, 8:00) are not bookable online. The website says "For 7:20 or 8:00 PM, please call the clinic" (tap to call). Dr. Rahil can still book them in the app (appointments run until 9 PM).
 3. Fridays, breaks, Dr. Rahil's time off, booked blocks and blocks held by another pending request are never offered. Booking window: the next 4 weeks.
-- Together these give the owner's rule: requests made **6 AM–5 PM** get same-day blocks at least 2 hours away. From 5 PM nothing is left online that day (5 PM + 2 h = 7 PM), and night requests start the next day at 8:30, so he has at least 2 hours from 6 AM.
+- Together these give the owner's rule: requests made **6 AM–5 PM** get same-day blocks at least 2 hours away. The last online block is 6:40 PM, so nothing is left for the same day after 4:40 PM; night requests start the next day at 8:30, so he has at least 2 hours from 6 AM.
   - Examples: request at 10:00 AM → earliest 2:00 PM; 4:30 PM → 6:40 PM; 5:30 PM or 11 PM → tomorrow 8:30 AM.
 - The patient is told: "Dr. Rahil will confirm on WhatsApp in **under 15 minutes**." Requests sent 9 PM–6 AM say "confirmed after 6 AM" instead *(owner to confirm)*.
 
@@ -88,6 +88,12 @@ Owner request (2026-10-11): remove SOS, keep the booking page simple, show Dr. R
 - The WhatsApp link opens the request in Clinic OS with every typed detail filled in.
 - Leave the chip or slide it → **Save** → WhatsApp opens on the patient's chat with the confirmation. The block then disappears from the website.
 - Blocking time or closing a day removes it from the website. Booking the same block twice is refused.
+
+**Built (2026-10-11), by the orchestrator inline:**
+- `supabase/patch-booking.sql` + 94 database checks (PGlite, clock pinned through `clinic_now()`), `src/lib/schedule.ts` + 11 unit tests, `src/lib/whatsapp.ts`.
+- Website: `/book` (3 steps), `src/lib/actions/booking.ts`. Clinic OS: `/app/calendar`, `/app/calendar/book`, `/app/requests/[id]`, `/app/appointments/[id]`, Today cards, Calendar tab, sign-in returns to the page opened from WhatsApp.
+- Pending: owner runs the SQL; e2e (public page + request -> slide/tap -> save -> WhatsApp); push; Dr. Rahil's phone test; update the Google Business Profile hours.
+- Known limits: the public request files under the clinic account, so e2e creates its test request as the test account (the public RPC path is covered by the database checks). The drag gesture is tested by hand; e2e uses the tap fallback.
 
 **Build order** (lean workflow, section 4):
 1. **De-risk (1 minute, Dr. Rahil):** tap a test `/app` link in WhatsApp. Does it open Clinic OS signed in? (The home-screen app or Chrome are both fine; only WhatsApp's own browser would need a tweak.)

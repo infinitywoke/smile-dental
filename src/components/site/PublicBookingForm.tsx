@@ -1,392 +1,263 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Calendar, User, Phone, CheckCircle2, ArrowLeft, ArrowRight, ClipboardList, MapPin, AlertCircle, X } from 'lucide-react'
+import { useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarCheck, Clock, MessageCircle, Phone } from 'lucide-react'
 import { siteConfig } from '@/config/site'
-
-type BookingData = {
-  name: string
-  phone: string
-  dob: string
-  medical_alerts: string
-  heard_from: string
-  location: string
-  city: string
-  reason: string
-  notes: string
-  preferred_date: string
-  preferred_time: string
-  preferred_time_ampm: 'AM' | 'PM'
-}
+import { submitBookingRequest } from '@/lib/actions/booking'
+import { isValidPhone, normalizePhone } from '@/lib/phone'
+import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
 
 // Same options the clinic app offers when a new patient walks in
 const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Instagram', 'Doctor referral']
+const REASONS = ['Check-up / cleaning', 'Tooth pain', 'Consultation', 'Other']
 
-const MORNING_SLOTS = ["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00"]
-const AFTERNOON_SLOTS = ["14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"]
+const inputClass =
+  'block w-full rounded-lg border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
+const labelClass = 'mb-1.5 block text-sm font-semibold text-gray-700'
 
-function formatTimeDisplay(time24: string) {
-  const [h, m] = time24.split(':')
-  let hours = parseInt(h, 10)
-  const ampm = hours >= 12 ? 'PM' : 'AM'
-  if (hours > 12) hours -= 12
-  if (hours === 0) hours = 12
-  return `${hours}:${m} ${ampm}`
+type Details = {
+  phone: string
+  name: string
+  dateOfBirth: string
+  address: string
+  medicalAlerts: string
+  heardFrom: string
+  reason: string
+  notes: string
 }
 
-function parseTimeForData(time24: string): { time: string, ampm: 'AM' | 'PM' } {
-  const [h, m] = time24.split(':')
-  let hours = parseInt(h, 10)
-  const ampm = hours >= 12 ? 'PM' : 'AM'
-  if (hours > 12) hours -= 12
-  if (hours === 0) hours = 12
-  const time = `${hours.toString().padStart(2, '0')}:${m}`
-  return { time, ampm }
+type Props = {
+  // Free blocks, as ISO moments (from the database)
+  slots: string[]
+  // "Dr. Rahil will confirm ... in under 15 minutes."
+  promise: string
+  // Today in India, to keep the date of birth picker sensible
+  today: string
+  // Set when the visitor came from a treatment page ("Book Root Canal")
+  initialReason?: string
 }
 
-function getLocalDateString(d: Date = new Date()): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-export function PublicBookingForm() {
-  const [step, setStep] = useState<number>(1)
-  const [success, setSuccess] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
-  const [isSOS, setIsSOS] = useState(false)
-
-  const [data, setData] = useState<BookingData>({
-    name: '',
-    phone: '',
-    dob: '',
-    medical_alerts: '',
-    heard_from: '',
-    location: '',
-    city: '',
-    reason: '',
-    notes: '',
-    preferred_date: '',
-    preferred_time: '',
-    preferred_time_ampm: 'AM'
+export function PublicBookingForm({ slots, promise, today, initialReason = '' }: Props) {
+  const router = useRouter()
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [pickedDay, setPickedDay] = useState<string | null>(null)
+  const [picked, setPicked] = useState<string | null>(null)
+  const [details, setDetails] = useState<Details>({
+    phone: '', name: '', dateOfBirth: '', address: '', medicalAlerts: '', heardFrom: '', reason: initialReason.slice(0, 100), notes: '',
   })
+  const [error, setError] = useState<string | null>(null)
+  const [sentId, setSentId] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !data.reason) {
-      const urlParams = new URLSearchParams(window.location.search)
-      const reasonParam = urlParams.get('reason')
-      if (reasonParam) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setData(prev => ({ ...prev, reason: reasonParam }))
-      }
+  // Free times grouped by day
+  const days = useMemo(() => {
+    const byDay = new Map<string, string[]>()
+    for (const slot of slots) {
+      const { date } = inIndia(slot)
+      byDay.set(date, [...(byDay.get(date) ?? []), slot])
     }
-  }, [])
+    return byDay
+  }, [slots])
 
-  const updateData = (updates: Partial<BookingData>) => {
-    setData(prev => ({ ...prev, ...updates }))
-  }
+  const dayKeys = [...days.keys()]
+  const activeDay = pickedDay && days.has(pickedDay) ? pickedDay : null
+  const set = (patch: Partial<Details>) => setDetails((d) => ({ ...d, ...patch }))
 
-  const handleNext = () => setStep(s => Math.min(s + 1, 4))
-  const handleBack = () => setStep(s => Math.max(s - 1, 1))
+  const phoneOk = isValidPhone(normalizePhone(details.phone))
+  const detailsOk = phoneOk && details.name.trim().length >= 2 && !!details.dateOfBirth && details.address.trim().length > 0 && !!details.reason
+  const callHref = `tel:${siteConfig.phone.replace(/[^\d+]/g, '')}`
 
-  const handleSOS = () => {
-    setIsSOS(true)
+  function submit() {
+    if (!picked) return
     setError(null)
-
-    try {
-      const allSlots = [...MORNING_SLOTS, ...AFTERNOON_SLOTS]
-      const now = new Date()
-      const checkDate = new Date()
-      let foundDateStr = ''
-      let foundTime24 = ''
-
-      // Look up to 7 days ahead for the earliest slot within clinic hours
-      for (let i = 0; i < 7; i++) {
-        // Skip Fridays
-        if (checkDate.getDay() === 5) {
-          checkDate.setDate(checkDate.getDate() + 1)
-          continue
-        }
-
-        const dateStr = getLocalDateString(checkDate)
-        const isToday = dateStr === getLocalDateString(now)
-
-        for (const time24 of allSlots) {
-          if (isToday) {
-            const [h, m] = time24.split(':').map(Number)
-            const currentHour = now.getHours()
-            const currentMinute = now.getMinutes()
-            if (h < currentHour || (h === currentHour && m <= currentMinute)) {
-              continue // Slot has passed today
-            }
-          }
-          
-          // Found earliest available slot!
-          foundDateStr = dateStr
-          foundTime24 = time24
-          break
-        }
-        
-        if (foundDateStr) break;
-        checkDate.setDate(checkDate.getDate() + 1)
+    startTransition(async () => {
+      const result = await submitBookingRequest({
+        name: details.name,
+        phone: details.phone,
+        dateOfBirth: details.dateOfBirth,
+        address: details.address,
+        medicalAlerts: details.medicalAlerts,
+        heardFrom: details.heardFrom,
+        reason: details.reason,
+        notes: details.notes,
+        requestedStart: picked,
+      })
+      if (result.ok) {
+        setSentId(result.id)
+        return
       }
-      
-      if (!foundDateStr) {
-        throw new Error("No available slots found in the next 7 days. Please call the clinic directly.")
+      setError(result.error)
+      // The time was probably taken meanwhile: reload the free times and go back to choose again
+      if (/no longer available|available times/i.test(result.error)) {
+        setPicked(null)
+        setStep(1)
+        router.refresh()
       }
-
-      const { time, ampm } = parseTimeForData(foundTime24)
-      updateData({ preferred_date: foundDateStr, preferred_time: time, preferred_time_ampm: ampm, reason: 'EMERGENCY' })
-      
-    } catch (err) {
-      setError((err instanceof Error && err.message) || "Failed to find an emergency slot. Please call the clinic directly.")
-    }
+    })
   }
 
-  const handleCloseSOS = () => {
-    setIsSOS(false)
-    // Only proceed to step 4 if we actually found a date (no error occurred)
-    if (data.preferred_date && data.preferred_time) {
-      setStep(4)
-    }
-  }
-
-  const handleSlotSelect = (time24: string) => {
-    const { time, ampm } = parseTimeForData(time24)
-    updateData({ preferred_time: time, preferred_time_ampm: ampm })
-  }
-
-  // Booking requests are sent to the clinic's WhatsApp as a pre-filled message
-  const buildWhatsAppUrl = () => {
-    const lines = [
-      data.reason === 'EMERGENCY' ? '*EMERGENCY appointment request (website)*' : '*Appointment request (website)*',
-      `Name: ${data.name}`,
-      `Phone: ${data.phone}`,
-      ...(data.dob ? [`Date of birth: ${new Date(data.dob).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`] : []),
-      `Area: ${data.location}, ${data.city}`,
-      `Medical alerts: ${data.medical_alerts.trim() || 'None'}`,
-      ...(data.heard_from.trim() ? [`Heard about us: ${data.heard_from.trim()}`] : []),
-      `Reason: ${data.reason}`,
-      `Preferred: ${new Date(data.preferred_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}, ${data.preferred_time ? `${data.preferred_time} ${data.preferred_time_ampm}` : 'any time'}`,
-    ]
-    if (data.notes.trim()) lines.push(`Notes: ${data.notes.trim()}`)
-    return `https://wa.me/${siteConfig.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(lines.join('\n'))}`
-  }
-
-  const handleSubmit = () => {
-    setError(null)
-    const url = buildWhatsAppUrl()
-    const opened = window.open(url, '_blank')
-    if (opened) opened.opener = null
-    else window.location.href = url
-    setSuccess(true)
-  }
-
-  if (success) {
+  // ---- After saving: one tap sends the WhatsApp message that alerts the clinic ----
+  if (sentId && picked) {
+    const link = `${window.location.origin}/app/requests/${sentId}`
+    const message = bookingRequestMessage({
+      name: details.name.trim(),
+      phone: normalizePhone(details.phone) ?? details.phone,
+      startsAt: picked,
+      reason: details.reason,
+      link,
+    })
+    const { date, time } = inIndia(picked)
     return (
-      <div className="max-w-md mx-auto mt-12 bg-white rounded-xl shadow-lg border border-gray-100 p-8 text-center">
-        <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6">
-          <CheckCircle2 className="w-10 h-10 text-green-600" />
+      <div className="mx-auto mt-10 max-w-md space-y-5 rounded-2xl bg-white p-6 text-center shadow-lg ring-1 ring-gray-100 sm:p-8">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+          <CalendarCheck className="h-9 w-9 text-green-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Almost done!</h2>
-        <p className="text-gray-600 mb-6">
-          Thank you, {data.name}. Your request is ready in WhatsApp — just tap <strong>Send</strong>. We&apos;ll reply on {data.phone} to confirm your appointment time.
-        </p>
-        <a
-          href={buildWhatsAppUrl()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
-        >
-          WhatsApp didn&apos;t open? Tap here
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Request saved</h2>
+          <p className="mt-2 text-gray-600">
+            {details.name.trim()}, we have your request for<br />
+            <strong>{formatDay(date)}, {formatBlock(time)}</strong>.
+          </p>
+        </div>
+        <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
+          <p className="font-semibold">One last step: tap the button below, then press Send in WhatsApp.</p>
+          <p className="mt-1">This is how the clinic gets alerted.</p>
+        </div>
+        <a href={clinicWhatsappLink(message)} target="_blank" rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-green-700">
+          <MessageCircle className="h-6 w-6" />
+          Send on WhatsApp
         </a>
+        <p className="text-sm text-gray-600">{promise}</p>
       </div>
     )
   }
 
-  const isFriday = data.preferred_date ? new Date(data.preferred_date).getDay() === 5 : false
-  
-  const isPast = (time24: string) => {
-    if (!data.preferred_date) return false;
-    const todayStr = getLocalDateString();
-    const isToday = data.preferred_date === todayStr;
-    if (!isToday) return false;
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const [h, m] = time24.split(':').map(Number);
-    return h < currentHour || (h === currentHour && m <= currentMinute);
-  };
-
-  const selectedTime24 = (() => {
-    if (!data.preferred_time) return null
-    const [h, m] = data.preferred_time.split(':')
-    let hours = parseInt(h, 10)
-    if (data.preferred_time_ampm === 'PM' && hours !== 12) hours += 12
-    if (data.preferred_time_ampm === 'AM' && hours === 12) hours = 0
-    return `${hours.toString().padStart(2, '0')}:${m}`
-  })()
-
   return (
-    <div className="max-w-md mx-auto mt-12 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-      <div className="bg-gray-100 h-1.5 w-full">
-        <div 
-          className="bg-blue-600 h-1.5 transition-all duration-300 ease-in-out" 
-          style={{ width: `${(step / 4) * 100}%` }}
-        />
+    <div className="mx-auto mt-10 max-w-md overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-gray-100">
+      <div className="h-1.5 w-full bg-gray-100">
+        <div className="h-1.5 bg-blue-600 transition-all duration-300" style={{ width: `${(step / 3) * 100}%` }} />
       </div>
 
       <div className="p-6 sm:p-8">
         {error && (
-          <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-lg text-sm flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div className="mb-6 flex items-start gap-3 rounded-lg bg-red-50 p-4 text-sm text-red-700" role="alert">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <p>{error}</p>
           </div>
         )}
 
         {step === 1 && (
-          <div className="space-y-6">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Your Details</h2>
-              <p className="text-gray-500 mt-2">Let us know how to reach you.</p>
+          <div className="space-y-5">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900">Pick a time</h2>
+              <p className="mt-2 text-gray-500">Each visit is a 40-minute slot.</p>
             </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  value={data.name}
-                  onChange={(e) => updateData({ name: e.target.value })}
-                  className="pl-11 block w-full rounded-lg border-gray-300 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="John Doe"
-                  autoFocus
-                />
+
+            {dayKeys.length === 0 ? (
+              <div className="rounded-xl bg-gray-50 p-5 text-center text-gray-700">
+                <p className="font-semibold">No online times are free right now.</p>
+                <a href={callHref} className="mt-3 inline-flex items-center gap-2 font-bold text-blue-700">
+                  <Phone className="h-4 w-4" /> Call {siteConfig.phone}
+                </a>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-gray-400" />
+            ) : (
+              <>
+                <div>
+                  <p className={labelClass}>Day</p>
+                  <div className="-mx-6 flex snap-x gap-2 overflow-x-auto px-6 pb-2 sm:-mx-8 sm:px-8">
+                    {dayKeys.map((day) => (
+                      <button key={day} type="button"
+                        onClick={() => { setPickedDay(day); setPicked(null) }}
+                        className={`shrink-0 snap-start rounded-xl px-3 py-2 text-center text-sm font-semibold ring-1 ring-inset ${
+                          activeDay === day ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300 hover:ring-blue-400'
+                        }`}>
+                        <span className="block text-xs font-medium opacity-80">{formatDay(day).split(',')[0]}</span>
+                        <span className="block">{formatDay(day).split(', ')[1]}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-400">Closed on Fridays.</p>
                 </div>
-                <input
-                  type="tel"
-                  value={data.phone}
-                  onChange={(e) => updateData({ phone: e.target.value })}
-                  className="pl-11 block w-full rounded-lg border-gray-300 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="+91 98765 43210"
-                />
-              </div>
+
+                {activeDay && (
+                  <div>
+                    <p className={labelClass}>Time</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {days.get(activeDay)!.map((slot) => {
+                        const label = formatBlock(inIndia(slot).time)
+                        return (
+                          <button key={slot} type="button" onClick={() => setPicked(slot)}
+                            className={`rounded-lg px-1 py-2.5 text-sm font-semibold ring-1 ring-inset ${
+                              picked === slot ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300 hover:ring-blue-400'
+                            }`}>
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex items-start gap-3 rounded-xl bg-gray-50 p-4 text-sm text-gray-700">
+              <Clock className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+              <p>
+                Need a time after <b>7 PM</b> (open until 9 PM)?{' '}
+                <a href={callHref} className="font-bold text-blue-700">Please call {siteConfig.phone}</a> to book.
+              </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Calendar className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="date"
-                  value={data.dob}
-                  onChange={(e) => updateData({ dob: e.target.value })}
-                  max={getLocalDateString()}
-                  className="pl-11 block w-full rounded-lg border-gray-300 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Locality / Area</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <MapPin className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  value={data.location}
-                  onChange={(e) => updateData({ location: e.target.value })}
-                  className="pl-11 block w-full rounded-lg border-gray-300 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="e.g., Yenna Gudde"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">City / Town</label>
-              <input
-                type="text"
-                value={data.city}
-                onChange={(e) => updateData({ city: e.target.value })}
-                className="block w-full rounded-lg border-gray-300 py-3 px-4 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="e.g., Udupi"
-              />
-            </div>
-
-            <button
-              onClick={handleNext}
-              disabled={!data.name.trim() || !data.phone.trim() || !data.dob || !data.city.trim() || !data.location.trim()}
-              className="w-full mt-8 flex items-center justify-center gap-2 py-3.5 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Continue <ArrowRight className="w-5 h-5" />
+            <button type="button" onClick={() => setStep(2)} disabled={!picked}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3.5 text-base font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+              Continue <ArrowRight className="h-5 w-5" />
             </button>
           </div>
         )}
 
         {step === 2 && (
-          <div className="space-y-6">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Why are you visiting?</h2>
-              <p className="text-gray-500 mt-2">Help us prepare for your visit.</p>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Reason for Visit</label>
-              <select
-                value={data.reason}
-                onChange={(e) => updateData({ reason: e.target.value })}
-                className="block w-full rounded-lg border-gray-300 py-3 px-4 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm bg-white"
-                autoFocus
-              >
-                <option value="">Select a reason...</option>
-                <option value="General Checkup">General Checkup / Cleaning</option>
-                <option value="Tooth Pain">Tooth Pain</option>
-                <option value="Consultation">Consultation</option>
-                <option value="Other">Other</option>
-              </select>
+          <div className="space-y-5">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900">Your details</h2>
+              <p className="mt-2 text-gray-500">So the clinic can prepare for you.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Alerts (Optional)</label>
-              <textarea
-                value={data.medical_alerts}
-                onChange={(e) => updateData({ medical_alerts: e.target.value })}
-                rows={2}
-                className="block w-full rounded-lg border-gray-300 py-3 px-4 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="Allergies, diabetes, BP, blood thinners, regular medicines… Leave empty if none."
-              />
+              <label htmlFor="phone" className={labelClass}>WhatsApp number</label>
+              <input id="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="98450 21763"
+                value={details.phone} onChange={(e) => set({ phone: e.target.value })} className={inputClass} />
+              <p className="mt-1 text-xs text-gray-400">We will send your confirmation here.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">How did you hear about us? (Optional)</label>
+              <label htmlFor="name" className={labelClass}>Full name</label>
+              <input id="name" autoComplete="name" placeholder="Prakash Shetty"
+                value={details.name} onChange={(e) => set({ name: e.target.value })} className={inputClass} />
+            </div>
+
+            <div>
+              <label htmlFor="dob" className={labelClass}>Date of birth</label>
+              <input id="dob" type="date" max={today} autoComplete="bday"
+                value={details.dateOfBirth} onChange={(e) => set({ dateOfBirth: e.target.value })} className={inputClass} />
+            </div>
+
+            <div>
+              <label htmlFor="address" className={labelClass}>Address</label>
+              <textarea id="address" rows={2} autoComplete="street-address" placeholder="Pangala, Udupi"
+                value={details.address} onChange={(e) => set({ address: e.target.value })} className={inputClass} />
+            </div>
+
+            <div>
+              <p className={labelClass}>Reason for visit</p>
               <div className="flex flex-wrap gap-2">
-                {HEARD_FROM.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => updateData({ heard_from: data.heard_from === option ? '' : option })}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
-                      data.heard_from === option
-                        ? 'bg-blue-600 border-blue-600 text-white'
-                        : 'bg-white border-gray-300 text-gray-700 hover:border-blue-500'
-                    }`}
-                  >
+                {REASONS.map((option) => (
+                  <button key={option} type="button" onClick={() => set({ reason: details.reason === option ? '' : option })}
+                    className={`rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${
+                      details.reason === option ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'
+                    }`}>
                     {option}
                   </button>
                 ))}
@@ -394,254 +265,85 @@ export function PublicBookingForm() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Additional Notes (Optional)</label>
-              <textarea
-                value={data.notes}
-                onChange={(e) => updateData({ notes: e.target.value })}
-                rows={3}
-                className="block w-full rounded-lg border-gray-300 py-3 px-4 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="Any details you'd like us to know?"
-              />
+              <label htmlFor="alerts" className={labelClass}>Medical alerts <span className="font-normal text-gray-400">(optional)</span></label>
+              <textarea id="alerts" rows={2} placeholder="Allergies, diabetes, BP, blood thinners… Leave empty if none."
+                value={details.medicalAlerts} onChange={(e) => set({ medicalAlerts: e.target.value })} className={inputClass} />
             </div>
 
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={handleBack}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-lg text-base font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" /> Back
-              </button>
-              <button
-                onClick={handleNext}
-                disabled={!data.reason}
-                className="flex-[2] flex items-center justify-center gap-2 py-3.5 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Continue <ArrowRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">When works best?</h2>
-              <p className="text-gray-500 mt-2">Choose your preferred date & time.</p>
-            </div>
-
-            {/* SOS Button Section */}
-            {!isSOS ? (
-              <button 
-                onClick={handleSOS}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-red-50 text-red-600 font-semibold border border-red-200 hover:bg-red-100 transition-colors mb-6"
-              >
-                <AlertCircle className="w-5 h-5" />
-                SOS / This is an Emergency
-              </button>
-            ) : (
-              <div className="w-full bg-red-600 text-white rounded-lg p-4 mb-6 relative shadow-lg">
-                <button 
-                  onClick={handleCloseSOS}
-                  className="absolute top-2 right-2 text-red-200 hover:text-white p-1 rounded-full hover:bg-red-700 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-                <div className="flex flex-col items-center text-center space-y-2 mt-2">
-                  <AlertCircle className="w-8 h-8 text-red-200" />
-                  <h3 className="font-bold text-lg">Emergency Assistance</h3>
-                  <p className="text-red-100 text-sm mb-2">Please call the clinic immediately to confirm an urgent slot:</p>
-                  <a href={`tel:${siteConfig.phone.replace(/\D/g,'')}`} className="text-2xl font-black tracking-wider hover:underline">
-                    {siteConfig.phone}
-                  </a>
-                  <p className="text-xs text-red-200 mt-2">Close this banner to proceed with the earliest available appointment request.</p>
-                </div>
-              </div>
-            )}
-            
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Preferred Date</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Calendar className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="date"
-                  value={data.preferred_date}
-                  onChange={(e) => updateData({ preferred_date: e.target.value })}
-                  min={getLocalDateString()}
-                  className="pl-11 block w-full rounded-lg border-gray-300 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
+              <p className={labelClass}>How did you hear about us? <span className="font-normal text-gray-400">(optional)</span></p>
+              <div className="flex flex-wrap gap-2">
+                {HEARD_FROM.map((option) => (
+                  <button key={option} type="button" onClick={() => set({ heardFrom: details.heardFrom === option ? '' : option })}
+                    className={`rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${
+                      details.heardFrom === option ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'
+                    }`}>
+                    {option}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {data.preferred_date && isFriday && (
-              <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded-lg text-center font-medium">
-                Our clinic is closed on Fridays. Please select another date.
-              </div>
-            )}
+            <div>
+              <label htmlFor="notes" className={labelClass}>Anything else? <span className="font-normal text-gray-400">(optional)</span></label>
+              <textarea id="notes" rows={2} placeholder="Anything you'd like us to know"
+                value={details.notes} onChange={(e) => set({ notes: e.target.value })} className={inputClass} />
+            </div>
 
-            {data.preferred_date && !isFriday && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-4 flex justify-between items-center">
-                  <span>Available Time Slots</span>
-                </label>
-                
-                <div className="space-y-6">
-                  {/* Morning Slots */}
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Morning</h4>
-                    <div className="grid grid-cols-3 gap-2">
-                      {MORNING_SLOTS.map(time24 => {
-                        const isBooked = isPast(time24)
-                        const isSelected = selectedTime24 === time24
-                        return (
-                          <button
-                            key={time24}
-                            disabled={isBooked}
-                            onClick={() => handleSlotSelect(time24)}
-                            className={`py-2 px-1 text-sm font-medium rounded-md border text-center transition-all ${
-                              isBooked 
-                                ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' 
-                                : isSelected
-                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                                : 'bg-white border-gray-300 text-gray-700 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50'
-                            }`}
-                          >
-                            {formatTimeDisplay(time24)}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Lunch Break Divider */}
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                      <div className="w-full border-t border-gray-200" />
-                    </div>
-                    <div className="relative flex justify-center">
-                      <span className="bg-white px-3 text-xs font-semibold text-gray-400 uppercase">Lunch Break (1:00 PM - 2:30 PM)</span>
-                    </div>
-                  </div>
-
-                  {/* Afternoon Slots */}
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Afternoon</h4>
-                    <div className="grid grid-cols-3 gap-2">
-                      {AFTERNOON_SLOTS.map(time24 => {
-                        const isBooked = isPast(time24)
-                        const isSelected = selectedTime24 === time24
-                        return (
-                          <button
-                            key={time24}
-                            disabled={isBooked}
-                            onClick={() => handleSlotSelect(time24)}
-                            className={`py-2 px-1 text-sm font-medium rounded-md border text-center transition-all ${
-                              isBooked 
-                                ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' 
-                                : isSelected
-                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                                : 'bg-white border-gray-300 text-gray-700 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50'
-                            }`}
-                          >
-                            {formatTimeDisplay(time24)}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={handleBack}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-lg text-base font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" /> Back
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setStep(1)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-3.5 text-base font-medium text-gray-700 hover:bg-gray-200">
+                <ArrowLeft className="h-5 w-5" /> Back
               </button>
-              <button
-                onClick={handleNext}
-                disabled={!data.preferred_date || isFriday || (!data.preferred_time && !isSOS)}
-                className="flex-[2] flex items-center justify-center gap-2 py-3.5 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Review <ArrowRight className="w-5 h-5" />
+              <button type="button" onClick={() => setStep(3)} disabled={!detailsOk}
+                className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3.5 text-base font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                Review <ArrowRight className="h-5 w-5" />
               </button>
             </div>
           </div>
         )}
 
-        {step === 4 && (
-          <div className="space-y-6">
-            <div className="text-center mb-8">
-              <ClipboardList className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900">Review Request</h2>
-              <p className="text-gray-500 mt-2">Almost done! Please review your details.</p>
-            </div>
-            
-            <div className="bg-gray-50 rounded-xl p-6 space-y-4 border border-gray-100 text-sm">
-              <div className="flex justify-between border-b border-gray-200 pb-3">
-                <span className="text-gray-500">Name</span>
-                <span className="font-medium text-gray-900">{data.name}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-3">
-                <span className="text-gray-500">Phone</span>
-                <span className="font-medium text-gray-900">{data.phone}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-3">
-                <span className="text-gray-500">Date of birth</span>
-                <span className="font-medium text-gray-900">{data.dob ? new Date(data.dob).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-3">
-                <span className="text-gray-500">Locality/Area</span>
-                <span className="font-medium text-gray-900">{data.location}, {data.city}</span>
-              </div>
-              <div className="flex justify-between gap-4 border-b border-gray-200 pb-3">
-                <span className="text-gray-500 shrink-0">Medical alerts</span>
-                <span className="font-medium text-gray-900 text-right">{data.medical_alerts.trim() || 'None'}</span>
-              </div>
-              {data.heard_from.trim() && (
-                <div className="flex justify-between border-b border-gray-200 pb-3">
-                  <span className="text-gray-500">Heard about us</span>
-                  <span className="font-medium text-gray-900">{data.heard_from}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-b border-gray-200 pb-3">
-                <span className="text-gray-500">Reason</span>
-                <span className="font-medium text-gray-900">{data.reason}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-3">
-                <span className="text-gray-500">Date</span>
-                <span className="font-medium text-gray-900">{new Date(data.preferred_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Time</span>
-                <span className="font-medium text-gray-900">{data.preferred_time ? `${data.preferred_time} ${data.preferred_time_ampm}` : 'Any time'}</span>
-              </div>
+        {step === 3 && picked && (
+          <div className="space-y-5">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900">Check and send</h2>
+              <p className="mt-2 text-gray-500">{promise}</p>
             </div>
 
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={handleBack}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-lg text-base font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
-              >
-                <ArrowLeft className="w-5 h-5" /> Edit
+            <dl className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-5 text-sm">
+              <Row label="When" value={`${formatDay(inIndia(picked).date)}, ${formatBlock(inIndia(picked).time)}`} />
+              <Row label="Name" value={details.name.trim()} />
+              <Row label="WhatsApp" value={details.phone.trim()} />
+              <Row label="Date of birth" value={details.dateOfBirth} />
+              <Row label="Address" value={details.address.trim()} />
+              <Row label="Reason" value={details.reason} />
+              <Row label="Medical alerts" value={details.medicalAlerts.trim() || 'None'} />
+              {details.heardFrom && <Row label="Heard about us" value={details.heardFrom} />}
+              {details.notes.trim() && <Row label="Note" value={details.notes.trim()} />}
+            </dl>
+
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setStep(2)} disabled={pending}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-3.5 text-base font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50">
+                <ArrowLeft className="h-5 w-5" /> Edit
               </button>
-              <button
-                onClick={handleSubmit}
-                className="flex-[2] flex items-center justify-center gap-2 py-3.5 px-4 border border-transparent rounded-lg shadow-lg shadow-blue-500/30 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-              >
-                Send Request on WhatsApp
+              <button type="button" onClick={submit} disabled={pending}
+                className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 disabled:opacity-60">
+                {pending ? 'Sending…' : 'Send request'}
               </button>
             </div>
-            
-            <p className="text-xs text-center text-gray-400 mt-4">
-              This opens WhatsApp with your request. The clinic will reply to confirm the exact time.
-            </p>
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 last:border-0 last:pb-0">
+      <dt className="shrink-0 text-gray-500">{label}</dt>
+      <dd className="text-right font-medium text-gray-900">{value}</dd>
     </div>
   )
 }
