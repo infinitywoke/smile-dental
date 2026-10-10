@@ -2,7 +2,7 @@
 
 **How** and **in what order** the rest of Clinic OS gets built. Read [PRODUCT.md](PRODUCT.md) first for the *what* and *why*, and [../AGENTS.md](../AGENTS.md) for coding rules.
 
-Status as of **2026-10-10**.
+Status as of **2026-10-11**.
 
 ---
 
@@ -10,13 +10,13 @@ Status as of **2026-10-10**.
 
 | Area | State |
 |---|---|
-| **Website** | Live. All pages/assets moved from the old repo. Booking form opens WhatsApp to the clinic (temporary until Phase 5). |
+| **Website** | Live. All pages/assets moved from the old repo. Booking form collects the walk-in patient details and opens WhatsApp to the clinic (temporary until Phase 5a). |
 | **Hosting** | Vercel (`smile-dental-hin3.vercel.app`), auto-deploys `main` from the private GitHub repo `infinitywoke/smile-dental`. |
 | **Auth** | Supabase email + password, locked to `ALLOWED_EMAIL`; sign-ups disabled in Supabase; session persists until Sign out. |
 | **Phase 1: foundation** | Done and verified on the phone. |
 | **Phase 2: patients and visits** | Done and verified on localhost: Today list, patient search (name/phone), new patient with returning-patient detection, patient page, visits with notes + dictation + captioned photos (private storage), photo viewer, delete visit. DB: `supabase/phase2.sql` (applied to the new project). |
 | **Wave 0** | Done 2026-10-10 (agent swarm): review fixes, 124 unit tests, 7 end-to-end tests passing against the real app with the test login, `supabase/phase3-5.sql` (91 checks in local Postgres; **owner must run it in the SQL Editor**), shared types, AI scaffolding (`src/lib/ai/`), price parsing, privacy page, home-screen manifest. |
-| **Next** | Owner runs `phase3-5.sql`; add `ANTHROPIC_API_KEY`; then Wave 1. Open items for Wave 1: store `version` in `visits.summary`; maybe `treatment_slug` on plan items; set `maxDuration` on the Claude route; update privacy page when share links / booking storage ship. |
+| **Next** | Owner ran `phase3-5.sql` and added `ANTHROPIC_API_KEY` in Vercel (2026-10-11; also needed in `.env.local` for local runs). **Phase 5a (online booking + calendar) is next, awaiting the owner's go-ahead**; then the rest of Wave 1. Open items for Wave 1: store `version` in `visits.summary`; maybe `treatment_slug` on plan items; set `maxDuration` on the Claude route; update privacy page when share links / booking storage ship. |
 
 ## 2. What is left
 
@@ -29,6 +29,77 @@ Each item lists its **acceptance criteria**: what must be true on Dr. Rahil's ph
 - [ ] **Schema contract** for Phases 3–5 (section 3) as one SQL file, plus shared TypeScript types and a Claude client module (`src/lib/ai/`).
 - [ ] **Privacy page** rewritten: what's collected, AI processing by Anthropic, photos, WhatsApp.
 - [ ] **Home-screen app:** web manifest (name "Clinic OS", icon, standalone, start URL `/app`).
+
+### Phase 5a: online booking and calendar (NEXT; proposed 2026-10-11, awaiting owner go-ahead)
+Owner request (2026-10-11): remove SOS, keep the booking page simple, show Dr. Rahil's real availability, and let him schedule or confirm a WhatsApp request in a few taps, with a confirmation going to the patient. Ships before the rest of Wave 1. When approved, update PRODUCT.md (hours, journey step 0, decision log).
+
+**Schedule (40-minute blocks, India time):**
+- Morning: 8:30, 9:10, 9:50, 10:30, 11:10, 11:50 (ends 12:30). Break 12:30–2:00.
+- Afternoon: 2:00, 2:40, 3:20, 4:00, 4:40, 5:20, 6:00, 6:40, 7:20, 8:00 (ends 8:40). 16 blocks a day.
+- 8:40–9:00 PM is 20 minutes, not a full block: kept as buffer *(owner to confirm)*. Fridays closed *(owner to confirm)*. Website hours and FAQ change to match; owner updates the Google Business Profile.
+
+**Online booking rules** (enforced by the database, mirrored on the website for display):
+1. A block can be requested online only if it starts **at least 2 hours after the request**.
+2. Blocks starting **at 7 PM or later** (7:20, 8:00) are not bookable online. The website says "For 7:20 or 8:00 PM, please call the clinic" (tap to call). Dr. Rahil can still book them in the app (appointments run until 9 PM).
+3. Fridays, breaks, Dr. Rahil's time off, booked blocks and blocks held by another pending request are never offered. Booking window: the next 4 weeks.
+- Together these give the owner's rule: requests made **6 AM–5 PM** get same-day blocks at least 2 hours away. From 5 PM nothing is left online that day (5 PM + 2 h = 7 PM), and night requests start the next day at 8:30, so he has at least 2 hours from 6 AM.
+  - Examples: request at 10:00 AM → earliest 2:00 PM; 4:30 PM → 6:40 PM; 5:30 PM or 11 PM → tomorrow 8:30 AM.
+- The patient is told: "Dr. Rahil will confirm on WhatsApp in **under 15 minutes**." Requests sent 9 PM–6 AM say "confirmed after 6 AM" instead *(owner to confirm)*.
+
+**Website booking page (3 steps, no SOS):**
+1. **Choose a time:** a day strip (Fridays marked Closed) and only the free blocks for the chosen day, plus the 7 PM call note.
+2. **Your details:** the same fields as the clinic's New patient form: WhatsApp number, name, date of birth, address (one field), medical alerts, how they heard about us. Also reason for visit (chips) and an optional note.
+3. **Review and send:** a summary and the 15-minute promise. **Send on WhatsApp** saves the request in the app's database first, then opens WhatsApp to the clinic with a short message ending in a **private booking link** (`/app/requests/<random id>`).
+
+**Why a link, not a vCard (owner asked):**
+- `wa.me` links can only pre-fill text; a web page can't attach a vCard or any other file to the patient's message.
+- The share sheet would add three error-prone steps for the patient: pick WhatsApp, find the clinic, send.
+- WhatsApp shows a contact card as Message / Add contact, with no reliable "share to app" option and no place for date of birth, alerts or time.
+- The link does the same job in **one tap**. The installed Clinic OS opens straight on the request with everything filled in, on any phone, and the request is saved even if the patient never presses Send.
+- The link opens only for Dr. Rahil's login, and it contains a random reference, not patient data.
+- "Share to Clinic OS" (Android share target) can be added later if still wanted.
+
+**Clinic OS:**
+- **Calendar tab** (Today · Calendar · Patients · New · Money): a day view of the 16 blocks with the break. Swipe to change day; a week strip shows busy days.
+  - **Free block:** tap to book an existing patient (search) or a new one, for phone bookings including 7:20 and 8:00 PM. Or **Block time** (blocked time disappears from the website).
+  - **Booked block:** name and reason. Tap for Open patient / Start visit / Move / Cancel / WhatsApp.
+  - **Pending website request:** amber.
+  - **Close this day:** for holidays.
+- **Today:** a "Booking requests (N)" card on top, then today's appointments, then today's visits.
+- **Request screen** (from the WhatsApp link or Today):
+  - **Patient card:** everything the patient typed, with medical alerts in red. If the phone matches an existing patient, it offers "Use this record". Family can share a number, so "New patient" stays possible.
+  - **Calendar:** shows the requested day with the patient's **name chip already in the requested block**. Confirm as-is: **Save**. Reschedule: **slide the name chip** onto another free block, tap a free block (one-handed fallback), or swipe to another day.
+  - **Save:** in one database transaction, creates the patient (or links the existing one), books the 40-minute block and marks the request booked. Then WhatsApp opens on the **patient's** chat with the confirmation (date, time, clinic address, map link) and he taps Send.
+  - **Call** and **Decline** (Decline sends a polite "please call us to find a time").
+- **Automatic sending** (no tap) needs the WhatsApp Business Platform: clinic number on the WhatsApp Business app, Meta business verification, an approved message template, and a token in Vercel.
+  - Confirmations within 24 hours of the patient's message are free; later reminders cost a small fee per message.
+  - **Not in this phase** (2026-10-10 decision: one-tap WhatsApp). The sending code sits in one function so it can be switched on later.
+  - Unofficial WhatsApp Web automation is against WhatsApp's terms and can get the clinic number banned: never.
+
+**Data and safety:**
+- The database refuses overlapping booked appointments, so double booking is impossible even if two saves race.
+- A pending request holds its block, and each phone number gets one open request at a time. Existing IP and phone rate limits stay.
+- The public can only call two narrow functions: free block times (no names, nothing else) and submit a request.
+- E2E bookings are test data and are removed with **Delete test patients**.
+- The privacy page is updated: booking details are stored.
+
+**Acceptance (on Dr. Rahil's phone):**
+- The website shows only real free blocks: none sooner than 2 hours, none on Fridays, a call note for 7 PM+, and no SOS.
+- The WhatsApp link opens the request in Clinic OS with every typed detail filled in.
+- Leave the chip or slide it → **Save** → WhatsApp opens on the patient's chat with the confirmation. The block then disappears from the website.
+- Blocking time or closing a day removes it from the website. Booking the same block twice is refused.
+
+**Build order** (lean workflow, section 4):
+1. **De-risk (1 minute, Dr. Rahil):** tap a test `/app` link in WhatsApp. Does it open Clinic OS signed in? (The home-screen app or Chrome are both fine; only WhatsApp's own browser would need a tweak.)
+2. **Database and rules (orchestrator, Opus high: security-sensitive):**
+   - `supabase/patch-booking.sql`, tested in PGlite; the owner runs it once. Contents: new `booking_requests` columns, `time_off`, the double-booking guard, `get_open_slots`, `submit_booking_request` v2 and `confirm_booking_request`.
+   - `src/lib/schedule.ts` (blocks and rules) with fixed-clock unit tests: 2 h, 7 PM, Friday, break, night.
+   - Shared types. **Push before builders start.**
+3. **Two Sonnet-medium builders in parallel worktrees:**
+   - **A:** website booking page, hours and FAQ text, privacy page.
+   - **B:** Calendar tab, request screen with slide-to-place, Save + confirmation, Today cards, time off, test-data cleanup.
+4. **Integrate (orchestrator):** unit, build and lint. Extend e2e with the full loop: request on the website → open the link → move the block → Save → the block disappears from the website → clean up. Then one Sonnet review and deploy.
+5. **Dr. Rahil's phone test** against the acceptance list, then fixes.
 
 ### Phase 3: smart notes (Wave 1, builder A)
 - **Tidy + extract:** on **Tidy up** (and before Confirm), Claude returns a tidy sectioned note + structured data (schema in section 3), using structured outputs. Raw dictation kept in `notes_original`.
@@ -49,7 +120,7 @@ Each item lists its **acceptance criteria**: what must be true on Dr. Rahil's ph
 - **Next appointment:** from the summary (or a quick sheet) with **suggested slots** respecting hours, Friday closure, lunch, existing bookings and the patient's preferred times.
 - **Today:** upcoming appointments (tap → start visit), then today's visits.
 - **"To send today" list:** tomorrow's reminders, crown nudges (RCT done, no crown booked), 6-month recalls, unfinished plans. One tap opens WhatsApp; it's then marked sent.
-- **Website booking requests stored in the app** via a narrow `SECURITY DEFINER` RPC (`submit_booking_request`) callable by the public, with validation and rate limits; shown in Today with **Book** / **Contacted** / **Decline**. Keep opening WhatsApp afterwards as confirmation.
+- **Website booking requests and the calendar:** moved to **Phase 5a** (above). Phase 5 builds on its `appointments` and Calendar tab.
 
 ### Wave 2: integration (orchestrator)
 - One **Finish visit** flow: notes → Confirm → bill → payment → WhatsApp → next appointment, pre-filled from the summary.
@@ -79,10 +150,15 @@ treatment_items   patient_id, tooth text?, procedure text, price numeric?, price
 visit_charges     visit_id, patient_id, description, amount >= 0, kind item|extra, treatment_slug?, treatment_item_id?
 payments          patient_id, visit_id?, amount > 0, method upi|cash, kind payment|advance, reference?, received_at
 share_links       visit_id, token (random, unique), expires_at
-appointments      patient_id, starts_at timestamptz, duration_min (default 30), reason,
+appointments      patient_id, starts_at timestamptz, duration_min (default 30; 40 for calendar blocks), reason,
                   status booked|done|cancelled|no_show, from_visit_id?, visit_id?, reminder_sent_at?
+                  Phase 5a: no two 'booked' appointments may overlap (exclusion constraint)
 booking_requests  name, phone, area, city, reason, preferred_date, preferred_time, notes, is_emergency,
                   status new|contacted|booked|declined, patient_id?, appointment_id?   (insert only via RPC)
+                  Phase 5a: + address, date_of_birth, medical_alerts, heard_from, requested_start timestamptz, is_test
+time_off          Phase 5a: starts_at, ends_at, note   (hidden from the website's free blocks)
+RPCs (Phase 5a)   public: get_open_slots(from, days) -> free block start times only; submit_booking_request v2
+                  signed in: confirm_booking_request(request, starts_at, patient?) -> patient + appointment in one transaction
 reminder_log      kind appointment|crown|recall|unfinished|booking, ref_id, sent_at
 expenses          spent_on date, payee, category lab|materials|rent|salary|utilities|equipment|other,
                   description, amount > 0, method cash|upi|bank|card, patient_id?, treatment_item_id?, receipt_path?
@@ -113,6 +189,7 @@ Wave 0 used a large agent swarm on Opus. It worked, but it spent far more quota 
 |---|---|
 | Wave 0 | Phone test of camera + dictation. Create a **test login** in Supabase (credentials go in a git-ignored `.env.test.local`, never in chat). |
 | Wave 1 | **Anthropic API key** (console.anthropic.com, billing + monthly spend limit) set as `ANTHROPIC_API_KEY` in Vercel and `.env.local`. A fresh **Supabase secret key** for the private bill link, set as `SUPABASE_SECRET_KEY` the same way. |
+| Phase 5a | Answers to the open points (8:40–9:00 buffer, Fridays, 7 PM rule every day, night-request wording, one-tap vs automatic WhatsApp). Dr. Rahil's 1-minute link test. Run `supabase/patch-booking.sql`. Update the Google Business Profile hours. Only if automatic WhatsApp is wanted later: clinic number on the WhatsApp Business app + Meta business verification. |
 | Before launch | Hosting plan decisions and backups (section 7). |
 
 ## 7. Risks, costs and operations
