@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { Pencil, Trash2, X } from 'lucide-react'
 import { deleteVisitPhoto, updatePhotoCaption } from '@/lib/actions/visits'
 import type { VisitPhoto } from '@/lib/data/types'
@@ -8,13 +8,28 @@ import type { VisitPhoto } from '@/lib/data/types'
 export function PhotoGallery({ photos }: { photos: VisitPhoto[] }) {
   const [open, setOpen] = useState<VisitPhoto | null>(null)
 
+  // Opening a photo adds a history entry, so Android's Back button closes the viewer
+  // instead of leaving the visit
+  useEffect(() => {
+    if (!open) return
+    const onBack = () => setOpen(null)
+    window.addEventListener('popstate', onBack)
+    return () => window.removeEventListener('popstate', onBack)
+  }, [open])
+
+  const openPhoto = (photo: VisitPhoto) => {
+    window.history.pushState(window.history.state, '')
+    setOpen(photo)
+  }
+  const closePhoto = () => window.history.back()
+
   if (photos.length === 0) return null
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
         {photos.map((photo) => (
-          <button key={photo.id} type="button" onClick={() => setOpen(photo)}
+          <button key={photo.id} type="button" onClick={() => openPhoto(photo)}
             className="overflow-hidden rounded-xl bg-white text-left ring-1 ring-gray-200">
             {photo.url ? (
               // eslint-disable-next-line @next/next/no-img-element -- short-lived signed link from private storage
@@ -26,7 +41,7 @@ export function PhotoGallery({ photos }: { photos: VisitPhoto[] }) {
           </button>
         ))}
       </div>
-      {open && <PhotoViewer key={open.id} photo={open} onClose={() => setOpen(null)} />}
+      {open && <PhotoViewer key={open.id} photo={open} onClose={closePhoto} />}
     </>
   )
 }

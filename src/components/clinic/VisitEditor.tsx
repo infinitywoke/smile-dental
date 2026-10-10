@@ -8,7 +8,7 @@ import { appendDictation } from '@/lib/dictation'
 import { useResetOnHide } from './useResetOnHide'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImage } from '@/lib/resize-image'
-import { addVisitPhotos, createVisit, updateVisitNotes } from '@/lib/actions/visits'
+import { addVisitPhotos, createVisit, saveVisitChanges } from '@/lib/actions/visits'
 
 const PHOTO_BUCKET = 'visit-photos'
 
@@ -53,7 +53,13 @@ function Editor(props: Props) {
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [restored, setRestored] = useState(false)
+  const [listening, setListening] = useState(false)
   const key = draftKey(props)
+  // Set on the first save attempt, so retries reuse the same visit and photo names
+  const visitIdRef = useRef<string | null>(props.mode === 'edit' ? props.visitId : null)
+  const visitCreatedRef = useRef(props.mode === 'edit')
+  const uploadedRef = useRef(new Map<string, string>()) // photo key -> storage path
+  const savingRef = useRef(false)
   const cameraInput = useRef<HTMLInputElement>(null)
   const galleryInput = useRef<HTMLInputElement>(null)
   const saving = status !== null
@@ -104,68 +110,96 @@ function Editor(props: Props) {
     setPhotos((current) => current.map((p) => (p.key === key ? { ...p, caption } : p)))
 
   const notesChanged = notes.trim() !== initialNotes.trim()
-  const canSave = !saving && (props.mode === 'create' ? notes.trim().length > 0 || photos.length > 0 : notesChanged || photos.length > 0)
+  const hasChanges = props.mode === 'create' ? notes.trim().length > 0 || photos.length > 0 : notesChanged || photos.length > 0
+  const canSave = !saving && !listening && hasChanges
 
+  // Uploads every photo not uploaded yet. Paths are fixed per photo, so a retry never duplicates a file.
   const uploadPhotos = async (visitId: string) => {
-    if (photos.length === 0) return true
     const supabase = createClient()
-    const uploaded: { path: string; caption: string }[] = []
+    let failed = 0
     for (const [index, photo] of photos.entries()) {
+      if (uploadedRef.current.has(photo.key)) continue
       setStatus(`Uploading photo ${index + 1} of ${photos.length}…`)
       const blob = await resizeImage(photo.file)
       const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
-      const path = `${props.doctorId}/${visitId}/${crypto.randomUUID()}.${extension}`
+      const path = `${props.doctorId}/${visitId}/${photo.key}.${extension}`
       const { error: uploadError } = await supabase.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: blob.type || 'image/jpeg' })
-      if (uploadError) {
-        setError(`Photo ${index + 1} could not be uploaded. Check the connection and try again.`)
-        break
-      }
-      uploaded.push({ path, caption: photo.caption })
+      // "Already exists" means an earlier attempt uploaded it but the reply was lost
+      if (!uploadError || /exist/i.test(uploadError.message)) uploadedRef.current.set(photo.key, path)
+      else failed++
     }
-    if (uploaded.length > 0) {
-      const result = await addVisitPhotos(visitId, uploaded)
-      if (result.error) {
-        setError(result.error)
-        return false
-      }
-      const uploadedCount = uploaded.length
-      setPhotos((current) => {
-        current.slice(0, uploadedCount).forEach((p) => URL.revokeObjectURL(p.preview))
-        return current.slice(uploadedCount)
-      })
-    }
-    return uploaded.length === photos.length
+    const records = photos
+      .filter((p) => uploadedRef.current.has(p.key))
+      .map((p) => ({ key: p.key, path: uploadedRef.current.get(p.key)!, caption: p.caption }))
+    return { records, failed }
+  }
+
+  // Removes photos that are now saved to the visit from the on-screen list
+  const dropSavedPhotos = (keys: string[]) => {
+    setPhotos((current) => {
+      current.filter((p) => keys.includes(p.key)).forEach((p) => URL.revokeObjectURL(p.preview))
+      return current.filter((p) => !keys.includes(p.key))
+    })
+    keys.forEach((k) => uploadedRef.current.delete(k))
   }
 
   const save = async () => {
+    if (savingRef.current) return // ignore a second tap while saving
+    savingRef.current = true
     setError(null)
     setStatus('Saving…')
+    let finished = false
     try {
-      if (props.mode === 'create') {
-        const result = await createVisit(props.patientId, notes)
-        if (result.error || !result.visitId) {
-          setError(result.error ?? 'Could not save the visit.')
+      if (!visitIdRef.current) visitIdRef.current = crypto.randomUUID()
+      const visitId = visitIdRef.current
+
+      if (props.mode === 'create' && !visitCreatedRef.current) {
+        const result = await createVisit(visitId, props.patientId, notes)
+        if (result.error) {
+          setError(result.error)
           return
         }
+        visitCreatedRef.current = true
         writeDraft(key, null)
-        const allUploaded = await uploadPhotos(result.visitId)
-        // Open the saved visit; any photo that failed can be added again there
-        router.push(`/app/visits/${result.visitId}${allUploaded ? '' : '?photos=failed'}`)
-      } else {
-        if (notesChanged) {
-          const result = await updateVisitNotes(props.visitId, notes)
-          if (result.error) {
-            setError(result.error)
-            return
-          }
-          writeDraft(key, null)
+      }
+
+      const { records, failed } = await uploadPhotos(visitId)
+      const recorded = records.map(({ path, caption }) => ({ path, caption }))
+
+      if (failed > 0) {
+        // Keep what worked, leave the failed photos on screen for a retry
+        if (recorded.length > 0) {
+          const result = await addVisitPhotos(visitId, recorded)
+          if (!result.error) dropSavedPhotos(records.map((r) => r.key))
         }
-        await uploadPhotos(props.visitId)
+        setError(`${failed} photo${failed === 1 ? '' : 's'} couldn’t upload. Check the connection and tap Save again.`)
+        return
+      }
+
+      setStatus('Saving…')
+      const notesToSave = props.mode === 'edit' && notesChanged ? notes : null
+      const result = await saveVisitChanges(visitId, notesToSave, recorded)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      writeDraft(key, null)
+      finished = true
+
+      if (props.mode === 'create') {
+        setStatus('Opening visit…')
+        router.replace(`/app/visits/${visitId}`)
+      } else {
+        dropSavedPhotos(records.map((r) => r.key))
+        setRestored(false)
+        setStatus(null)
       }
     } catch {
-      setError('Something went wrong. Check the connection and try again.')
+      setError('Something went wrong. Check the connection and tap Save again.')
     } finally {
-      setStatus(null)
+      savingRef.current = false
+      // On success in create mode the button stays disabled until the visit page opens
+      if (!finished) setStatus(null)
     }
   }
 
@@ -181,10 +215,12 @@ function Editor(props: Props) {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label htmlFor="notes" className="text-sm font-semibold text-gray-700">Notes</label>
-          <MicButton onText={(t) => changeNotes((v) => appendDictation(v, t))} onInterim={setHearing} />
+          <MicButton onText={(t) => changeNotes((v) => appendDictation(v, t))} onInterim={setHearing} onListeningChange={setListening} />
         </div>
-        {hearing && (
-          <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm italic text-blue-900" aria-live="polite">{hearing}…</p>
+        {listening && (
+          <p className="min-h-10 rounded-lg bg-blue-50 px-3 py-2 text-sm italic text-blue-900" aria-live="polite">
+            {hearing ? `${hearing}…` : 'Listening…'}
+          </p>
         )}
         {restored && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
@@ -230,7 +266,7 @@ function Editor(props: Props) {
 
       <button type="button" onClick={save} disabled={!canSave}
         className="w-full rounded-full bg-blue-600 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50">
-        {status ?? (props.mode === 'create' ? 'Save visit' : 'Save changes')}
+        {status ?? (listening ? 'Stop dictation to save' : props.mode === 'create' ? 'Save visit' : 'Save changes')}
       </button>
     </div>
   )

@@ -34,24 +34,33 @@ function getRecognitionClass(): (new () => Recognition) | null {
 }
 
 type Props = {
-  onText: (text: string) => void        // each finished phrase
-  onInterim?: (text: string) => void    // words being heard right now ('' when none)
+  onText: (text: string) => void                    // each finished phrase
+  onInterim?: (text: string) => void                // words being heard right now ('' when none)
+  onListeningChange?: (listening: boolean) => void  // so the screen can hold Save while dictating
 }
+
+// Stop on its own after this long without hearing anything (a forgotten mic)
+const SILENCE_LIMIT_MS = 60_000
 
 // Tap to start dictating; stays on until Stop is tapped.
 // Browsers end recognition after each pause, so it restarts itself until stopped.
-export function MicButton({ onText, onInterim }: Props) {
+export function MicButton({ onText, onInterim, onListeningChange }: Props) {
   const [supported, setSupported] = useState(false)
   const [listening, setListening] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const recognitionRef = useRef<Recognition | null>(null)
   const wantListeningRef = useRef(false)
   const wakeLockRef = useRef<WakeLock | null>(null)
-  const callbacksRef = useRef({ onText, onInterim })
+  const lastHeardRef = useRef(0)
+  const callbacksRef = useRef({ onText, onInterim, onListeningChange })
 
   useEffect(() => {
-    callbacksRef.current = { onText, onInterim }
-  }, [onText, onInterim])
+    callbacksRef.current = { onText, onInterim, onListeningChange }
+  }, [onText, onInterim, onListeningChange])
+
+  useEffect(() => {
+    callbacksRef.current.onListeningChange?.(listening)
+  }, [listening])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- browser support is only known after mount
@@ -62,6 +71,24 @@ export function MicButton({ onText, onInterim }: Props) {
       wakeLockRef.current?.release().catch(() => {})
     }
   }, [])
+
+  // Stop when the doctor leaves the screen or switches app, so it never keeps listening unseen
+  useEffect(() => {
+    if (!listening) return
+    const onHide = () => {
+      if (document.visibilityState !== 'hidden') return
+      const recognition = recognitionRef.current
+      wantListeningRef.current = false
+      recognitionRef.current = null
+      wakeLockRef.current?.release().catch(() => {})
+      wakeLockRef.current = null
+      callbacksRef.current.onInterim?.('')
+      setListening(false)
+      recognition?.stop()
+    }
+    document.addEventListener('visibilitychange', onHide)
+    return () => document.removeEventListener('visibilitychange', onHide)
+  }, [listening])
 
   if (!supported) return null
 
@@ -89,6 +116,7 @@ export function MicButton({ onText, onInterim }: Props) {
     recognition.interimResults = true
 
     recognition.onresult = (event) => {
+      lastHeardRef.current = Date.now()
       let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
@@ -108,6 +136,10 @@ export function MicButton({ onText, onInterim }: Props) {
     recognition.onend = () => {
       callbacksRef.current.onInterim?.('')
       if (wantListeningRef.current && recognitionRef.current === recognition) {
+        if (Date.now() - lastHeardRef.current > SILENCE_LIMIT_MS) {
+          finish('Dictation paused after a minute of silence. Tap Dictate to continue.')
+          return
+        }
         // Keep going until the doctor taps Stop
         try {
           recognition.start()
@@ -124,12 +156,18 @@ export function MicButton({ onText, onInterim }: Props) {
   const start = async () => {
     setError(null)
     wantListeningRef.current = true
+    lastHeardRef.current = Date.now()
     setListening(true)
     listen()
     // Keep the screen awake while dictating, so the phone doesn't sleep mid-sentence
     try {
       const wakeLock = (navigator as unknown as { wakeLock?: { request(type: 'screen'): Promise<WakeLock> } }).wakeLock
-      if (wakeLock) wakeLockRef.current = await wakeLock.request('screen')
+      if (wakeLock) {
+        const lock = await wakeLock.request('screen')
+        // Stop may have been tapped while the lock was being granted
+        if (wantListeningRef.current) wakeLockRef.current = lock
+        else lock.release().catch(() => {})
+      }
     } catch {
       // Not supported or not allowed; dictation still works
     }

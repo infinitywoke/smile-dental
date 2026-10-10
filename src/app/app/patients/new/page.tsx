@@ -1,8 +1,10 @@
+import { getDoctor } from '@/lib/auth'
 import { createPatient } from '@/lib/actions/patients'
 import { PatientForm } from '@/components/clinic/PatientForm'
 import { BackLink } from '@/components/clinic/ui'
 
-export default function NewPatientPage() {
+export default async function NewPatientPage() {
+  await getDoctor()
   return (
     <div className="space-y-5">
       <BackLink href="/app" label="Today" />

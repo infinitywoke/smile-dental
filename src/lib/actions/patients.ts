@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { findPatientsByPhone } from '@/lib/data/patients'
@@ -42,6 +43,7 @@ export async function createPatient(_prev: PatientFormState, formData: FormData)
   const { data, error } = await supabase.from('patients').insert(patient).select('id').single()
   if (error) return { error: 'Could not save the patient. Please try again.' }
 
+  revalidatePath('/app', 'layout')
   redirect(`/app/patients/${data.id}/visits/new`)
 }
 
@@ -55,6 +57,7 @@ export async function updatePatient(id: string, _prev: PatientFormState, formDat
   const { error } = await supabase.from('patients').update(patient).eq('id', id)
   if (error) return { error: 'Could not save the changes. Please try again.' }
 
+  revalidatePath('/app', 'layout')
   redirect(`/app/patients/${id}`)
 }
 

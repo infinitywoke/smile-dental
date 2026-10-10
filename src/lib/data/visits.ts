@@ -6,6 +6,7 @@ import { todayInIndia } from '@/lib/dates'
 import type { Patient, Visit, VisitPhoto } from './types'
 
 export const PHOTO_BUCKET = 'visit-photos'
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at'
 
 export type TodayVisit = Visit & { patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts'>; photo_count: number }
@@ -47,6 +48,7 @@ export type VisitDetail = Visit & { patient: Pick<Patient, 'id' | 'name' | 'medi
 
 export async function getVisit(id: string): Promise<VisitDetail> {
   await getDoctor()
+  if (!UUID.test(id)) notFound()
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('visits')
@@ -65,8 +67,10 @@ export async function getVisit(id: string): Promise<VisitDetail> {
     const { data: signed, error: signError } = await supabase.storage
       .from(PHOTO_BUCKET)
       .createSignedUrls(photos.map((p) => p.storage_path), 60 * 60)
-    if (signError) throw signError
-    urls = Object.fromEntries(signed.flatMap((s) => (s.path && s.signedUrl ? [[s.path, s.signedUrl]] : [])))
+    // On failure the photos show as "Unavailable" rather than hiding the whole visit
+    if (!signError) {
+      urls = Object.fromEntries(signed.flatMap((s) => (s.path && s.signedUrl ? [[s.path, s.signedUrl]] : [])))
+    }
   }
 
   return {

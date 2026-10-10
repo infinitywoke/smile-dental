@@ -168,8 +168,9 @@ export function PublicBookingForm() {
   const handleSubmit = () => {
     setError(null)
     const url = buildWhatsAppUrl()
-    const opened = window.open(url, '_blank', 'noopener,noreferrer')
-    if (!opened) window.location.href = url
+    const opened = window.open(url, '_blank')
+    if (opened) opened.opener = null
+    else window.location.href = url
     setSuccess(true)
   }
 

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Form from 'next/form'
 import { AlertTriangle, ChevronLeft } from 'lucide-react'
 
 // Shared building blocks for Clinic OS screens
@@ -24,11 +25,11 @@ export function MedicalAlert({ alerts }: { alerts: string | null }) {
 
 export function SearchBox({ defaultValue = '' }: { defaultValue?: string }) {
   return (
-    <form action="/app/patients" className="flex gap-2">
+    <Form action="/app/patients" className="flex gap-2">
       <input name="q" type="search" defaultValue={defaultValue} placeholder="Search name or phone"
         className="block w-full rounded-full border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
       <button type="submit" className="rounded-full bg-gray-900 px-5 text-sm font-semibold text-white">Search</button>
-    </form>
+    </Form>
   )
 }
 

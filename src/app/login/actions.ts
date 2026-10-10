@@ -9,7 +9,7 @@ export async function signIn(formData: FormData) {
   const password = String(formData.get('password') ?? '')
 
   if (!isAllowedEmail(email)) {
-    redirect('/login?error=not-allowed')
+    redirect('/login?error=invalid')
   }
 
   const supabase = await createClient()

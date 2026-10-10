@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { normalizePhone } from '@/lib/phone'
 import type { Patient } from './types'
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const PATIENT_COLUMNS = 'id, name, phone, date_of_birth, address, medical_alerts, heard_from, created_at'
 
 // Search by name or phone number. Without a query, returns the newest patients.
@@ -30,6 +31,7 @@ export async function searchPatients(query: string): Promise<Patient[]> {
 
 export async function getPatient(id: string): Promise<Patient> {
   await getDoctor()
+  if (!UUID.test(id)) notFound()
   const supabase = await createClient()
   const { data, error } = await supabase.from('patients').select(PATIENT_COLUMNS).eq('id', id).maybeSingle()
   if (error) throw error
