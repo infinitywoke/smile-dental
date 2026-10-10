@@ -1,3 +1,9 @@
+// Row types for the Clinic OS tables (supabase/phase2.sql, supabase/phase3-5.sql).
+// Dates are 'YYYY-MM-DD' strings, timestamps are ISO strings, and numeric(10,2)
+// money columns arrive from Supabase JS as numbers (rupees).
+
+// Phase 2 --------------------------------------------------------------------
+
 export type Patient = {
   id: string
   name: string
@@ -6,7 +12,10 @@ export type Patient = {
   address: string | null
   medical_alerts: string | null
   heard_from: string | null
+  // Optional until every patient query selects it
+  preferred_times?: string | null
   created_at: string
+  updated_at: string
 }
 
 export type Visit = {
@@ -14,11 +23,196 @@ export type Visit = {
   patient_id: string
   visit_date: string
   notes: string
+  // Phase 3 columns; optional until every visit query selects them
+  notes_original?: string | null
+  // Visit summary v1; validate with the Zod schema in src/lib/ai/visit-summary.ts
+  summary?: unknown | null
+  confirmed_at?: string | null
   created_at: string
+  updated_at: string
 }
 
 export type VisitPhoto = {
   id: string
   caption: string
   url: string | null
+}
+
+// Phases 3-5 -----------------------------------------------------------------
+
+export type TreatmentItemStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
+
+export type TreatmentItem = {
+  id: string
+  owner_id: string
+  patient_id: string
+  tooth: string | null
+  procedure: string
+  price: number | null
+  price_min: number | null
+  price_max: number | null
+  status: TreatmentItemStatus
+  planned_visit_id: string | null
+  done_visit_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type VisitChargeKind = 'item' | 'extra'
+
+export type VisitCharge = {
+  id: string
+  owner_id: string
+  visit_id: string
+  patient_id: string
+  description: string
+  amount: number
+  kind: VisitChargeKind
+  treatment_slug: string | null
+  treatment_item_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type PaymentMethod = 'upi' | 'cash'
+export type PaymentKind = 'payment' | 'advance'
+
+export type Payment = {
+  id: string
+  owner_id: string
+  patient_id: string
+  visit_id: string | null
+  amount: number
+  method: PaymentMethod
+  kind: PaymentKind
+  reference: string | null
+  received_at: string
+  created_at: string
+  updated_at: string
+}
+
+export type ShareLink = {
+  id: string
+  owner_id: string
+  visit_id: string
+  token: string
+  expires_at: string
+  created_at: string
+  updated_at: string
+}
+
+export type AppointmentStatus = 'booked' | 'done' | 'cancelled' | 'no_show'
+
+export type Appointment = {
+  id: string
+  owner_id: string
+  patient_id: string
+  starts_at: string
+  duration_min: number
+  reason: string
+  status: AppointmentStatus
+  from_visit_id: string | null
+  visit_id: string | null
+  reminder_sent_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BookingRequestStatus = 'new' | 'contacted' | 'booked' | 'declined'
+
+export type BookingRequest = {
+  id: string
+  owner_id: string
+  name: string
+  phone: string
+  area: string | null
+  city: string | null
+  reason: string | null
+  preferred_date: string | null
+  preferred_time: string | null
+  notes: string | null
+  is_emergency: boolean
+  status: BookingRequestStatus
+  patient_id: string | null
+  appointment_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+// Arguments of the public RPC public.submit_booking_request (returns the new id)
+export type SubmitBookingRequestArgs = {
+  p_name: string
+  p_phone: string
+  p_area: string | null
+  p_city: string | null
+  p_reason: string | null
+  p_preferred_date: string | null
+  p_preferred_time: string | null
+  p_notes: string | null
+  p_is_emergency: boolean
+}
+
+export type ReminderKind = 'appointment' | 'crown' | 'recall' | 'unfinished' | 'booking'
+
+// ref_id: appointment -> appointments.id, crown / unfinished -> treatment_items.id,
+// recall -> patients.id, booking -> booking_requests.id
+export type ReminderLog = {
+  id: string
+  owner_id: string
+  kind: ReminderKind
+  ref_id: string
+  sent_at: string
+  created_at: string
+}
+
+export type ExpenseCategory = 'lab' | 'materials' | 'rent' | 'salary' | 'utilities' | 'equipment' | 'other'
+export type ExpenseMethod = 'cash' | 'upi' | 'bank' | 'card'
+
+export type Expense = {
+  id: string
+  owner_id: string
+  spent_on: string
+  payee: string
+  category: ExpenseCategory
+  description: string
+  amount: number
+  method: ExpenseMethod
+  patient_id: string | null
+  treatment_item_id: string | null
+  receipt_path: string | null
+  // Set when the expense was confirmed from a fixed monthly cost
+  recurring_expense_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type RecurringExpense = {
+  id: string
+  owner_id: string
+  name: string
+  payee: string
+  category: ExpenseCategory
+  amount: number
+  method: ExpenseMethod
+  day_of_month: number
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type DayClose = {
+  id: string
+  owner_id: string
+  day: string
+  cash_counted: number
+  cash_expected: number
+  note: string
+  closed_at: string
+  created_at: string
+  updated_at: string
+}
+
+export type AppConfig = {
+  id: true
+  clinic_owner_id: string
 }
