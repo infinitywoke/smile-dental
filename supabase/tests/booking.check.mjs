@@ -61,7 +61,6 @@ const setNow = async (iso) => {
   await db.exec('reset role')
   await db.exec(`create or replace function public.clinic_now() returns timestamptz language sql stable as $$ select '${iso}'::timestamptz $$;`)
 }
-const ist = (ts) => new Date(ts).toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 const slotsAs = async (role, from = null, days = 28) => {
   await as(role, role === 'authenticated' ? A : null)
   const r = await db.query('select slot_start from public.get_open_slots($1::date, $2)', [from, days])

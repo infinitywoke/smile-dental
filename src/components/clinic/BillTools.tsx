@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import QRCode from 'qrcode'
-import { AlertCircle, Banknote, Check, QrCode, Search, Smartphone, Trash2 } from 'lucide-react'
+import { AlertCircle, Banknote, Check, Plus, QrCode, Search, Smartphone, Trash2, X } from 'lucide-react'
 import { addCharge, recordPayment, removeCharge, removePayment } from '@/lib/actions/billing'
 import { formatPrice, formatRupees, priceListOptions, type PriceListOption } from '@/lib/pricing'
 import { parseAmount } from '@/lib/billing'
@@ -22,7 +22,8 @@ function ErrorLine({ message }: { message: string | null }) {
 }
 
 // Adds a charge: pick from the clinic's price list (fills the fields in) or type any other charge
-export function AddCharge({ visitId }: { visitId: string }) {
+export function AddCharge({ visitId, defaultOpen = false }: { visitId: string; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
   const [query, setQuery] = useState('')
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
@@ -77,12 +78,35 @@ export function AddCharge({ visitId }: { visitId: string }) {
       setAmount('')
       setSlug(null)
       setHint('')
+      setOpen(false)
     })
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 bg-white p-4 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700"
+      >
+        <Plus className="h-5 w-5" /> Add charge
+      </button>
+    )
   }
 
   return (
     <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
-      <p className="font-semibold text-gray-900">Add a charge</p>
+      <div className="flex items-center justify-between">
+        <p className="font-semibold text-gray-900">Add a charge</p>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          aria-label="Cancel"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-3.5 top-3.5 h-5 w-5 text-gray-400" />
@@ -159,8 +183,19 @@ export function RemovePayment({ paymentId, label }: { paymentId: string; label: 
 }
 
 // Collect money: the amount, a UPI QR for it, and two buttons to confirm what arrived
-export function PaymentPanel({ visitId, suggested, patientName }: { visitId: string; suggested: number; patientName: string }) {
+export function PaymentPanel({
+  visitId,
+  suggested,
+  patientName,
+  defaultShowQr = false,
+}: {
+  visitId: string
+  suggested: number
+  patientName: string
+  defaultShowQr?: boolean
+}) {
   const [amount, setAmount] = useState(suggested > 0 ? String(suggested) : '')
+  const [showQr, setShowQr] = useState(defaultShowQr)
   const [qr, setQr] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -170,11 +205,7 @@ export function PaymentPanel({ visitId, suggested, patientName }: { visitId: str
 
   useEffect(() => {
     let cancelled = false
-    if (!link) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setQr(null)
-      return
-    }
+    if (!link) return
     QRCode.toDataURL(link, { margin: 1, width: 360, errorCorrectionLevel: 'M' })
       .then((url) => { if (!cancelled) setQr(url) })
       .catch(() => { if (!cancelled) setQr(null) })
@@ -204,17 +235,38 @@ export function PaymentPanel({ visitId, suggested, patientName }: { visitId: str
           placeholder="0" autoComplete="off" className={`${inputClass} text-xl font-semibold`} />
       </div>
 
-      {qr && link ? (
-        <div className="space-y-2 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} alt={`UPI QR for ${formatRupees(parsed!)}`} width={220} height={220}
-            className="mx-auto rounded-xl ring-1 ring-gray-200" />
-          <p className="flex items-center justify-center gap-1.5 text-xs text-gray-500">
-            <QrCode className="h-4 w-4" /> Scan with GPay, PhonePe or Paytm: {formatRupees(parsed!)} to Smile Dental Clinic
-          </p>
-          <a href={link} className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700">
-            <Smartphone className="h-4 w-4" /> Open in a UPI app on this phone
-          </a>
+      {parsed && parsed > 0 && link ? (
+        <div>
+          {!showQr ? (
+            <button
+              type="button"
+              onClick={() => setShowQr(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-50 py-2.5 text-sm font-medium text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100"
+            >
+              <QrCode className="h-4 w-4 text-gray-500" /> Show UPI QR ({formatRupees(parsed)})
+            </button>
+          ) : qr ? (
+            <div className="space-y-2 text-center rounded-xl bg-gray-50 p-3 ring-1 ring-gray-200">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowQr(false)}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Hide QR
+                </button>
+              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qr} alt={`UPI QR for ${formatRupees(parsed)}`} width={220} height={220}
+                className="mx-auto rounded-xl ring-1 ring-gray-200" />
+              <p className="flex items-center justify-center gap-1.5 text-xs text-gray-500">
+                <QrCode className="h-4 w-4" /> Scan with GPay, PhonePe or Paytm: {formatRupees(parsed)} to Smile Dental Clinic
+              </p>
+              <a href={link} className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700">
+                <Smartphone className="h-4 w-4" /> Open in a UPI app on this phone
+              </a>
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className="rounded-xl bg-gray-50 p-3 text-center text-sm text-gray-500">Enter the amount to show the UPI QR.</p>

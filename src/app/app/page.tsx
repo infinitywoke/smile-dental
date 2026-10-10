@@ -6,10 +6,12 @@ import { getVisitsOn } from '@/lib/data/visits'
 import { getAppointmentsOn, getBusyCounts, getDaySchedule, getPendingRequests } from '@/lib/data/appointments'
 import { ageOn, formatDate, todayInIndia } from '@/lib/dates'
 import { addDays, formatBlock, formatDay, inIndia, weekday } from '@/lib/schedule'
+import { formatRupees } from '@/lib/pricing'
 import { ScreenLoading, SearchBox, TestBadge } from '@/components/clinic/ui'
 import { RequestCard } from '@/components/clinic/RequestCard'
 import { SlotGrid } from '@/components/clinic/SlotGrid'
 import { DayOffButton } from '@/components/clinic/CalendarActions'
+import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
@@ -135,10 +137,18 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                 <span className="truncate text-base font-semibold text-gray-900">{visit.patient.name}</span>
                 {visit.patient.is_test && <TestBadge />}
                 {visit.patient.medical_alerts && <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
-                <span className="ml-auto shrink-0 text-xs text-gray-500">
-                  {new Date(visit.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                <span className="ml-auto flex items-center gap-2 shrink-0">
+                  <VisitStatusBadge status={visit.status} />
+                  <span className="text-xs text-gray-500">
+                    {new Date(visit.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                  </span>
                 </span>
               </div>
+              {visit.total > 0 && (
+                <p className="mt-1 text-xs font-medium text-gray-700">
+                  {formatRupees(visit.total)} billed{visit.paid > 0 ? ` · ${formatRupees(visit.paid)} paid` : ''}{visit.balance > 0 ? ` · ${formatRupees(visit.balance)} due` : ''}
+                </p>
+              )}
               {visit.notes && <p className="mt-1 line-clamp-2 text-sm text-gray-600">{visit.notes}</p>}
               {visit.photo_count > 0 && (
                 <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500">

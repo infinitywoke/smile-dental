@@ -3,11 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { ALL_BLOCKS, BLOCK_MINUTES, blockInstant, inIndia, isClosedDay } from '@/lib/schedule'
+import { BLOCK_MINUTES, blockInstant, clinicBlockOf } from '@/lib/schedule'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { confirmationMessage, declineMessage, whatsappLink } from '@/lib/whatsapp'
 import { isPracticeMode } from '@/lib/practice'
 import { findPatientsByPhone } from '@/lib/data/patients'
+import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
 
 type Result = { error?: string }
 type WithWhatsapp = Result & { whatsappUrl?: string; appointmentId?: string; patientId?: string }
@@ -18,14 +19,7 @@ function refresh() {
   revalidatePath('/app', 'layout')
 }
 
-// A start must be exactly one of the clinic's blocks (and not on a Friday)
-function parseBlock(startsAt: string): { iso: string; date: string; time: string } | null {
-  const d = new Date(startsAt)
-  if (Number.isNaN(d.getTime())) return null
-  const { date, time } = inIndia(d)
-  if (isClosedDay(date) || !ALL_BLOCKS.includes(time)) return null
-  return { iso: d.toISOString(), date, time }
-}
+const parseBlock = clinicBlockOf
 
 // The database's messages are written for the doctor; anything else gets a generic line
 function messageOf(error: { code?: string; message: string } | null, fallback: string): string {
@@ -86,9 +80,15 @@ export async function declineBookingRequest(requestId: string): Promise<WithWhat
 }
 
 // Phone booking from the calendar for a patient already in the app
-export async function bookAppointment(patientId: string, startsAt: string, reason: string): Promise<WithWhatsapp> {
+export async function bookAppointment(
+  patientId: string,
+  startsAt: string,
+  reason: string,
+  fromVisitId?: string,
+): Promise<WithWhatsapp> {
   await getDoctor()
   if (!UUID.test(patientId)) return { error: 'Something went wrong. Please try again.' }
+  if (fromVisitId && !UUID.test(fromVisitId)) return { error: 'Invalid visit.' }
   const block = parseBlock(startsAt)
   if (!block) return { error: 'Please choose one of the clinic time blocks.' }
 
@@ -102,7 +102,14 @@ export async function bookAppointment(patientId: string, startsAt: string, reaso
 
   const { data, error } = await supabase
     .from('appointments')
-    .insert({ patient_id: patientId, starts_at: block.iso, duration_min: BLOCK_MINUTES, reason: reason.trim(), status: 'booked' })
+    .insert({
+      patient_id: patientId,
+      starts_at: block.iso,
+      duration_min: BLOCK_MINUTES,
+      reason: reason.trim(),
+      status: 'booked',
+      from_visit_id: fromVisitId || null,
+    })
     .select('id')
     .single()
   if (error) return { error: messageOf(error, 'Could not book the appointment. Please try again.') }
@@ -233,4 +240,9 @@ export async function confirmRequestAsAsked(requestId: string): Promise<WithWhat
     (p) => p.name.trim().toLowerCase() === request.name.trim().toLowerCase(),
   )
   return confirmBookingRequest(requestId, request.requested_start, sameName.length === 1 ? sameName[0].id : null)
+}
+
+export async function getScheduleForDate(date: string): Promise<DaySchedule> {
+  await getDoctor()
+  return getDaySchedule(date)
 }

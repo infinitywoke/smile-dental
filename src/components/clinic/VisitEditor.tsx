@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState } from 'react'
+import type { Ref } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Camera, Images, X } from 'lucide-react'
 import { MicButton } from './MicButton'
@@ -12,9 +13,18 @@ import { addVisitPhotos, createVisit, saveVisitChanges } from '@/lib/actions/vis
 
 const PHOTO_BUCKET = 'visit-photos'
 
-type Props =
-  | { mode: 'create'; doctorId: string; patientId: string }
+// What the visit screen can ask of the editor: is there anything unsaved, and save it now
+export type EditorHandle = { hasChanges: () => boolean; save: () => Promise<boolean> }
+
+type Props = (
+  | { mode: 'create'; doctorId: string; patientId: string; appointmentId?: string }
   | { mode: 'edit'; doctorId: string; visitId: string; notes: string }
+) & {
+  handle?: Ref<EditorHandle>
+  // The main button saves anything new, then calls onContinue (the next step of the visit)
+  continueLabel?: string
+  onContinue?: () => void
+}
 
 type NewPhoto = { key: string; file: File; preview: string; caption: string }
 
@@ -123,7 +133,7 @@ function Editor(props: Props) {
 
   const notesChanged = notes.trim() !== initialNotes.trim()
   const hasChanges = props.mode === 'create' ? notes.trim().length > 0 || photos.length > 0 : notesChanged || photos.length > 0
-  const canSave = !saving && !listening && hasChanges
+  const canSave = !saving && !listening && (hasChanges || !!props.onContinue)
 
   // Uploads every photo not uploaded yet. Paths are fixed per photo, so a retry never duplicates a file.
   const uploadPhotos = async (visitId: string) => {
@@ -155,8 +165,9 @@ function Editor(props: Props) {
     keys.forEach((k) => uploadedRef.current.delete(k))
   }
 
-  const save = async () => {
-    if (savingRef.current) return // ignore a second tap while saving
+  const save = async (): Promise<boolean> => {
+    if (savingRef.current) return false // ignore a second tap while saving
+    let saved = false
     savingRef.current = true
     setError(null)
     setStatus('Saving…')
@@ -166,10 +177,10 @@ function Editor(props: Props) {
       const visitId = visitIdRef.current
 
       if (props.mode === 'create' && !visitCreatedRef.current) {
-        const result = await createVisit(visitId, props.patientId, notes)
+        const result = await createVisit(visitId, props.patientId, notes, props.appointmentId)
         if (result.error) {
           setError(result.error)
-          return
+          return false
         }
         visitCreatedRef.current = true
         const pendingKey = pendingVisitKey(props)
@@ -186,7 +197,7 @@ function Editor(props: Props) {
           if (!result.error) dropSavedPhotos(records.map((r) => r.key))
         }
         setError(`${failed} photo${failed === 1 ? '' : 's'} couldn’t upload. Check the connection and tap Save again.`)
-        return
+        return false
       }
 
       setStatus('Saving…')
@@ -195,16 +206,19 @@ function Editor(props: Props) {
       const result = await saveVisitChanges(visitId, notesToSave, recorded)
       if (result.error) {
         setError(result.error)
-        return
+        return false
       }
       writeDraft(key, null)
       const pendingKey = pendingVisitKey(props)
       if (pendingKey) writeDraft(pendingKey, null)
       finished = true
 
+      saved = true
+
       if (props.mode === 'create') {
         setStatus('Opening visit…')
-        router.replace(`/app/visits/${visitId}`)
+        // Next up is the bill
+        router.replace(`/app/visits/${visitId}?step=bill`)
       } else {
         dropSavedPhotos(records.map((r) => r.key))
         setRestored(false)
@@ -216,6 +230,20 @@ function Editor(props: Props) {
       savingRef.current = false
       // On success in create mode the button stays disabled until the visit page opens
       if (!finished) setStatus(null)
+    }
+    return saved
+  }
+
+  // Lets the visit screen save unsaved notes before moving to another step
+  useImperativeHandle(props.handle, () => ({ hasChanges: () => hasChanges, save }))
+
+  // Main button: save what is new, then carry on to the next step (when there is one)
+  const press = async () => {
+    if (hasChanges) {
+      const ok = await save()
+      if (ok) props.onContinue?.()
+    } else {
+      props.onContinue?.()
     }
   }
 
@@ -280,9 +308,9 @@ function Editor(props: Props) {
         </div>
       </div>
 
-      <button type="button" onClick={save} disabled={!canSave}
+      <button type="button" onClick={press} disabled={!canSave}
         className="w-full rounded-full bg-blue-600 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50">
-        {status ?? (listening ? 'Stop dictation to save' : props.mode === 'create' ? 'Save visit' : 'Save changes')}
+        {status ?? (listening ? 'Stop dictation to save' : (props.continueLabel ?? (props.mode === 'create' ? 'Save visit' : 'Save changes')))}
       </button>
     </div>
   )

@@ -34,6 +34,15 @@ export function inIndia(moment: Date | string): { date: string; time: string } {
   return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${hour}:${get('minute')}` }
 }
 
+// A start that is exactly one of the clinic's blocks (and not on a Friday), else null
+export function clinicBlockOf(startsAt: string): { iso: string; date: string; time: string } | null {
+  const d = new Date(startsAt)
+  if (Number.isNaN(d.getTime())) return null
+  const { date, time } = inIndia(d)
+  if (isClosedDay(date) || !ALL_BLOCKS.includes(time)) return null
+  return { iso: d.toISOString(), date, time }
+}
+
 export function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)

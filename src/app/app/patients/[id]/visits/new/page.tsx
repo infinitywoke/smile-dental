@@ -5,8 +5,9 @@ import { formatDate, todayInIndia } from '@/lib/dates'
 import { VisitEditor } from '@/components/clinic/VisitEditor'
 import { BackLink, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 
-async function NewVisitPageContent({ params }: PageProps<'/app/patients/[id]/visits/new'>) {
+async function NewVisitPageContent({ params, searchParams }: PageProps<'/app/patients/[id]/visits/new'>) {
   const { id } = await params
+  const { appointmentId } = await searchParams
   const [doctor, patient] = await Promise.all([getDoctor(), getPatient(id)])
 
   return (
@@ -17,7 +18,13 @@ async function NewVisitPageContent({ params }: PageProps<'/app/patients/[id]/vis
         <p className="mt-1 text-sm text-gray-500">{patient.name} · {formatDate(todayInIndia())}</p>
       </div>
       <MedicalAlert alerts={patient.medical_alerts} />
-      <VisitEditor mode="create" doctorId={doctor.id} patientId={patient.id} />
+      <VisitEditor
+        mode="create"
+        doctorId={doctor.id}
+        patientId={patient.id}
+        appointmentId={typeof appointmentId === 'string' ? appointmentId : undefined}
+        continueLabel="Next: Bill"
+      />
     </div>
   )
 }

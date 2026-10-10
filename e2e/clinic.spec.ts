@@ -60,50 +60,89 @@ test('adds a new patient and starts a visit', async () => {
   await expect(visible(page.locator('p', { hasText: 'Medical alert:' }))).toContainText('Penicillin allergy')
 })
 
-test('saves a visit with notes and a captioned photo', async () => {
+test('saves a visit with notes and a captioned photo, and lands on the bill', async () => {
   await visible(page.getByLabel('Notes', { exact: true })).fill(notes)
   // Tap Gallery like a person would; this picks the visible screen's file input
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Gallery' }).click()])
   await chooser.setFiles(fixturePhoto)
   await visible(page.getByPlaceholder('What is this?')).fill(caption)
-  await page.getByRole('button', { name: 'Save visit' }).click()
+  await page.getByRole('button', { name: 'Next: Bill' }).click()
 
-  // A failed upload keeps the editor open, so landing on the visit page means everything saved
-  await expect(page).toHaveURL(/\/app\/visits\/[^/?]+$/, { timeout: 30_000 })
+  // A failed upload keeps the editor open, so landing on the bill means everything saved
+  await expect(page).toHaveURL(/\/app\/visits\/[^/?]+\?step=bill$/, { timeout: 30_000 })
   await expect(page.getByRole('heading', { name: patientName })).toBeVisible()
+  await expect(visible(page.getByText('No charges yet'))).toBeVisible()
+
+  // Back on Notes: the words and the photo are there
+  await page.getByRole('navigation', { name: 'Visit steps' }).getByRole('button', { name: 'Notes' }).click()
   await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(notes)
   await expect(page.getByRole('img', { name: caption })).toHaveCount(1)
   await expect(visible(page.getByText(caption, { exact: true }))).toBeVisible()
 })
 
-test('bills the visit, shows a UPI QR, and records a cash payment', async () => {
-  await page.getByRole('link', { name: /Bill and payment/ }).click()
-  await expect(page).toHaveURL(/\/app\/visits\/[^/]+\/bill$/)
+test('walks the visit: bill, cash payment, next visit, one WhatsApp message, done', async () => {
+  // Notes -> Next: Bill (nothing new to save, so it just moves on)
+  await visible(page.getByRole('button', { name: 'Next: Bill' })).click()
 
+  // Add charge is collapsed until tapped
+  await expect(visible(page.getByLabel('What for'))).toHaveCount(0)
+  await visible(page.getByRole('button', { name: 'Add charge' })).click()
   await visible(page.getByLabel('What for')).fill(`${runId} scaling`)
   await visible(page.locator('#charge-amount')).fill('1200')
   await visible(page.getByRole('button', { name: 'Add to bill' })).click()
   await expect(visible(page.getByText(`${runId} scaling`))).toBeVisible()
-  await expect(visible(page.getByText('Total').first())).toBeVisible()
 
-  // The QR is for the amount typed, and points at the clinic's UPI ID
+  // The QR stays hidden until asked for, then matches the amount typed
+  await expect(visible(page.getByRole('img', { name: /UPI QR/ }))).toHaveCount(0)
   await visible(page.locator('#payment-amount')).fill('1000')
+  await visible(page.getByRole('button', { name: /Show UPI QR/ })).click()
   await expect(visible(page.getByRole('img', { name: /UPI QR for ₹1,000/ }))).toBeVisible()
   await visible(page.getByRole('button', { name: /Collected cash/ })).click()
-
   await expect(visible(page.getByText('Paid by cash'))).toBeVisible()
   await expect(visible(page.getByText('Balance this visit'))).toBeVisible()
-  await expect(visible(page.getByText('₹200').first())).toBeVisible()
-  await expect(visible(page.getByRole('link', { name: /Send bill on WhatsApp/ }))).toHaveAttribute('href', new RegExp(`wa\.me/91${phone}`))
+
+  // Send: a next visit is already suggested, and the photo can be ticked for a link
+  await visible(page.getByRole('button', { name: 'Next: Send' })).click()
+  await expect(visible(page.getByText('Next visit', { exact: true }))).toBeVisible()
+  await expect(visible(page.getByRole('button', { name: 'Change' }))).toBeVisible()
+  await visible(page.getByLabel(caption)).check()
+
+  const whatsapp = { url: '' }
+  await page.route('https://wa.me/**', (route) => {
+    whatsapp.url = route.request().url()
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>WhatsApp</body></html>' })
+  })
+  await visible(page.getByRole('button', { name: 'Send on WhatsApp' })).click()
+  await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
+
+  // One message to the patient: bill, balance, next visit and a 30-day photo link
+  expect(whatsapp.url).toContain(`wa.me/91${phone}`)
+  const text = new URL(whatsapp.url).searchParams.get('text') ?? ''
+  expect(text).toContain(`${runId} scaling`)
+  expect(text).toContain('Total: ₹1,200')
+  expect(text).toContain('Paid: ₹1,000 (cash)')
+  expect(text).toContain('Balance: ₹200')
+  expect(text).toContain('*Next appointment*')
+  expect(text).toContain('*Prescription*')
+  const link = text.match(/https:\/\/\S+\/storage\/v1\/object\/sign\/visit-photos\/\S+/)?.[0]
+  expect(link).toBeTruthy()
+  const token = new URL(link!).searchParams.get('token')!
+  const { exp } = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
+  const days = (exp * 1000 - Date.now()) / 86_400_000
+  expect(days).toBeGreaterThan(29)
+  expect(days).toBeLessThan(31)
 })
 
-test('lists the visit on Today', async () => {
-  await page.getByRole('link', { name: 'Today', exact: true }).click()
+test('lists the visit on Today as done, with the money', async () => {
+  // The WhatsApp hand-off left the app, so come back in
+  await page.goto('/app')
   await expect(page).toHaveURL(/\/app$/)
   const visit = visible(page.getByRole('link').filter({ hasText: patientName }))
   await expect(visit).toHaveCount(1)
   await expect(visit).toContainText(runId)
   await expect(visit).toContainText('1 photo')
+  await expect(visit).toContainText('Done')
+  await expect(visit).toContainText('₹1,200 billed')
 })
 
 test('finds the patient by phone on the Patients tab', async () => {

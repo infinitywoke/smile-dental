@@ -28,8 +28,8 @@ Owner approved 2026-10-11 (all seven recommendations). Design is in PRODUCT.md, 
 
 | Phase | Scope | Done when |
 |---|---|---|
-| **R1** shell and Today | Tabs Today + Patients with a + button; ⋯ menu (Practice mode, Delete test data, Sign out); Today as the day sheet (day strip, Needs you with Confirm / Other time, schedule, free-time pills); one compact time picker; `/app/calendar` redirects to Today | e2e + build green; owner can confirm a request in two taps from Today |
-| **R2** visit flow | Visit as Notes → Bill → Send; collapsed Add charge; one WhatsApp message (bill + next appointment + prescription photo link); appointment ↔ visit link; `visits.closed_at` (SQL patch); statuses on Today | golden-path e2e: walk-in → notes → bill → pay → next appointment → WhatsApp link |
+| **R1** shell and Today | Tabs Today + Patients with a + button; ⋯ menu (Practice mode, Delete test data, Sign out); Today as the day sheet (day strip, Needs you with Confirm / Other time, schedule, free-time pills); one compact time picker; `/app/calendar` redirects to Today | **Done** (commit `b69e755`); e2e + build green |
+| **R2** visit flow | Visit as Notes → Bill → Send; collapsed Add charge and UPI QR; one WhatsApp message (bill + next visit + 30-day prescription link made at send time); appointment ↔ visit link; `visits.closed_at`; statuses on Today | **Done 2026-10-11** (Gemini's partial work finished and reviewed by the orchestrator). `patch-visit-flow.sql` is already applied to the live project (Gemini ran it through the Supabase CLI); safe to re-run. Browser tests: 12/12 |
 | **R3** patient hub | Smart primary button; upcoming appointment; dues in Needs you; remove dead routes (`/appointments/[id]`, `/bill`); redirects for old links | no unused routes; old WhatsApp links still open |
 | **R4** smart notes | "Tidy up" in step 1 (Phase 3 below), confirm card, bill lines from procedures | acceptance of Phase 3 |
 

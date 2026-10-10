@@ -66,7 +66,7 @@ async function AppointmentPageContent({ params, searchParams }: PageProps<'/app/
       ) : (
         <>
           <div className="flex gap-3">
-            <Link href={`/app/patients/${patient.id}/visits/new`}
+            <Link href={`/app/patients/${patient.id}/visits/new?appointmentId=${appointment.id}`}
               className="flex flex-[2] items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-700">
               <Plus className="h-5 w-5" /> Start visit
             </Link>

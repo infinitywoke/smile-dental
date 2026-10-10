@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { billMessage, parseAmount, summarise, sumAmounts } from './billing'
+import { billMessage, parseAmount, summarise, sumAmounts, visitMessage } from './billing'
 import { upiLink } from './upi'
 
 describe('sumAmounts', () => {
@@ -74,5 +74,41 @@ describe('billMessage', () => {
     expect(text).toContain('Paid: ₹1,000 (UPI)')
     expect(text).toContain('Balance: ₹500')
     expect(text).not.toContain('Earlier balance')
+  })
+})
+
+describe('visitMessage', () => {
+  it('combines bill, payments, next appointment and prescription photo link', () => {
+    const summary = summarise({ charges: [{ amount: 3500 }], payments: [{ amount: 3500 }], earlier: 0 })
+    const text = visitMessage({
+      patientName: 'Prakash Shetty',
+      visitDate: '2026-10-15',
+      lines: [{ description: 'RCT', amount: 3500 }],
+      payments: [{ amount: 3500, method: 'upi' }],
+      summary,
+      nextAppointment: { starts_at: '2026-10-22T05:00:00.000Z' }, // 10:30 AM IST
+      prescriptionPhotoUrls: ['https://example.com/prescription.jpg'],
+    })
+
+    expect(text).toContain('Hello Prakash')
+    expect(text).toContain('• RCT: ₹3,500')
+    expect(text).toContain('Total: ₹3,500')
+    expect(text).toContain('Paid: ₹3,500 (UPI)')
+    expect(text).toContain('*Next appointment*')
+    expect(text).toContain('10:30 AM')
+    expect(text).toContain('*Prescription*')
+    expect(text).toContain('https://example.com/prescription.jpg')
+    expect(text).toContain('– Dr. Rahil Yusuf')
+  })
+
+  it('works gracefully when only bill or only next appointment is present', () => {
+    const text = visitMessage({
+      patientName: 'Prakash Shetty',
+      visitDate: '2026-10-15',
+      nextAppointment: { starts_at: '2026-10-22T05:00:00.000Z' },
+    })
+    expect(text).toContain('Hello Prakash')
+    expect(text).not.toContain('*Bill*')
+    expect(text).toContain('*Next appointment*')
   })
 })

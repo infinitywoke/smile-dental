@@ -30,14 +30,24 @@ export type Visit = {
   // Visit summary v1; validate with the Zod schema in src/lib/ai/visit-summary.ts
   summary?: unknown | null
   confirmed_at?: string | null
+  closed_at?: string | null
   created_at: string
   updated_at: string
 }
+
+export type VisitStatus = 'in_progress' | 'billed' | 'paid' | 'done'
 
 export type VisitPhoto = {
   id: string
   caption: string
   url: string | null
+}
+
+export type VisitDetail = Visit & {
+  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'is_test'>
+  photos: VisitPhoto[]
+  linked_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status'> | null
+  next_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status'> | null
 }
 
 // Phases 3-5 -----------------------------------------------------------------

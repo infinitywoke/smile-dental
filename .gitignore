@@ -49,3 +49,6 @@ next-env.d.ts
 
 # Claude Code agent worktrees and local settings
 /.claude/
+
+# supabase cli temporary data
+supabase/.temp/
