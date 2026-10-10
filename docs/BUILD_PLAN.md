@@ -16,11 +16,24 @@ Status as of **2026-10-11**.
 | **Phase 1: foundation** | Done and verified on the phone. |
 | **Phase 2: patients and visits** | Done and verified on localhost: Today list, patient search (name/phone), new patient with returning-patient detection, patient page, visits with notes + dictation + captioned photos (private storage), photo viewer, delete visit. DB: `supabase/phase2.sql` (applied to the new project). |
 | **Wave 0** | Done 2026-10-10 (agent swarm): review fixes, 124 unit tests, 7 end-to-end tests passing against the real app with the test login, `supabase/phase3-5.sql` (91 checks in local Postgres; **owner must run it in the SQL Editor**), shared types, AI scaffolding (`src/lib/ai/`), price parsing, privacy page, home-screen manifest. |
-| **Next** | Owner ran `phase3-5.sql` and added `ANTHROPIC_API_KEY` in Vercel (2026-10-11; also needed in `.env.local` for local runs). **Phase 5a (online booking + calendar) is next, awaiting the owner's go-ahead**; then the rest of Wave 1. Open items for Wave 1: store `version` in `visits.summary`; maybe `treatment_slug` on plan items; set `maxDuration` on the Claude route; update privacy page when share links / booking storage ship. |
+| **Billing** | Built and live 2026-10-11: price-list charges, UPI QR, cash/UPI payments, WhatsApp bill text (no private link yet). Being folded into the visit flow in R2. |
+| **Next** | Rework wave R (below) before smart notes. Owner ran `phase3-5.sql` and added `ANTHROPIC_API_KEY` in Vercel (2026-10-11; also needed in `.env.local` for local runs). **Phase 5a (online booking + calendar) is next, awaiting the owner's go-ahead**; then the rest of Wave 1. Open items for Wave 1: store `version` in `visits.summary`; maybe `treatment_slug` on plan items; set `maxDuration` on the Claude route; update privacy page when share links / booking storage ship. |
 
 ## 2. What is left
 
 Each item lists its **acceptance criteria**: what must be true on Dr. Rahil's phone for it to count as done.
+
+### Rework wave R: simpler flow and navigation (IN PROGRESS, branch `rework-flow`)
+Owner approved 2026-10-11 (all seven recommendations). Design is in PRODUCT.md, "Screens and flow". Work happens on a branch with a Vercel preview; Dr. Rahil keeps using `main` until the owner has tried the preview and merges. Changes to data are additive only.
+
+| Phase | Scope | Done when |
+|---|---|---|
+| **R1** shell and Today | Tabs Today + Patients with a + button; ⋯ menu (Practice mode, Delete test data, Sign out); Today as the day sheet (day strip, Needs you with Confirm / Other time, schedule, free-time pills); one compact time picker; `/app/calendar` redirects to Today | e2e + build green; owner can confirm a request in two taps from Today |
+| **R2** visit flow | Visit as Notes → Bill → Send; collapsed Add charge; one WhatsApp message (bill + next appointment + prescription photo link); appointment ↔ visit link; `visits.closed_at` (SQL patch); statuses on Today | golden-path e2e: walk-in → notes → bill → pay → next appointment → WhatsApp link |
+| **R3** patient hub | Smart primary button; upcoming appointment; dues in Needs you; remove dead routes (`/appointments/[id]`, `/bill`); redirects for old links | no unused routes; old WhatsApp links still open |
+| **R4** smart notes | "Tidy up" in step 1 (Phase 3 below), confirm card, bill lines from procedures | acceptance of Phase 3 |
+
+**Prescription photo in the WhatsApp message:** `wa.me` links can only carry text, so the message includes a **signed link** to the photo in the private bucket (30 days). The Send step lists the visit's photos with tick boxes; photos captioned "prescription" are ticked by default. Needs no new secret key. The privacy page gets a line about this.
 
 ### Wave 0: foundation for parallel work (orchestrator, inline)
 - [x] Camera/gallery split; continuous dictation with animation; live preview.

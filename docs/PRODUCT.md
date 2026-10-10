@@ -64,6 +64,28 @@ The single source of truth for **what** we are building and **why**. Read this b
 7. **Daily close** reconciliation.
 8. **Insights** + plain-English questions.
 
+## Screens and flow (rework, decided 2026-10-11)
+
+The app grew cluttered after online booking and billing, so the structure is simplified. One rule: **every screen has one obvious next action.**
+
+**Navigation:** two tabs, **Today** and **Patients**, plus a **+** button (New patient, Book appointment). A **⋯ menu** in the header holds the rare things: Practice mode, Delete test data, Sign out. Money returns as a tab only when it exists.
+
+**Today is the day sheet.** It is also the calendar: a day strip and arrows move between days, and today is the default.
+- **Needs you:** booking requests as cards with **Confirm** (books the time asked for, creates or links the patient, opens the WhatsApp confirmation) and **Other time**; later also unpaid balances and reminders.
+- **Schedule:** the day's appointments in time order, then the free times as a compact grid of pills (tap one to book).
+- **Seen today:** visits, with their state (in progress, billed, paid, done).
+
+**A visit is one guided flow with three steps: Notes, Bill, Send.**
+1. **Notes:** dictate or type, photos (prescription, X-ray). Later the smart-notes "Tidy up and confirm" lives here.
+2. **Bill:** compact lines; **+ Add charge** opens on tap; payment buttons; the UPI QR shows on tap.
+3. **Send:** **one WhatsApp message** with the bill, the next appointment (a suggested time, adjustable) and a link to the **prescription photo**; then Done.
+
+**The patient page is a hub** with one smart primary button: *Start visit* (appointment today), *Bill and finish* (visit in progress), *Collect ₹X* (money owed), or *Book next visit* (all done). It shows the next appointment.
+
+**One time picker** (compact pills; day strip; tap or slide) is used for Other time, next visit, phone booking and moving an appointment.
+
+**Practice mode** (⋯ menu) marks every new patient and booking as TEST; **Delete test data** clears them. There is no per-patient checkbox.
+
 ## Decision log
 
 - 2026-10-09 Keep the existing website and assets; discard the old Clinic OS entirely; start with **no data import**. (Old test data sits in a private `old_clinic_os` schema in the *old* Supabase project; it can be deleted.)
@@ -74,3 +96,4 @@ The single source of truth for **what** we are building and **why**. Read this b
 - 2026-10-10 Visits support **multiple photos with captions**. Camera and gallery are separate buttons (Android opens only the gallery when multiple selection is allowed).
 - 2026-10-10 No mic on the patient-details screen (typing is easier). Dictation **stays on until Stop**, with an animation.
 - 2026-10-11 **Online booking and calendar (Phase 5a).** Website SOS button removed. 40-minute blocks following the Google Business Profile hours (15 a day; the last of each session may overrun closing slightly; the 7:10 PM block is by phone only), Fridays closed. Patients may book only blocks starting **2+ hours ahead**; anything from **7 PM**, or a time not shown, is by phone. The website's how-did-you-hear answer is pre-filled from the link the visitor came from. Patient is told confirmation takes **under 15 minutes** (after 6 AM if requested between 9 PM and 6 AM). The request carries a private link into Clinic OS (a vCard is not possible from a WhatsApp link). Confirmation to the patient stays **one tap** on WhatsApp (Business API deferred).
+- 2026-10-11 **Rework of flow and navigation** (see "Screens and flow"). Today and Calendar merged into one day sheet; visits become a three-step flow (Notes, Bill, Send); one combined WhatsApp message with the bill, next appointment and a private link to the prescription photo; one-tap Confirm on booking requests; Practice mode replaces the per-patient Test box; Money hidden until built. Built on a branch with a preview before merging.
