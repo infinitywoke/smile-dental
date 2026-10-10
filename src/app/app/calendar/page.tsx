@@ -67,7 +67,7 @@ async function CalendarContent({ searchParams }: PageProps<'/app/calendar'>) {
       ) : (
         <div className="space-y-4">
           <Group title="Morning" times={MORNING_BLOCKS} blocks={schedule.blocks} date={date} />
-          <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-400">Break · 1:00 – 2:30 PM</p>
+          <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-400">Break · 1:10 – 2:30 PM</p>
           <Group title="Afternoon and evening" times={AFTERNOON_BLOCKS} blocks={schedule.blocks} date={date} />
         </div>
       )}

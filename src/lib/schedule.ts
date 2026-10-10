@@ -14,9 +14,9 @@ export const ONLINE_CUTOFF = '19:00'
 export const WINDOW_DAYS = 28
 
 // Block start times, matching the Google Business Profile hours (8:30 AM-1:00 PM, 2:30-7:30 PM).
-// A block is offered only if it ends before closing, so the last ones are 11:50 AM and 6:30 PM.
-export const MORNING_BLOCKS = ['08:30', '09:10', '09:50', '10:30', '11:10', '11:50']
-export const AFTERNOON_BLOCKS = ['14:30', '15:10', '15:50', '16:30', '17:10', '17:50', '18:30']
+// The last block of each session may run a little past closing (12:30 ends 1:10, 7:10 PM ends 7:50).
+export const MORNING_BLOCKS = ['08:30', '09:10', '09:50', '10:30', '11:10', '11:50', '12:30']
+export const AFTERNOON_BLOCKS = ['14:30', '15:10', '15:50', '16:30', '17:10', '17:50', '18:30', '19:10']
 export const ALL_BLOCKS = [...MORNING_BLOCKS, ...AFTERNOON_BLOCKS]
 
 // "YYYY-MM-DD" + "HH:MM" in India time -> the exact moment, as an ISO string

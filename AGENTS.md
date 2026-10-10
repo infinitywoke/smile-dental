@@ -17,13 +17,13 @@ Match the model and effort to the task; never spend more than the task needs. Wh
 
 | Task | Delegate to |
 |---|---|
-| Searches, lookups, reading code | Claude Haiku, effort low, or Gemini Flash (`gemini -p`) |
-| Running checks, summarising test or build logs | Gemini Flash, or no AI at all (just run the script) |
+| Searches, lookups, reading code | Claude Haiku, effort low, or Gemini 3.8 Flash (`gemini -p`) |
+| Running checks, summarising test or build logs | Gemini 3.8 Flash, or no AI at all (just run the script) |
 | Routine code changes | Claude Sonnet, effort medium |
-| Second-opinion code review | Gemini Pro, or Claude Sonnet, effort medium (one review per wave) |
+| Second-opinion code review | Gemini 3.1 Pro, effort High, or Claude Opus, effort medium (one review per wave) |
 | Database / auth / security rules, AI prompt design | Claude Opus, effort high |
 
-- **Gemini access (checked 2026-10-10):** Gemini CLI no longer accepts personal Google sign-in (Google AI Pro now applies only inside Antigravity's own agent). Gemini delegation from Claude Code needs a `GEMINI_API_KEY` (Google AI Studio, billed separately); without one, skip the Gemini rows and use the Claude option.
+- **Gemini access (checked 2026-10-10):** Try using gemini since we are on Antigravity IDE, If unable to use, skip the Gemini rows and use the Claude option.
 - Never use effort `max`, and never send patient data or database exports to any AI service outside the app (Gemini CLI included). Code and docs only.
 - Prefer doing small jobs (under about an hour) directly over spawning agents. At most 1–2 parallel builders. Install packages once, before creating worktrees.
 - Automated checks (`npm test`, `npm run build`, `npm run lint`, `npm run test:e2e`) cost no AI quota: run them instead of asking a model to verify.

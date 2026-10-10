@@ -12,22 +12,23 @@ const at = (date: string, hhmm: string) => new Date(`${date}T${hhmm}:00+05:30`)
 const openToday = (now: Date, date = WED) => ALL_BLOCKS.filter((b) => isOnlineBookable(date, b, now))
 
 describe('blocks', () => {
-  it('has 13 blocks of 40 minutes that all fit inside the opening hours (8:30-1:00, 2:30-7:30)', () => {
-    expect(ALL_BLOCKS).toHaveLength(13)
+  it('has 15 blocks of 40 minutes that follow the opening hours (8:30-1:00, 2:30-7:30)', () => {
+    expect(ALL_BLOCKS).toHaveLength(15)
     expect(ALL_BLOCKS[0]).toBe('08:30')
-    expect(blockEnd('11:50')).toBe('12:30')
-    expect(ALL_BLOCKS[6]).toBe('14:30')
-    expect(blockEnd(ALL_BLOCKS.at(-1)!)).toBe('19:10')
+    expect(ALL_BLOCKS[6]).toBe('12:30')
+    expect(blockEnd('12:30')).toBe('13:10')
+    expect(ALL_BLOCKS[7]).toBe('14:30')
+    expect(blockEnd(ALL_BLOCKS.at(-1)!)).toBe('19:50')
+    // Every block starts inside opening hours; only the last of each session overruns
     for (const start of ALL_BLOCKS) {
-      const end = blockEnd(start)
-      expect(end <= '13:00' || (start >= '14:30' && end <= '19:30')).toBe(true)
+      expect((start >= '08:30' && start < '13:00') || (start >= '14:30' && start < '19:30')).toBe(true)
     }
   })
 
   it('has no blocks on Fridays', () => {
     expect(isClosedDay(FRI)).toBe(true)
     expect(blocksFor(FRI)).toEqual([])
-    expect(blocksFor(THU)).toHaveLength(13)
+    expect(blocksFor(THU)).toHaveLength(15)
   })
 
   it('formats times for patients', () => {
@@ -47,7 +48,8 @@ describe('blocks', () => {
 
 describe('online booking rules', () => {
   it('needs at least 2 hours of notice', () => {
-    expect(openToday(at(WED, '10:00'))[0]).toBe('14:30')
+    expect(openToday(at(WED, '10:00'))[0]).toBe('12:30')
+    expect(openToday(at(WED, '10:31'))[0]).toBe('14:30')
     expect(openToday(at(WED, '12:30'))[0]).toBe('14:30')
     expect(openToday(at(WED, '12:31'))[0]).toBe('15:10')
   })
@@ -76,7 +78,9 @@ describe('online booking rules', () => {
     expect(isOnlineBookable(THU, '19:20', morning)).toBe(false)
     expect(isOnlineBookable(THU, '20:00', morning)).toBe(false)
     expect(isOnlineBookable(THU, '18:30', morning)).toBe(true)
-    expect(isOnlineBookable(THU, '12:30', morning)).toBe(false)
+    expect(isOnlineBookable(THU, '12:30', morning)).toBe(true)
+    expect(isOnlineBookable(THU, '19:10', morning)).toBe(false)
+    expect(isOnlineBookable(THU, '13:30', morning)).toBe(false)
   })
 
   it('never offers Fridays, off-grid times, the past or beyond 28 days', () => {
