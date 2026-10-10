@@ -30,11 +30,7 @@ describe('appendDictation', () => {
     expect(appendDictation('Pain!', 'tooth 46')).toBe('Pain! Tooth 46')
   })
 
-  // BUG (src/lib/dictation.ts): a trailing newline is detected as a sentence end,
-  // but then stripped with the other trailing whitespace, so "Pain\n" + "tooth 46"
-  // becomes "Pain Tooth 46": the line break is lost and the sentences run together.
-  // Remove `.fails` once the newline is kept.
-  it.fails('keeps an existing trailing newline', () => {
+  it('keeps an existing trailing newline', () => {
     expect(appendDictation('Pain\n', 'tooth 46')).toBe('Pain\nTooth 46')
   })
 
