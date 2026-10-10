@@ -24,7 +24,7 @@ export default async function VisitPage({ params }: PageProps<'/app/visits/[id]'
 
       <PhotoGallery photos={visit.photos} />
 
-      <VisitEditor key={visit.notes} mode="edit" doctorId={doctor.id} visitId={visit.id} notes={visit.notes} />
+      <VisitEditor key={visit.updated_at} mode="edit" doctorId={doctor.id} visitId={visit.id} notes={visit.notes} />
 
       <DeleteVisitButton visitId={visit.id} />
     </div>

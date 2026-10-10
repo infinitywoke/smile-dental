@@ -11,7 +11,7 @@ export default async function EditPatientPage({ params }: PageProps<'/app/patien
     <div className="space-y-5">
       <BackLink href={`/app/patients/${id}`} label={patient.name} />
       <h1 className="text-2xl font-bold tracking-tight text-gray-900">Edit details</h1>
-      <PatientForm action={updatePatient.bind(null, id)} patient={patient} submitLabel="Save changes" />
+      <PatientForm key={patient.updated_at} action={updatePatient.bind(null, id)} patient={patient} submitLabel="Save changes" />
     </div>
   )
 }
