@@ -14,6 +14,11 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Agent worktrees (each a full copy of the project)
     ".claude/**",
+    // Playwright output
+    "test-results/**",
+    "playwright-report/**",
+    "blob-report/**",
+    "playwright/.cache/**",
   ]),
 ]);
 
