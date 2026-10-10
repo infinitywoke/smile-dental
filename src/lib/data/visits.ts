@@ -9,14 +9,14 @@ export const PHOTO_BUCKET = 'visit-photos'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at, updated_at'
 
-export type TodayVisit = Visit & { patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts'>; photo_count: number }
+export type TodayVisit = Visit & { patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'is_test'>; photo_count: number }
 
 export async function getTodayVisits(): Promise<TodayVisit[]> {
   await getDoctor()
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('visits')
-    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts), visit_photos (count)`)
+    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts, is_test), visit_photos (count)`)
     .eq('visit_date', todayInIndia())
     .order('created_at', { ascending: false })
   if (error) throw error

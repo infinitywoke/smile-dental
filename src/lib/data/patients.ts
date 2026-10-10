@@ -6,7 +6,7 @@ import { normalizePhone } from '@/lib/phone'
 import type { Patient } from './types'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const PATIENT_COLUMNS = 'id, name, phone, date_of_birth, address, medical_alerts, heard_from, created_at, updated_at'
+const PATIENT_COLUMNS = 'id, name, phone, date_of_birth, address, medical_alerts, heard_from, is_test, created_at, updated_at'
 
 // Search by name or phone number. Without a query, returns the newest patients.
 export async function searchPatients(query: string): Promise<Patient[]> {
@@ -45,4 +45,12 @@ export async function findPatientsByPhone(phone: string): Promise<Patient[]> {
   const { data, error } = await supabase.from('patients').select(PATIENT_COLUMNS).eq('phone', phone).order('name')
   if (error) throw error
   return data
+}
+
+export async function countTestPatients(): Promise<number> {
+  await getDoctor()
+  const supabase = await createClient()
+  const { count, error } = await supabase.from('patients').select('id', { count: 'exact', head: true }).eq('is_test', true)
+  if (error) throw error
+  return count ?? 0
 }

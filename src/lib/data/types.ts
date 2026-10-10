@@ -12,6 +12,8 @@ export type Patient = {
   address: string | null
   medical_alerts: string | null
   heard_from: string | null
+  // Trial data, removable in one go from the Patients screen
+  is_test: boolean
   // Optional until every patient query selects it
   preferred_times?: string | null
   created_at: string

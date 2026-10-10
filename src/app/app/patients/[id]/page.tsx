@@ -5,7 +5,7 @@ import { getPatient } from '@/lib/data/patients'
 import { getPatientVisits } from '@/lib/data/visits'
 import { ageOn, formatDate } from '@/lib/dates'
 import { formatPhone } from '@/lib/phone'
-import { BackLink, Card, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
+import { BackLink, Card, MedicalAlert, ScreenLoading, TestBadge } from '@/components/clinic/ui'
 
 async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
   const { id } = await params
@@ -16,7 +16,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
       <BackLink href="/app/patients" label="Patients" />
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">{patient.name}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-gray-900">{patient.name}{patient.is_test && <TestBadge />}</h1>
         <p className="mt-1 text-sm text-gray-500">
           {[patient.date_of_birth && `${ageOn(patient.date_of_birth)} yrs (born ${formatDate(patient.date_of_birth)})`, formatPhone(patient.phone)]
             .filter(Boolean).join(' · ')}

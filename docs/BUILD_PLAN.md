@@ -92,64 +92,21 @@ day_closes        day date unique per owner, cash_counted, cash_expected, note, 
 
 **Visit summary JSON (v1)**, validated with Zod in `src/lib/ai/visit-summary.ts`: `tidy_note`, `complaint`, `findings`, `teeth[{tooth, note}]`, `diagnoses[{tooth?, diagnosis}]`, `procedures_done[{tooth?, procedure, treatment_slug?, amount?}]`, `plan[{tooth?, procedure, price?, price_min?, price_max?}]`, `medicines[{name, dose?, frequency?, duration?, instructions?}]`, `aftercare[]`, `next_visit{when_text, date?, time?, within_days?}?`, `payment{collected?, method?, advance?, balance_next_visit?}?`, `patient_updates{medical_alerts_add[]?, preferred_times?}?`, `warnings[]`, `unclear[]`.
 
-## 4. Agent architecture
+## 4. Workflow (lean, revised 2026-10-10)
+Wave 0 used a large agent swarm on Opus. It worked, but it spent far more quota than a single-user app needs. From now on:
 
-```
-                         ┌──────────────────────────────┐
-   Dr. Rahil / owner ◄──►│ ORCHESTRATOR (main session)  │◄── PRODUCT.md, BUILD_PLAN.md, AGENTS.md, memory
-   decisions, keys,      │ decisions · specs · schema   │
-   phone acceptance      │ integration · merge · deploy │
-                         └──────┬───────────────┬───────┘
-              Wave N briefs     │               │   after merge
-        ┌───────────────┬───────┴──────┐        ├────────────────────┐
-        ▼               ▼              ▼        ▼                    ▼
-   BUILDER A       BUILDER B      BUILDER C   VERIFIER            REVIEWER
-   (worktree)      (worktree)     (worktree)  unit + e2e tests    fresh-eyes security,
-   owns its files  owns its files owns its    with test account;  correctness, Next 16
-                                  files       reports repros      conventions; findings
-```
+1. **Fresh session per task.** Read PRODUCT.md, this plan and memory; don't rely on chat history.
+2. **Orchestrator (main session)** makes decisions with the owner, fixes contracts (schema, types, file ownership) before any parallel work, integrates and deploys. Owner sets the session model: Sonnet/medium for routine work, Opus/high for database, security or AI-prompt design.
+3. **Delegates** follow the model and effort table in AGENTS.md (Haiku or Gemini Flash for lookups and log summaries, Sonnet for routine builders, Gemini Pro or Sonnet for a second-opinion review, Opus only for security-sensitive work). Small jobs are done directly; at most 1–2 parallel builders, each in its own worktree. **Push the base commit before creating worktrees** (worktrees branch from the remote) and install packages once.
+4. **Quality gates are mostly free scripts:** build, lint, unit tests, e2e smoke. One review per wave; an Opus security review only when database or auth rules change.
+5. **Acceptance is Dr. Rahil using it on his phone.** Questions for the owner are batched once per wave.
 
-| Role | Who | Isolation | Gets | Returns | When |
-|---|---|---|---|---|---|
-| **Orchestrator** | Main Claude session | main tree | Everything; talks to the owner | Specs, schema, integration, deploys | Always |
-| **Builder** | General-purpose agent | **own git worktree** | A self-contained brief (template below) | Branch + summary + open questions | Waves 1 and 3, up to 3 in parallel |
-| **Verifier** | General-purpose agent | main tree, read-only on code | Test commands + acceptance criteria | Pass/fail with exact repro steps | After each merge |
-| **Reviewer** | General-purpose agent (or `/code-review`, `/security-review`) | read-only | The diff + rules | Prioritised findings with file:line | After each merge, before deploy |
-| **Owner (human)** | Dr. Rahil / you | the real phone | Acceptance checklist | Sign-off or issues | End of each wave |
-
-**Why this shape:**
-- **Contracts first, then parallel work.** The orchestrator fixes the schema, shared types and file ownership *before* builders start, so parallel builders never edit the same file or invent conflicting tables.
-- **Context written once.** Builders start cold. Everything they need is in PRODUCT.md, this plan and their brief, not in chat history.
-- **Fresh eyes for quality.** Verifier and Reviewer never wrote the code they check.
-- **Small things stay inline.** Spinning up an agent costs context; fixes under about an hour are done directly by the orchestrator.
-- **Humans test what machines can't:** microphone, camera, UPI apps, WhatsApp.
-
-### File ownership in Wave 1
-- **A (smart notes):** `src/lib/ai/**`, `src/components/clinic/smart/**`, `src/lib/actions/summary.ts`.
-- **B (money):** `src/lib/money/**`, `src/components/clinic/money/**`, `src/lib/actions/money.ts`, `src/app/r/**`.
-- **C (appointments):** `src/lib/schedule/**`, `src/components/clinic/schedule/**`, `src/lib/actions/appointments.ts`, `src/app/app/appointments/**`, `src/components/site/PublicBookingForm.tsx`.
-- **Orchestrator only:** `supabase/*.sql`, `src/lib/data/types.ts`, `src/app/app/page.tsx`, `src/app/app/visits/**`, `src/app/app/layout.tsx`, `BottomNav.tsx`. Builders expose components; the orchestrator mounts them.
-
-### Builder brief template
-1. **Goal** in one paragraph, linked to the PRODUCT.md journey step.
-2. **Read first:** PRODUCT.md, BUILD_PLAN.md (sections 2–3), AGENTS.md, the Next docs topics that apply, and the `claude-api` skill if Claude is involved.
-3. **You own** (may create/edit) / **read-only** / **must not touch**.
-4. **Contract:** tables, types and function signatures to use exactly.
-5. **Acceptance criteria** + required unit tests.
-6. **Done means:** `npm run build`, `npm run lint` (no new warnings) and `npm test` pass; changes committed on your worktree branch; reply with a summary, files changed, and decisions you had to make or questions.
-
-### Definition of done (every wave)
-1. Build and lint clean; unit tests and the e2e smoke pass.
-2. Reviewer: no open Critical/High findings.
-3. Security checklist: every new page/action/route calls `getDoctor()` (or is intentionally public and rate-limited); every new table has the owner policy and `anon` revoked; no secret reaches the browser.
-4. Owner's phone acceptance checklist passes.
-5. Deployed; PRODUCT.md / this plan / memory updated.
-
-## 5. Testing strategy
-- **Unit (Vitest):** phone normalisation, India dates, price-list parsing (ranges, formulas), UPI link, WhatsApp message builder, safety rules, slot suggestions, balance maths, daily-close maths, summary validation.
-- **AI evaluation:** 15–20 realistic dictations (Prakash and others) with expected key fields, run before/after any prompt or model change (costs cents per run).
-- **End-to-end (Playwright, mobile viewport):** sign in as the test account → add patient → returning-patient match → visit with photo → confirm → bill → payment → appointment → booking request.
-- **Phone acceptance (owner):** dictation, camera, UPI scan, WhatsApp hand-off, home-screen app.
+## 5. Testing
+- **Unit (Vitest, `npm test`):** pure logic where mistakes cost money or data: phone, dates, dictation, sign-in lock, price parsing, visit summary schema. 124 tests, about 5 s.
+- **End-to-end (Playwright, `npm run test:e2e`):** one smoke flow signed in as the test account (credentials in git-ignored `.env.test.local`): sign in, add a test patient, visit with photo, Today, search, returning patient, delete test patients, sign out. About 25 s. It cleans up after itself.
+- **Database (`supabase/*.sql`):** checked in a local Postgres (PGlite) before handing to the owner whenever rules change.
+- **Test data:** every test patient is marked **Test patient** (`patients.is_test`) and removed with **Delete test patients** on the Patients screen; automated test patients are also named `E2E-...`.
+- **AI evaluation (Phase 3):** 15–20 realistic dictations with expected fields, run before choosing or changing the model.
 
 ## 6. Inputs needed from the owner
 | When | What |
@@ -159,7 +116,7 @@ day_closes        day date unique per owner, cash_counted, cash_expected, note, 
 | Before launch | Hosting plan decisions and backups (section 7). |
 
 ## 7. Risks, costs and operations
-- **AI cost (estimate):** Opus 5.5 at $4 / $20 per million input/output tokens. Roughly **$0.03–0.05 per visit** for tidy + extract, about **$0.015 per photo read**. At 20 patients a day that's very roughly **$15–30 a month**. Cheaper models (Sonnet 5.5, Haiku 5.5) are the owner's call, measured against the AI evaluation set before switching.
+- **AI model and cost (owner decision 2026-10-10: cheapest model that does the job):** start the app's note tidy/extract and photo reading on **Claude Haiku 5.5** ($0.10 / $0.50 per million input/output tokens, roughly ₹0.1 per visit). Move up to Sonnet 5.5 ($2 / $10) or Opus 5.5 ($4 / $20) only if the AI evaluation set shows Haiku falls short. `CLAUDE_MODEL` in `src/lib/ai/claude.ts` is the single switch. Never use free-tier AI APIs for patient data (they may train on it).
 - **Speech-to-text:** Claude doesn't take audio. Dictation uses the phone (in-app Web Speech or the Gboard mic); Claude tidies the text afterwards.
 - **Backups:** the Supabase free plan doesn't give self-service restores. Before real patient data piles up, either move to Pro (daily backups) or add a scheduled export.
 - **Free-tier limits:** Supabase 500 MB database / 1 GB storage (~3,000 resized photos); idle projects pause after about a week.

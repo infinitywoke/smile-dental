@@ -45,3 +45,8 @@ export function ScreenLoading() {
     </div>
   )
 }
+
+// Marks trial data so it isn't mistaken for a real patient
+export function TestBadge() {
+  return <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-800">TEST</span>
+}

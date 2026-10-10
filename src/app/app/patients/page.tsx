@@ -1,15 +1,16 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
-import { searchPatients } from '@/lib/data/patients'
+import { countTestPatients, searchPatients } from '@/lib/data/patients'
 import { ageOn } from '@/lib/dates'
 import { formatPhone } from '@/lib/phone'
-import { SearchBox, ScreenLoading } from '@/components/clinic/ui'
+import { SearchBox, ScreenLoading, TestBadge } from '@/components/clinic/ui'
+import { DeleteTestPatientsButton } from '@/components/clinic/DeleteTestPatientsButton'
 
 async function PatientsPageContent({ searchParams }: PageProps<'/app/patients'>) {
   const { q } = await searchParams
   const query = typeof q === 'string' ? q : ''
-  const patients = await searchPatients(query)
+  const [patients, testCount] = await Promise.all([searchPatients(query), countTestPatients()])
 
   return (
     <div className="space-y-5">
@@ -34,6 +35,7 @@ async function PatientsPageContent({ searchParams }: PageProps<'/app/patients'>)
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 font-semibold text-gray-900">
                   <span className="truncate">{patient.name}</span>
+                  {patient.is_test && <TestBadge />}
                   {patient.medical_alerts && <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
                 </p>
                 <p className="text-sm text-gray-500">
@@ -45,6 +47,8 @@ async function PatientsPageContent({ searchParams }: PageProps<'/app/patients'>)
           </li>
         ))}
       </ul>
+
+      {testCount > 0 && <DeleteTestPatientsButton count={testCount} />}
     </div>
   )
 }

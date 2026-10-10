@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { findPatientsByPhone } from '@/lib/data/patients'
+import { PHOTO_BUCKET } from '@/lib/data/visits'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { todayInIndia } from '@/lib/dates'
 
@@ -22,6 +23,7 @@ function readPatientForm(formData: FormData) {
     address: text('address'),
     medical_alerts: text('medical_alerts'),
     heard_from: text('heard_from'),
+    is_test: formData.get('is_test') === 'on',
   }
 }
 
@@ -67,4 +69,29 @@ export async function lookupPhone(input: string) {
   if (!isValidPhone(phone)) return []
   const matches = await findPatientsByPhone(phone!)
   return matches.map(({ id, name, date_of_birth }) => ({ id, name, date_of_birth }))
+}
+
+// Removes every patient marked as a test patient, with their visits, photo records
+// (database cascade) and photo files in Storage.
+export async function deleteTestPatients(): Promise<{ error?: string; deleted?: number }> {
+  await getDoctor()
+  const supabase = await createClient()
+  const { data: testPatients, error } = await supabase.from('patients').select('id').eq('is_test', true)
+  if (error) return { error: 'Could not find the test patients.' }
+  if (testPatients.length === 0) return { deleted: 0 }
+  const ids = testPatients.map((p) => p.id)
+
+  // Collect photo files first; stop if that fails, so no files are orphaned
+  const { data: photos, error: photosError } = await supabase
+    .from('visit_photos')
+    .select('storage_path, visits!inner (patient_id)')
+    .in('visits.patient_id', ids)
+  if (photosError) return { error: 'Could not find the test patients’ photos.' }
+
+  const { error: deleteError } = await supabase.from('patients').delete().in('id', ids)
+  if (deleteError) return { error: 'Could not delete the test patients.' }
+  if (photos.length > 0) await supabase.storage.from(PHOTO_BUCKET).remove(photos.map((p) => p.storage_path))
+
+  revalidatePath('/app', 'layout')
+  return { deleted: ids.length }
 }

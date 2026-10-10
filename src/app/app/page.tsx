@@ -4,7 +4,7 @@ import { AlertTriangle, Camera, UserPlus } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getTodayVisits } from '@/lib/data/visits'
 import { formatDate, todayInIndia } from '@/lib/dates'
-import { SearchBox, ScreenLoading } from '@/components/clinic/ui'
+import { SearchBox, ScreenLoading, TestBadge } from '@/components/clinic/ui'
 
 async function TodayPageContent() {
   const [doctor, visits] = await Promise.all([getDoctor(), getTodayVisits()])
@@ -34,6 +34,7 @@ async function TodayPageContent() {
           <Link key={visit.id} href={`/app/visits/${visit.id}`} className="block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 hover:ring-blue-400">
             <div className="flex items-center gap-2">
               <span className="text-base font-semibold text-gray-900">{visit.patient.name}</span>
+              {visit.patient.is_test && <TestBadge />}
               {visit.patient.medical_alerts && <AlertTriangle className="h-4 w-4 text-red-600" aria-label="Has medical alert" />}
               <span className="ml-auto text-xs text-gray-500">
                 {new Date(visit.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}

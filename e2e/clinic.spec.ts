@@ -45,6 +45,7 @@ test('adds a new patient and starts a visit', async () => {
   await visible(page.getByLabel('WhatsApp number')).fill(phone)
   await visible(page.getByLabel('Date of birth')).fill('1990-05-15')
   await visible(page.getByLabel('Medical alerts')).fill('Penicillin allergy')
+  await visible(page.getByLabel(/Test patient/)).check()
   await page.getByRole('button', { name: 'Save and start visit' }).click()
 
   await expect(page).toHaveURL(/\/app\/patients\/[^/]+\/visits\/new$/)
@@ -95,6 +96,18 @@ test('spots the returning patient when the same phone is typed', async () => {
 
   await expect(visible(page.getByText('Already a patient with this number'))).toBeVisible()
   await expect(visible(page.getByRole('link').filter({ hasText: patientName }))).toBeVisible()
+})
+
+test('deletes test patients in one go', async () => {
+  await page.getByRole('link', { name: 'Patients', exact: true }).click()
+  await expect(page).toHaveURL(/\/app\/patients/)
+  page.once('dialog', (dialog) => dialog.accept())
+  await visible(page.getByRole('button', { name: /Delete test patients/ })).click()
+  await expect(visible(page.getByRole('button', { name: /Delete test patients/ }))).toHaveCount(0)
+
+  await visible(page.getByPlaceholder('Search name or phone')).fill(phone)
+  await visible(page.getByRole('button', { name: 'Search' })).click()
+  await expect(visible(page.getByText('No patients found.'))).toBeVisible()
 })
 
 test('signs out', async () => {
