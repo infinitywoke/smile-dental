@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 import { ALL_BLOCKS, BLOCK_MINUTES, blockInstant, inIndia, isClosedDay } from '@/lib/schedule'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { confirmationMessage, declineMessage, whatsappLink } from '@/lib/whatsapp'
+import { isPracticeMode } from '@/lib/practice'
+import { findPatientsByPhone } from '@/lib/data/patients'
 
 type Result = { error?: string }
 type WithWhatsapp = Result & { whatsappUrl?: string; appointmentId?: string; patientId?: string }
@@ -114,7 +116,7 @@ export async function bookAppointment(patientId: string, startsAt: string, reaso
 }
 
 // Phone booking for someone not in the app yet: just a name and number
-export async function bookNewPatient(input: { name: string; phone: string; reason: string; isTest: boolean }, startsAt: string): Promise<WithWhatsapp> {
+export async function bookNewPatient(input: { name: string; phone: string; reason: string }, startsAt: string): Promise<WithWhatsapp> {
   await getDoctor()
   const name = input.name.trim()
   const phone = normalizePhone(input.phone)
@@ -126,7 +128,7 @@ export async function bookNewPatient(input: { name: string; phone: string; reaso
   const supabase = await createClient()
   const { data: patient, error } = await supabase
     .from('patients')
-    .insert({ name, phone, is_test: input.isTest })
+    .insert({ name, phone, is_test: await isPracticeMode() })
     .select('id')
     .single()
   if (error) return { error: 'Could not save the patient. Please try again.' }
@@ -209,4 +211,26 @@ export async function unblockTime(startsAt: string): Promise<Result> {
   if (error) return { error: 'Could not reopen that time.' }
   refresh()
   return {}
+}
+
+// One tap from Today: book the time the patient asked for. Links to the patient already in the app
+// when the same phone and name exist; otherwise creates them. (Family sharing a phone stay separate.)
+export async function confirmRequestAsAsked(requestId: string): Promise<WithWhatsapp> {
+  await getDoctor()
+  if (!UUID.test(requestId)) return { error: 'Something went wrong. Please reopen the request.' }
+
+  const supabase = await createClient()
+  const { data: request } = await supabase
+    .from('booking_requests')
+    .select('name, phone, requested_start, status')
+    .eq('id', requestId)
+    .maybeSingle()
+  if (!request) return { error: 'That request was not found.' }
+  if (request.status !== 'new') return { error: 'This request has already been handled.' }
+  if (!request.requested_start) return { error: 'No time was asked for. Please choose a time.' }
+
+  const sameName = (await findPatientsByPhone(request.phone)).filter(
+    (p) => p.name.trim().toLowerCase() === request.name.trim().toLowerCase(),
+  )
+  return confirmBookingRequest(requestId, request.requested_start, sameName.length === 1 ? sameName[0].id : null)
 }

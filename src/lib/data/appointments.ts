@@ -162,7 +162,10 @@ export async function getAppointment(id: string): Promise<AppointmentRow> {
   return data as unknown as AppointmentRow
 }
 
-export async function getPendingRequests(): Promise<BookingRequest[]> {
+// `confirmable`: the time asked for is still ahead, so one tap can book it
+export type PendingRequest = BookingRequest & { confirmable: boolean }
+
+export async function getPendingRequests(): Promise<PendingRequest[]> {
   await getDoctor()
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -171,7 +174,11 @@ export async function getPendingRequests(): Promise<BookingRequest[]> {
     .eq('status', 'new')
     .order('created_at', { ascending: true })
   if (error) throw error
-  return data as BookingRequest[]
+  const now = Date.now()
+  return (data as BookingRequest[]).map((request) => ({
+    ...request,
+    confirmable: !!request.requested_start && new Date(request.requested_start).getTime() > now,
+  }))
 }
 
 export async function getBookingRequest(id: string): Promise<BookingRequest> {

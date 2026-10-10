@@ -25,7 +25,6 @@ export function BookAppointment({ startsAt, when, patients, backTo }: Props) {
   const [reason, setReason] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [isTest, setIsTest] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<{ whatsappUrl?: string; patientId?: string } | null>(null)
   const [pending, startTransition] = useTransition()
@@ -36,7 +35,7 @@ export function BookAppointment({ startsAt, when, patients, backTo }: Props) {
       const result =
         mode === 'existing'
           ? await bookAppointment(patientId ?? '', startsAt, reason)
-          : await bookNewPatient({ name, phone, reason, isTest }, startsAt)
+          : await bookNewPatient({ name, phone, reason }, startsAt)
       if (result.error) setError(result.error)
       else setDone({ whatsappUrl: result.whatsappUrl, patientId: result.patientId })
     })
@@ -106,10 +105,6 @@ export function BookAppointment({ startsAt, when, patients, backTo }: Props) {
             <label htmlFor="new-phone" className="text-sm font-semibold text-gray-700">WhatsApp number</label>
             <input id="new-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" className={inputClass} placeholder="98450 21763" />
           </div>
-          <label className="flex items-start gap-3 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
-            <input type="checkbox" checked={isTest} onChange={(e) => setIsTest(e.target.checked)} className="mt-1 h-5 w-5 rounded border-gray-300 text-amber-600" />
-            <span className="text-sm text-amber-900"><span className="font-semibold">Test patient</span> — can be deleted in one go later.</span>
-          </label>
         </div>
       )}
 

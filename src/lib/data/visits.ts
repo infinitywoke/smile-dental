@@ -11,13 +11,13 @@ const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at, updated_at
 
 export type TodayVisit = Visit & { patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'is_test'>; photo_count: number }
 
-export async function getTodayVisits(): Promise<TodayVisit[]> {
+export async function getVisitsOn(date: string): Promise<TodayVisit[]> {
   await getDoctor()
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('visits')
     .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts, is_test), visit_photos (count)`)
-    .eq('visit_date', todayInIndia())
+    .eq('visit_date', date)
     .order('created_at', { ascending: false })
   if (error) throw error
 
@@ -26,6 +26,11 @@ export async function getTodayVisits(): Promise<TodayVisit[]> {
     patient: Array.isArray(patient) ? patient[0] : patient,
     photo_count: visit_photos?.[0]?.count ?? 0,
   }))
+}
+
+export async function getTodayVisits(): Promise<TodayVisit[]> {
+  await getDoctor()
+  return getVisitsOn(todayInIndia())
 }
 
 export type VisitSummary = Visit & { photo_count: number }

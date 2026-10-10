@@ -1,16 +1,15 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
-import { countTestPatients, searchPatients } from '@/lib/data/patients'
+import { searchPatients } from '@/lib/data/patients'
 import { ageOn } from '@/lib/dates'
 import { formatPhone } from '@/lib/phone'
 import { SearchBox, ScreenLoading, TestBadge } from '@/components/clinic/ui'
-import { DeleteTestPatientsButton } from '@/components/clinic/DeleteTestPatientsButton'
 
 async function PatientsPageContent({ searchParams }: PageProps<'/app/patients'>) {
   const { q } = await searchParams
   const query = typeof q === 'string' ? q : ''
-  const [patients, testCount] = await Promise.all([searchPatients(query), countTestPatients()])
+  const patients = await searchPatients(query)
 
   return (
     <div className="space-y-5">
@@ -48,7 +47,6 @@ async function PatientsPageContent({ searchParams }: PageProps<'/app/patients'>)
         ))}
       </ul>
 
-      {testCount > 0 && <DeleteTestPatientsButton count={testCount} />}
     </div>
   )
 }

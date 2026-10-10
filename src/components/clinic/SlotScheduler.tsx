@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AlertCircle, CalendarCheck, ChevronLeft, ChevronRight, GripVertical, MessageCircle, UserCheck } from 'lucide-react'
 import { confirmBookingRequest, declineBookingRequest, moveAppointment } from '@/lib/actions/appointments'
-import { AFTERNOON_BLOCKS, MORNING_BLOCKS, addDays, blockEnd, formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import type { DayBlock } from '@/lib/data/appointments'
+import { SlotGrid, isPlaceable } from './SlotGrid'
 
 type Props = {
   mode: 'request' | 'move'
@@ -136,8 +137,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
   }
 
   const selectedBlock = blockAt(selected)
-  const wasHere = originalInstant ? blockAt(originalInstant) : undefined
-
+  
   return (
     <div className="space-y-4">
       {/* Day navigation */}
@@ -206,9 +206,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
       ) : (
         <div className="space-y-4">
           {dayOff && <p className="rounded-xl bg-gray-100 p-3 text-center text-sm font-medium text-gray-600">This day is blocked off in your calendar.</p>}
-          <Group title="Morning" times={MORNING_BLOCKS} blocks={blocks} id={id} selected={selected} over={drag?.over ?? null} label={label} onPick={setSelected} wasHere={wasHere?.instant ?? null} />
-          <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-400">Break · 1:10 – 2:30 PM</p>
-          <Group title="Afternoon and evening" times={AFTERNOON_BLOCKS} blocks={blocks} id={id} selected={selected} over={drag?.over ?? null} label={label} onPick={setSelected} wasHere={wasHere?.instant ?? null} />
+          <SlotGrid blocks={blocks} selected={selected} over={drag?.over ?? null} label={label} onPick={setSelected} ownId={id} />
         </div>
       )}
 
@@ -233,62 +231,5 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         </div>
       )}
     </div>
-  )
-}
-
-// A block can take the patient if it is free, in the future, or already held by this very request
-function isPlaceable(block: DayBlock, ownId: string): boolean {
-  if (block.state === 'free') return true
-  if (block.state === 'request' && block.requestId === ownId) return true
-  if (block.state === 'booked' && block.appointmentId === ownId) return true
-  return false
-}
-
-type GroupProps = {
-  title: string
-  times: string[]
-  blocks: DayBlock[]
-  id: string
-  selected: string | null
-  over: string | null
-  label: string
-  onPick: (instant: string) => void
-  wasHere: string | null
-}
-
-function Group({ title, times, blocks, id, selected, over, label, onPick, wasHere }: GroupProps) {
-  const rows = times.map((t) => blocks.find((b) => b.time === t)).filter((b): b is DayBlock => !!b)
-  return (
-    <section className="space-y-1.5">
-      <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">{title}</h3>
-      {rows.map((block) => {
-        const placeable = isPlaceable(block, id)
-        const isSelected = selected === block.instant
-        const isOver = over === block.instant
-        const other = !placeable
-        return (
-          <button key={block.instant} type="button" data-slot={block.instant}
-            disabled={!placeable}
-            onClick={() => onPick(block.instant)}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm ring-1 ring-inset transition-colors ${
-              isSelected ? 'bg-blue-600 text-white ring-blue-600'
-              : isOver ? 'bg-blue-100 ring-blue-500'
-              : other ? 'bg-gray-100 text-gray-500 ring-gray-200'
-              : 'bg-white text-gray-900 ring-gray-300 hover:ring-blue-400'
-            }`}>
-            <span className="w-24 shrink-0 font-semibold tabular-nums">{formatBlock(block.time)}</span>
-            <span className="min-w-0 flex-1 truncate">
-              {isSelected ? <b>{label}</b>
-                : block.state === 'booked' && block.appointmentId !== id ? `Booked · ${block.patientName}`
-                : block.state === 'request' && block.requestId !== id ? `Request · ${block.requestName}`
-                : block.state === 'blocked' ? `Blocked${block.note ? ` · ${block.note}` : ''}`
-                : block.state === 'past' ? 'Past'
-                : wasHere === block.instant ? 'Requested time'
-                : <span className="text-gray-400">Free until {formatBlock(blockEnd(block.time))}</span>}
-            </span>
-          </button>
-        )
-      })}
-    </section>
   )
 }

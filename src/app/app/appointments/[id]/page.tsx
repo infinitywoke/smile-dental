@@ -44,7 +44,7 @@ async function AppointmentPageContent({ params, searchParams }: PageProps<'/app/
 
   return (
     <div className="space-y-5">
-      <BackLink href={`/app/calendar?d=${date}`} label="Calendar" />
+      <BackLink href={`/app?d=${date}`} label="Today" />
 
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-gray-900">
@@ -87,7 +87,7 @@ async function AppointmentPageContent({ params, searchParams }: PageProps<'/app/
               Open patient
             </Link>
           </div>
-          <CancelAppointmentButton appointmentId={appointment.id} backTo={`/app/calendar?d=${date}`} />
+          <CancelAppointmentButton appointmentId={appointment.id} backTo={`/app?d=${date}`} />
         </>
       )}
     </div>

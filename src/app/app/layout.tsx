@@ -1,10 +1,11 @@
 import { Suspense } from 'react'
 import Image from 'next/image'
 import type { Metadata, Viewport } from 'next'
-import { LogOut } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
+import { isPracticeMode } from '@/lib/practice'
 import { BottomNav } from '@/components/clinic/BottomNav'
+import { HeaderMenu } from '@/components/clinic/HeaderMenu'
 
 // The manifest is linked only here, so "Add to Home screen" installs Clinic OS, not the website.
 export const metadata: Metadata = {
@@ -35,6 +36,7 @@ export default function ClinicLayout({ children }: LayoutProps<'/app'>) {
 // Nothing under /app renders until the session is verified.
 async function DoctorGate({ children }: { children: React.ReactNode }) {
   await getDoctor()
+  const practice = await isPracticeMode()
 
   return (
     <>
@@ -46,17 +48,14 @@ async function DoctorGate({ children }: { children: React.ReactNode }) {
             </div>
             <span className="font-bold text-blue-700">Clinic OS</span>
           </div>
-          <form action="/auth/signout" method="post">
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
-          </form>
+          <HeaderMenu practice={practice} />
         </div>
       </header>
+      {practice && (
+        <div className="bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-900">
+          Practice mode: new patients are marked TEST
+        </div>
+      )}
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-28">{children}</main>
       <BottomNav />
     </>

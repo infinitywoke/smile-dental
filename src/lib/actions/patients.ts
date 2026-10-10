@@ -8,6 +8,7 @@ import { findPatientsByPhone } from '@/lib/data/patients'
 import { PHOTO_BUCKET } from '@/lib/data/visits'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { todayInIndia } from '@/lib/dates'
+import { isPracticeMode } from '@/lib/practice'
 
 export type PatientFormState = { error?: string }
 
@@ -23,7 +24,6 @@ function readPatientForm(formData: FormData) {
     address: text('address'),
     medical_alerts: text('medical_alerts'),
     heard_from: text('heard_from'),
-    is_test: formData.get('is_test') === 'on',
   }
 }
 
@@ -42,7 +42,11 @@ export async function createPatient(_prev: PatientFormState, formData: FormData)
   if (problem) return { error: problem }
 
   const supabase = await createClient()
-  const { data, error } = await supabase.from('patients').insert(patient).select('id').single()
+  const { data, error } = await supabase
+    .from('patients')
+    .insert({ ...patient, is_test: await isPracticeMode() })
+    .select('id')
+    .single()
   if (error) return { error: 'Could not save the patient. Please try again.' }
 
   revalidatePath('/app', 'layout')

@@ -34,7 +34,6 @@ function PatientFields({ action, patient, submitLabel }: Props) {
   const [address, setAddress] = useState(patient?.address ?? '')
   const [alerts, setAlerts] = useState(patient?.medical_alerts ?? '')
   const [heardFrom, setHeardFrom] = useState(patient?.heard_from ?? '')
-  const [isTest, setIsTest] = useState(patient?.is_test ?? false)
   const [lookup, setLookup] = useState<{ phone: string; matches: { id: string; name: string; date_of_birth: string | null }[] }>({ phone: '', matches: [] })
 
   // Spot returning patients as soon as a full number is typed
@@ -126,14 +125,6 @@ function PatientFields({ action, patient, submitLabel }: Props) {
         <input id="heard_from" name="heard_from" autoComplete="off" placeholder="Or type…"
           value={heardFrom} onChange={(e) => setHeardFrom(e.target.value)} className={inputClass} />
       </div>
-
-      <label className="flex items-start gap-3 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
-        <input type="checkbox" name="is_test" checked={isTest} onChange={(e) => setIsTest(e.target.checked)}
-          className="mt-1 h-5 w-5 rounded border-gray-300 text-amber-600" />
-        <span className="text-sm text-amber-900">
-          <span className="font-semibold">Test patient</span> — for trying the app. Test patients can be deleted in one go from the Patients screen.
-        </span>
-      </label>
 
       <button type="submit" disabled={pending}
         className="w-full rounded-full bg-blue-600 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
