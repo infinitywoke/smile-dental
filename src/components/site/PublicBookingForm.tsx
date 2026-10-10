@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarCheck, Clock, MessageCircle, Phone } from 'lucide-react'
+import {
+  AlertCircle, ArrowLeft, ArrowRight, CalendarCheck, CalendarDays, Clock, MessageCircle, Pencil, Phone, Sun, Sunrise, Sunset,
+} from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { submitBookingRequest } from '@/lib/actions/booking'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
-import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
 import { SOURCE_KEY } from './SourceTracker'
 
@@ -15,7 +17,7 @@ const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Inst
 const REASONS = ['Check-up / cleaning', 'Tooth pain', 'Consultation', 'Other']
 
 const inputClass =
-  'block w-full rounded-lg border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
+  'block w-full rounded-xl border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
 const labelClass = 'mb-1.5 block text-sm font-semibold text-gray-700'
 
 type Details = {
@@ -40,18 +42,40 @@ type Props = {
   initialReason?: string
 }
 
+// "Today", "Tomorrow" or the weekday
+function dayLabel(date: string, today: string): string {
+  if (date === today) return 'Today'
+  if (date === addDays(today, 1)) return 'Tomorrow'
+  return formatDay(date).split(',')[0]
+}
+
+function partOfDay(hhmm: string): 'Morning' | 'Afternoon' | 'Evening' {
+  if (hhmm < '13:00') return 'Morning'
+  return hhmm < '18:00' ? 'Afternoon' : 'Evening'
+}
+
+const PART_ICON = { Morning: Sunrise, Afternoon: Sun, Evening: Sunset } as const
+
 export function PublicBookingForm({ slots, promise, today, initialReason = '' }: Props) {
   const router = useRouter()
+  const cardRef = useRef<HTMLDivElement>(null)
+  const sendRef = useRef<HTMLButtonElement>(null)
+  const focusFieldRef = useRef<string | null>(null)
+  const firstRender = useRef(true)
+
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [pickedDay, setPickedDay] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
+  // Coming back from the review to change the time: return straight to the review afterwards
+  const [returnToReview, setReturnToReview] = useState(false)
   const [details, setDetails] = useState<Details>({
     phone: '', name: '', dateOfBirth: '', address: '', medicalAlerts: '', heardFrom: '', reason: initialReason.slice(0, 100), notes: '',
   })
   const [error, setError] = useState<string | null>(null)
-  const [sentId, setSentId] = useState<string | null>(null)
+  const [sent, setSent] = useState<{ url: string } | null>(null)
   // "Google", "Instagram"... worked out from the link the visitor came from (see SourceTracker)
   const [guessed, setGuessed] = useState('')
+  const [pending, startTransition] = useTransition()
 
   useEffect(() => {
     try {
@@ -64,7 +88,22 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
       // Storage blocked: the visitor answers it themselves
     }
   }, [])
-  const [pending, startTransition] = useTransition()
+
+  // Each new step comes into view with its next action ready: the first field to fill,
+  // or the Send button on the review
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const timer = setTimeout(() => {
+      if (step === 2) document.getElementById(focusFieldRef.current ?? 'phone')?.focus({ preventScroll: true })
+      if (step === 3) sendRef.current?.focus({ preventScroll: true })
+      focusFieldRef.current = null
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [step])
 
   // Free times grouped by day
   const days = useMemo(() => {
@@ -77,12 +116,29 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
   }, [slots])
 
   const dayKeys = [...days.keys()]
-  const activeDay = pickedDay && days.has(pickedDay) ? pickedDay : null
+  // The first day with free times is open by default, so the times are visible straight away
+  const activeDay = pickedDay && days.has(pickedDay) ? pickedDay : dayKeys[0] ?? null
   const set = (patch: Partial<Details>) => setDetails((d) => ({ ...d, ...patch }))
 
   const phoneOk = isValidPhone(normalizePhone(details.phone))
   const detailsOk = phoneOk && details.name.trim().length >= 2 && !!details.dateOfBirth && details.address.trim().length > 0 && !!details.reason
   const callHref = `tel:${siteConfig.phone.replace(/[^\d+]/g, '')}`
+
+  function chooseTime(slot: string) {
+    setPicked(slot)
+    setError(null)
+    // A moment to see the choice highlighted, then straight on
+    setTimeout(() => {
+      setStep(returnToReview && detailsOk ? 3 : 2)
+      setReturnToReview(false)
+    }, 220)
+  }
+
+  // From the review: jump to the part that needs changing, with its field ready
+  function changeField(id: string) {
+    focusFieldRef.current = id
+    setStep(2)
+  }
 
   function submit() {
     if (!picked) return
@@ -100,7 +156,17 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
         requestedStart: picked,
       })
       if (result.ok) {
-        setSentId(result.id)
+        const message = bookingRequestMessage({
+          name: details.name.trim(),
+          phone: normalizePhone(details.phone) ?? details.phone,
+          startsAt: picked,
+          reason: details.reason,
+          link: `${window.location.origin}/app/requests/${result.id}`,
+        })
+        const url = clinicWhatsappLink(message)
+        // Saved. Open WhatsApp with the message ready; keep a button in case it doesn't open.
+        setSent({ url })
+        window.location.assign(url)
         return
       }
       setError(result.error)
@@ -113,19 +179,11 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
     })
   }
 
-  // ---- After saving: one tap sends the WhatsApp message that alerts the clinic ----
-  if (sentId && picked) {
-    const link = `${window.location.origin}/app/requests/${sentId}`
-    const message = bookingRequestMessage({
-      name: details.name.trim(),
-      phone: normalizePhone(details.phone) ?? details.phone,
-      startsAt: picked,
-      reason: details.reason,
-      link,
-    })
+  // ---- Saved: WhatsApp has been opened; this screen is the fallback ----
+  if (sent && picked) {
     const { date, time } = inIndia(picked)
     return (
-      <div className="mx-auto mt-10 max-w-md space-y-5 rounded-2xl bg-white p-6 text-center shadow-lg ring-1 ring-gray-100 sm:p-8">
+      <div className="mx-auto mt-10 max-w-md space-y-5 rounded-3xl bg-white p-6 text-center shadow-lg ring-1 ring-gray-100 sm:p-8">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
           <CalendarCheck className="h-9 w-9 text-green-600" />
         </div>
@@ -137,42 +195,54 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
           </p>
         </div>
         <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
-          <p className="font-semibold">One last step: tap the button below, then press Send in WhatsApp.</p>
-          <p className="mt-1">This is how the clinic gets alerted.</p>
+          <p className="font-semibold">WhatsApp should have opened with your message ready. Just press Send.</p>
+          <p className="mt-1">That is how the clinic gets alerted.</p>
         </div>
-        <a href={clinicWhatsappLink(message)} target="_blank" rel="noopener noreferrer"
+        <a href={sent.url}
           className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-green-700">
           <MessageCircle className="h-6 w-6" />
-          Send on WhatsApp
+          WhatsApp didn&apos;t open? Tap here
         </a>
         <p className="text-sm text-gray-600">{promise}</p>
       </div>
     )
   }
 
+  const pickedParts = picked ? inIndia(picked) : null
+  const stepTitles = ['Choose a time', 'Your details', 'Confirm']
+
   return (
-    <div className="mx-auto mt-10 max-w-md overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-gray-100">
-      <div className="h-1.5 w-full bg-gray-100">
-        <div className="h-1.5 bg-blue-600 transition-all duration-300" style={{ width: `${(step / 3) * 100}%` }} />
+    <div ref={cardRef} className="mx-auto mt-10 max-w-md scroll-mt-20 overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-gray-100">
+      {/* Progress */}
+      <div className="flex gap-1.5 bg-gray-50 px-6 pt-5 sm:px-8">
+        {stepTitles.map((title, i) => (
+          <div key={title} className="flex-1">
+            <div className={`h-1.5 rounded-full transition-colors ${i + 1 <= step ? 'bg-blue-600' : 'bg-gray-200'}`} />
+            <p className={`mt-1.5 text-[11px] font-semibold uppercase tracking-wide ${i + 1 === step ? 'text-blue-700' : 'text-gray-400'}`}>
+              {title}
+            </p>
+          </div>
+        ))}
       </div>
 
       <div className="p-6 sm:p-8">
         {error && (
-          <div className="mb-6 flex items-start gap-3 rounded-lg bg-red-50 p-4 text-sm text-red-700" role="alert">
+          <div className="mb-6 flex items-start gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700" role="alert">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <p>{error}</p>
           </div>
         )}
 
+        {/* ---- 1. Time ---- */}
         {step === 1 && (
-          <div className="space-y-5">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900">Pick a time</h2>
-              <p className="mt-2 text-gray-500">Each visit is a 40-minute slot.</p>
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">When suits you?</h2>
+              <p className="mt-1 text-sm text-gray-500">Tap a time and we go straight to the next step.</p>
             </div>
 
             {dayKeys.length === 0 ? (
-              <div className="rounded-xl bg-gray-50 p-5 text-center text-gray-700">
+              <div className="rounded-2xl bg-gray-50 p-6 text-center text-gray-700">
                 <p className="font-semibold">No online times are free right now.</p>
                 <a href={callHref} className="mt-3 inline-flex items-center gap-2 font-bold text-blue-700">
                   <Phone className="h-4 w-4" /> Call {siteConfig.phone}
@@ -180,64 +250,94 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
               </div>
             ) : (
               <>
-                <div>
-                  <p className={labelClass}>Day</p>
-                  <div className="-mx-6 flex snap-x gap-2 overflow-x-auto px-6 pb-2 sm:-mx-8 sm:px-8">
-                    {dayKeys.map((day) => (
-                      <button key={day} type="button"
-                        onClick={() => { setPickedDay(day); setPicked(null) }}
-                        className={`shrink-0 snap-start rounded-xl px-3 py-2 text-center text-sm font-semibold ring-1 ring-inset ${
-                          activeDay === day ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300 hover:ring-blue-400'
+                {/* Days */}
+                <div className="-mx-6 flex snap-x gap-2.5 overflow-x-auto px-6 pb-2 sm:-mx-8 sm:px-8" role="tablist" aria-label="Day">
+                  {dayKeys.map((day) => {
+                    const active = activeDay === day
+                    const [, month] = formatDay(day).split(', ')[1].split(' ')
+                    return (
+                      <button key={day} type="button" role="tab" aria-selected={active}
+                        onClick={() => setPickedDay(day)}
+                        className={`w-[4.5rem] shrink-0 snap-start rounded-2xl px-2 py-3 text-center transition ${
+                          active
+                            ? 'bg-gradient-to-b from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/30'
+                            : 'bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-200 hover:ring-blue-300'
                         }`}>
-                        <span className="block text-xs font-medium opacity-80">{formatDay(day).split(',')[0]}</span>
-                        <span className="block">{formatDay(day).split(', ')[1]}</span>
+                        <span className={`block text-[11px] font-semibold uppercase tracking-wide ${active ? 'text-blue-100' : 'text-gray-500'}`}>
+                          {dayLabel(day, today)}
+                        </span>
+                        <span className="block text-2xl font-bold leading-tight">{Number(day.slice(8))}</span>
+                        <span className={`block text-xs ${active ? 'text-blue-100' : 'text-gray-500'}`}>{month}</span>
+                        <span className={`mt-1.5 block rounded-full px-1 text-[10px] font-semibold ${active ? 'bg-white/20' : 'bg-green-50 text-green-700'}`}>
+                          {days.get(day)!.length} free
+                        </span>
                       </button>
-                    ))}
-                  </div>
-                  <p className="mt-1 text-xs text-gray-400">Closed on Fridays.</p>
+                    )
+                  })}
                 </div>
 
+                {/* Times */}
                 {activeDay && (
-                  <div>
-                    <p className={labelClass}>Time</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {days.get(activeDay)!.map((slot) => {
-                        const label = formatBlock(inIndia(slot).time)
-                        return (
-                          <button key={slot} type="button" onClick={() => setPicked(slot)}
-                            className={`rounded-lg px-1 py-2.5 text-sm font-semibold ring-1 ring-inset ${
-                              picked === slot ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300 hover:ring-blue-400'
-                            }`}>
-                            {label}
-                          </button>
-                        )
-                      })}
-                    </div>
+                  <div className="space-y-4">
+                    {(['Morning', 'Afternoon', 'Evening'] as const).map((part) => {
+                      const times = days.get(activeDay)!.filter((slot) => partOfDay(inIndia(slot).time) === part)
+                      if (times.length === 0) return null
+                      const Icon = PART_ICON[part]
+                      return (
+                        <div key={part}>
+                          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-gray-500">
+                            <Icon className="h-4 w-4 text-amber-500" /> {part}
+                          </p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {times.map((slot) => {
+                              const chosen = picked === slot
+                              return (
+                                <button key={slot} type="button" onClick={() => chooseTime(slot)}
+                                  className={`rounded-xl py-3 text-sm font-semibold transition active:scale-95 ${
+                                    chosen
+                                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                                      : 'bg-white text-gray-800 ring-1 ring-inset ring-gray-200 hover:bg-blue-50 hover:ring-blue-400'
+                                  }`}>
+                                  {formatBlock(inIndia(slot).time)}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </>
             )}
 
-            <div className="flex items-start gap-3 rounded-xl bg-gray-50 p-4 text-sm text-gray-700">
+            <div className="flex items-start gap-3 rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
               <Clock className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
               <p>
-                Need a time after <b>7 PM</b>, or don&apos;t see one that suits you?{' '}
-                <a href={callHref} className="font-bold text-blue-700">Please call {siteConfig.phone}</a> to book.
+                Closed on Fridays. Need a time after <b>7 PM</b>, or don&apos;t see one that suits you?{' '}
+                <a href={callHref} className="font-bold text-blue-700">Please call {siteConfig.phone}</a>.
               </p>
             </div>
-
-            <button type="button" onClick={() => setStep(2)} disabled={!picked}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3.5 text-base font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-              Continue <ArrowRight className="h-5 w-5" />
-            </button>
           </div>
         )}
 
+        {/* ---- 2. Details ---- */}
         {step === 2 && (
           <div className="space-y-5">
-            <div className="text-center">
+            {pickedParts && (
+              <button type="button" onClick={() => { setReturnToReview(false); setStep(1) }}
+                className="flex w-full items-center gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-left ring-1 ring-blue-100">
+                <CalendarDays className="h-5 w-5 shrink-0 text-blue-600" />
+                <span className="min-w-0 flex-1 text-sm font-semibold text-blue-900">
+                  {formatDay(pickedParts.date)}, {formatBlock(pickedParts.time)}
+                </span>
+                <span className="text-xs font-semibold text-blue-700">Change</span>
+              </button>
+            )}
+
+            <div>
               <h2 className="text-2xl font-bold text-gray-900">Your details</h2>
-              <p className="mt-2 text-gray-500">So the clinic can prepare for you.</p>
+              <p className="mt-1 text-sm text-gray-500">So the clinic can prepare for you.</p>
             </div>
 
             <div>
@@ -266,11 +366,11 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             </div>
 
             <div>
-              <p className={labelClass}>Reason for visit</p>
+              <p id="reason" tabIndex={-1} className={`${labelClass} outline-none`}>Reason for visit</p>
               <div className="flex flex-wrap gap-2">
                 {REASONS.map((option) => (
                   <button key={option} type="button" onClick={() => set({ reason: details.reason === option ? '' : option })}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${
+                    className={`rounded-full px-3.5 py-2 text-sm font-medium ring-1 ring-inset ${
                       details.reason === option ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'
                     }`}>
                     {option}
@@ -286,14 +386,14 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             </div>
 
             <div>
-              <p className={labelClass}>How did you hear about us? <span className="font-normal text-gray-400">(optional)</span></p>
+              <p id="heard" tabIndex={-1} className={`${labelClass} outline-none`}>How did you hear about us? <span className="font-normal text-gray-400">(optional)</span></p>
               {guessed && details.heardFrom === guessed && (
                 <p className="mb-2 text-xs text-gray-400">We filled this in from the link you came from. Change it if it is wrong.</p>
               )}
               <div className="flex flex-wrap gap-2">
                 {HEARD_FROM.map((option) => (
                   <button key={option} type="button" onClick={() => set({ heardFrom: details.heardFrom === option ? '' : option })}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${
+                    className={`rounded-full px-3.5 py-2 text-sm font-medium ring-1 ring-inset ${
                       details.heardFrom === option ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'
                     }`}>
                     {option}
@@ -310,46 +410,54 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
 
             <div className="flex gap-3">
               <button type="button" onClick={() => setStep(1)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-3.5 text-base font-medium text-gray-700 hover:bg-gray-200">
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-3.5 text-base font-medium text-gray-700 hover:bg-gray-200">
                 <ArrowLeft className="h-5 w-5" /> Back
               </button>
               <button type="button" onClick={() => setStep(3)} disabled={!detailsOk}
-                className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3.5 text-base font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
                 Review <ArrowRight className="h-5 w-5" />
               </button>
             </div>
           </div>
         )}
 
-        {step === 3 && picked && (
+        {/* ---- 3. Confirm ---- */}
+        {step === 3 && picked && pickedParts && (
           <div className="space-y-5">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900">Check and send</h2>
-              <p className="mt-2 text-gray-500">{promise}</p>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Looks good?</h2>
+              <p className="mt-1 text-sm text-gray-500">{promise}</p>
             </div>
 
-            <dl className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-5 text-sm">
-              <Row label="When" value={`${formatDay(inIndia(picked).date)}, ${formatBlock(inIndia(picked).time)}`} />
-              <Row label="Name" value={details.name.trim()} />
-              <Row label="WhatsApp" value={details.phone.trim()} />
-              <Row label="Date of birth" value={details.dateOfBirth} />
-              <Row label="Address" value={details.address.trim()} />
-              <Row label="Reason" value={details.reason} />
-              <Row label="Medical alerts" value={details.medicalAlerts.trim() || 'None'} />
-              {details.heardFrom && <Row label="Heard about us" value={details.heardFrom} />}
-              {details.notes.trim() && <Row label="Note" value={details.notes.trim()} />}
+            <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 p-5 text-white shadow-lg shadow-blue-500/20">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">Your appointment</p>
+              <p className="mt-1 text-xl font-bold">{formatDay(pickedParts.date)}</p>
+              <p className="text-lg font-semibold">{formatBlock(pickedParts.time)}</p>
+              <button type="button" onClick={() => { setReturnToReview(true); setStep(1) }}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/25">
+                <Pencil className="h-3.5 w-3.5" /> Change time
+              </button>
+            </div>
+
+            <dl className="divide-y divide-gray-100 rounded-2xl border border-gray-100 text-sm">
+              <Row label="Name" value={details.name.trim()} onChange={() => changeField('name')} />
+              <Row label="WhatsApp" value={details.phone.trim()} onChange={() => changeField('phone')} />
+              <Row label="Date of birth" value={details.dateOfBirth} onChange={() => changeField('dob')} />
+              <Row label="Address" value={details.address.trim()} onChange={() => changeField('address')} />
+              <Row label="Reason" value={details.reason} onChange={() => changeField('reason')} />
+              <Row label="Medical alerts" value={details.medicalAlerts.trim() || 'None'} onChange={() => changeField('alerts')} />
+              {details.heardFrom && <Row label="Heard about us" value={details.heardFrom} onChange={() => changeField('heard')} />}
+              {details.notes.trim() && <Row label="Note" value={details.notes.trim()} onChange={() => changeField('notes')} />}
             </dl>
 
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setStep(2)} disabled={pending}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-3.5 text-base font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50">
-                <ArrowLeft className="h-5 w-5" /> Edit
-              </button>
-              <button type="button" onClick={submit} disabled={pending}
-                className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 disabled:opacity-60">
-                {pending ? 'Sending…' : 'Send request'}
-              </button>
-            </div>
+            <button ref={sendRef} type="button" onClick={submit} disabled={pending}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white shadow-lg shadow-green-600/30 hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:opacity-60">
+              <MessageCircle className="h-6 w-6" />
+              {pending ? 'Sending…' : 'Confirm and send on WhatsApp'}
+            </button>
+            <p className="text-center text-xs text-gray-500">
+              WhatsApp opens with your message ready. Just press Send there.
+            </p>
           </div>
         )}
       </div>
@@ -357,11 +465,16 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
   )
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, onChange }: { label: string; value: string; onChange: () => void }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 last:border-0 last:pb-0">
-      <dt className="shrink-0 text-gray-500">{label}</dt>
-      <dd className="text-right font-medium text-gray-900">{value}</dd>
+    <div className="flex items-start gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <dt className="text-xs font-medium text-gray-500">{label}</dt>
+        <dd className="mt-0.5 break-words font-medium text-gray-900">{value}</dd>
+      </div>
+      <button type="button" onClick={onChange} className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">
+        Edit
+      </button>
     </div>
   )
 }
