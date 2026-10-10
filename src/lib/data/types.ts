@@ -132,6 +132,8 @@ export type BookingRequest = {
   preferred_time: string | null
   notes: string | null
   is_emergency: boolean
+  // Sender's IP, kept only for rate limiting
+  client_ip: string | null
   status: BookingRequestStatus
   patient_id: string | null
   appointment_id: string | null

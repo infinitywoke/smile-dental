@@ -1,10 +1,11 @@
+import { Suspense } from 'react'
 import { getDoctor } from '@/lib/auth'
 import { getPatient } from '@/lib/data/patients'
 import { formatDate, todayInIndia } from '@/lib/dates'
 import { VisitEditor } from '@/components/clinic/VisitEditor'
-import { BackLink, MedicalAlert } from '@/components/clinic/ui'
+import { BackLink, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 
-export default async function NewVisitPage({ params }: PageProps<'/app/patients/[id]/visits/new'>) {
+async function NewVisitPageContent({ params }: PageProps<'/app/patients/[id]/visits/new'>) {
   const { id } = await params
   const [doctor, patient] = await Promise.all([getDoctor(), getPatient(id)])
 
@@ -18,5 +19,14 @@ export default async function NewVisitPage({ params }: PageProps<'/app/patients/
       <MedicalAlert alerts={patient.medical_alerts} />
       <VisitEditor mode="create" doctorId={doctor.id} patientId={patient.id} />
     </div>
+  )
+}
+
+// Each screen streams in behind its own placeholder, so navigation is instant
+export default function NewVisitPage(props: PageProps<'/app/patients/[id]/visits/new'>) {
+  return (
+    <Suspense fallback={<ScreenLoading />}>
+      <NewVisitPageContent {...props} />
+    </Suspense>
   )
 }

@@ -1,11 +1,12 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Camera, UserPlus } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getTodayVisits } from '@/lib/data/visits'
 import { formatDate, todayInIndia } from '@/lib/dates'
-import { SearchBox } from '@/components/clinic/ui'
+import { SearchBox, ScreenLoading } from '@/components/clinic/ui'
 
-export default async function TodayPage() {
+async function TodayPageContent() {
   const [doctor, visits] = await Promise.all([getDoctor(), getTodayVisits()])
 
   return (
@@ -48,5 +49,14 @@ export default async function TodayPage() {
         ))}
       </section>
     </div>
+  )
+}
+
+// Each screen streams in behind its own placeholder, so navigation is instant
+export default function TodayPage() {
+  return (
+    <Suspense fallback={<ScreenLoading />}>
+      <TodayPageContent />
+    </Suspense>
   )
 }

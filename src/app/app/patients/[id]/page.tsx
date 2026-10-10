@@ -1,12 +1,13 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { Camera, ChevronRight, Pencil, Phone, Plus } from 'lucide-react'
 import { getPatient } from '@/lib/data/patients'
 import { getPatientVisits } from '@/lib/data/visits'
 import { ageOn, formatDate } from '@/lib/dates'
 import { formatPhone } from '@/lib/phone'
-import { BackLink, Card, MedicalAlert } from '@/components/clinic/ui'
+import { BackLink, Card, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 
-export default async function PatientPage({ params }: PageProps<'/app/patients/[id]'>) {
+async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
   const { id } = await params
   const [patient, visits] = await Promise.all([getPatient(id), getPatientVisits(id)])
 
@@ -68,5 +69,14 @@ export default async function PatientPage({ params }: PageProps<'/app/patients/[
         ))}
       </section>
     </div>
+  )
+}
+
+// Each screen streams in behind its own placeholder, so navigation is instant
+export default function PatientPage(props: PageProps<'/app/patients/[id]'>) {
+  return (
+    <Suspense fallback={<ScreenLoading />}>
+      <PatientPageContent {...props} />
+    </Suspense>
   )
 }

@@ -37,6 +37,7 @@ type Props = {
   onText: (text: string) => void                    // each finished phrase
   onInterim?: (text: string) => void                // words being heard right now ('' when none)
   onListeningChange?: (listening: boolean) => void  // so the screen can hold Save while dictating
+  disabled?: boolean
 }
 
 // Stop on its own after this long without hearing anything (a forgotten mic)
@@ -44,7 +45,7 @@ const SILENCE_LIMIT_MS = 60_000
 
 // Tap to start dictating; stays on until Stop is tapped.
 // Browsers end recognition after each pause, so it restarts itself until stopped.
-export function MicButton({ onText, onInterim, onListeningChange }: Props) {
+export function MicButton({ onText, onInterim, onListeningChange, disabled = false }: Props) {
   const [supported, setSupported] = useState(false)
   const [listening, setListening] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -135,6 +136,11 @@ export function MicButton({ onText, onInterim, onListeningChange }: Props) {
     }
     recognition.onend = () => {
       callbacksRef.current.onInterim?.('')
+      // Stop was tapped: the last phrase has now been delivered, so it's safe to finish
+      if (!wantListeningRef.current && recognitionRef.current === recognition) {
+        finish()
+        return
+      }
       if (wantListeningRef.current && recognitionRef.current === recognition) {
         if (Date.now() - lastHeardRef.current > SILENCE_LIMIT_MS) {
           finish('Dictation paused after a minute of silence. Tap Dictate to continue.')
@@ -173,10 +179,18 @@ export function MicButton({ onText, onInterim, onListeningChange }: Props) {
     }
   }
 
+  // Stop listening but stay "on" until the browser delivers the final phrase (onend),
+  // so Save can't capture the notes before the last words arrive
   const stop = () => {
     const recognition = recognitionRef.current
-    finish()
-    recognition?.stop()
+    if (!recognition) return finish()
+    wantListeningRef.current = false
+    releaseWakeLock()
+    recognition.stop()
+    // Safety net if the browser never fires onend
+    setTimeout(() => {
+      if (recognitionRef.current === recognition) finish()
+    }, 3000)
   }
 
   return (
@@ -184,6 +198,7 @@ export function MicButton({ onText, onInterim, onListeningChange }: Props) {
       <button
         type="button"
         onClick={listening ? stop : start}
+        disabled={disabled && !listening}
         aria-pressed={listening}
         className={`relative isolate inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
           listening ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'

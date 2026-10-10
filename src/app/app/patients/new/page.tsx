@@ -1,9 +1,10 @@
+import { Suspense } from 'react'
 import { getDoctor } from '@/lib/auth'
 import { createPatient } from '@/lib/actions/patients'
 import { PatientForm } from '@/components/clinic/PatientForm'
-import { BackLink } from '@/components/clinic/ui'
+import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 
-export default async function NewPatientPage() {
+async function NewPatientPageContent() {
   await getDoctor()
   return (
     <div className="space-y-5">
@@ -11,5 +12,14 @@ export default async function NewPatientPage() {
       <h1 className="text-2xl font-bold tracking-tight text-gray-900">New patient</h1>
       <PatientForm action={createPatient} submitLabel="Save and start visit" />
     </div>
+  )
+}
+
+// Each screen streams in behind its own placeholder, so navigation is instant
+export default function NewPatientPage() {
+  return (
+    <Suspense fallback={<ScreenLoading />}>
+      <NewPatientPageContent />
+    </Suspense>
   )
 }

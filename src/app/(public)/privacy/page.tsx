@@ -107,8 +107,8 @@ export default function PrivacyPage() {
         <Section title="7. How long we keep it">
           <p>
             We keep your records for as long as they are needed for your care and for the period we
-            must keep clinical and financial records under the law. After that, they are securely
-            deleted.
+            must keep clinical and financial records under the law. You can ask us to delete your
+            information at any time (see below).
           </p>
         </Section>
 

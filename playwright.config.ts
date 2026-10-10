@@ -22,6 +22,8 @@ export default defineConfig({
     baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // A blocked click fails fast with a clear message instead of using up the test timeout
+    actionTimeout: 15_000,
   },
   projects: [{ name: 'mobile-chromium', use: { ...devices['Pixel 7'] } }],
   webServer: testLogin
@@ -35,6 +37,7 @@ export default defineConfig({
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: appEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
           // Only the test account may sign in to this server
           ALLOWED_EMAIL: testLogin.email,
+          E2E: '1',
         },
       }
     : undefined,

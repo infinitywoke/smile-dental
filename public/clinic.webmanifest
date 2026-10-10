@@ -4,7 +4,7 @@
   "description": "Smile Dental Clinic's patient, visit and money records.",
   "id": "/app",
   "start_url": "/app",
-  "scope": "/app",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",

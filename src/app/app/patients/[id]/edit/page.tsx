@@ -1,9 +1,10 @@
+import { Suspense } from 'react'
 import { getPatient } from '@/lib/data/patients'
 import { updatePatient } from '@/lib/actions/patients'
 import { PatientForm } from '@/components/clinic/PatientForm'
-import { BackLink } from '@/components/clinic/ui'
+import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 
-export default async function EditPatientPage({ params }: PageProps<'/app/patients/[id]/edit'>) {
+async function EditPatientPageContent({ params }: PageProps<'/app/patients/[id]/edit'>) {
   const { id } = await params
   const patient = await getPatient(id)
 
@@ -13,5 +14,14 @@ export default async function EditPatientPage({ params }: PageProps<'/app/patien
       <h1 className="text-2xl font-bold tracking-tight text-gray-900">Edit details</h1>
       <PatientForm key={patient.updated_at} action={updatePatient.bind(null, id)} patient={patient} submitLabel="Save changes" />
     </div>
+  )
+}
+
+// Each screen streams in behind its own placeholder, so navigation is instant
+export default function EditPatientPage(props: PageProps<'/app/patients/[id]/edit'>) {
+  return (
+    <Suspense fallback={<ScreenLoading />}>
+      <EditPatientPageContent {...props} />
+    </Suspense>
   )
 }

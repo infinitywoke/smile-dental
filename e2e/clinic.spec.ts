@@ -16,6 +16,10 @@ test.skip(!testLogin, NO_TEST_LOGIN)
 
 let page: Page
 
+// Next keeps recently visited screens mounted but hidden, so the same text or
+// field can exist twice on the page. Only ever match what's visible.
+const visible = <T extends ReturnType<Page['locator']>>(locator: T) => locator.filter({ visible: true }) as T
+
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage()
 })
@@ -37,35 +41,37 @@ test('adds a new patient and starts a visit', async () => {
   await page.getByRole('link', { name: 'New patient' }).click()
   await expect(page).toHaveURL(/\/app\/patients\/new$/)
 
-  await page.getByLabel('Name', { exact: true }).fill(patientName)
-  await page.getByLabel('WhatsApp number').fill(phone)
-  await page.getByLabel('Date of birth').fill('1990-05-15')
-  await page.getByLabel('Medical alerts').fill('Penicillin allergy')
+  await visible(page.getByLabel('Name', { exact: true })).fill(patientName)
+  await visible(page.getByLabel('WhatsApp number')).fill(phone)
+  await visible(page.getByLabel('Date of birth')).fill('1990-05-15')
+  await visible(page.getByLabel('Medical alerts')).fill('Penicillin allergy')
   await page.getByRole('button', { name: 'Save and start visit' }).click()
 
   await expect(page).toHaveURL(/\/app\/patients\/[^/]+\/visits\/new$/)
   await expect(page.getByRole('heading', { name: 'New visit' })).toBeVisible()
-  await expect(page.getByText('Penicillin allergy')).toBeVisible()
+  await expect(visible(page.locator('p', { hasText: 'Medical alert:' }))).toContainText('Penicillin allergy')
 })
 
 test('saves a visit with notes and a captioned photo', async () => {
-  await page.getByLabel('Notes', { exact: true }).fill(notes)
-  await page.locator('input[type=file][multiple]').setInputFiles(fixturePhoto)
-  await page.getByPlaceholder('What is this?').fill(caption)
+  await visible(page.getByLabel('Notes', { exact: true })).fill(notes)
+  // Tap Gallery like a person would; this picks the visible screen's file input
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Gallery' }).click()])
+  await chooser.setFiles(fixturePhoto)
+  await visible(page.getByPlaceholder('What is this?')).fill(caption)
   await page.getByRole('button', { name: 'Save visit' }).click()
 
-  // A failed upload would add ?photos=failed
+  // A failed upload keeps the editor open, so landing on the visit page means everything saved
   await expect(page).toHaveURL(/\/app\/visits\/[^/?]+$/, { timeout: 30_000 })
   await expect(page.getByRole('heading', { name: patientName })).toBeVisible()
-  await expect(page.getByLabel('Notes', { exact: true })).toHaveValue(notes)
+  await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(notes)
   await expect(page.getByRole('img', { name: caption })).toHaveCount(1)
-  await expect(page.getByText(caption, { exact: true })).toBeVisible()
+  await expect(visible(page.getByText(caption, { exact: true }))).toBeVisible()
 })
 
 test('lists the visit on Today', async () => {
   await page.getByRole('link', { name: 'Today', exact: true }).click()
   await expect(page).toHaveURL(/\/app$/)
-  const visit = page.getByRole('link').filter({ hasText: patientName })
+  const visit = visible(page.getByRole('link').filter({ hasText: patientName }))
   await expect(visit).toHaveCount(1)
   await expect(visit).toContainText(runId)
   await expect(visit).toContainText('1 photo')
@@ -74,21 +80,21 @@ test('lists the visit on Today', async () => {
 test('finds the patient by phone on the Patients tab', async () => {
   await page.getByRole('link', { name: 'Patients', exact: true }).click()
   await expect(page).toHaveURL(/\/app\/patients$/)
-  await page.getByPlaceholder('Search name or phone').fill(phone)
-  await page.getByRole('button', { name: 'Search' }).click()
+  await visible(page.getByPlaceholder('Search name or phone')).fill(phone)
+  await visible(page.getByRole('button', { name: 'Search' })).click()
 
   await expect(page).toHaveURL(new RegExp(`/app/patients\\?q=${phone}$`))
-  await expect(page.getByText(`1 result for “${phone}”`)).toBeVisible()
-  await expect(page.getByRole('link').filter({ hasText: patientName })).toHaveCount(1)
+  await expect(visible(page.getByText(`1 result for “${phone}”`))).toBeVisible()
+  await expect(visible(page.getByRole('link').filter({ hasText: patientName }))).toHaveCount(1)
 })
 
 test('spots the returning patient when the same phone is typed', async () => {
   await page.getByRole('link', { name: 'New', exact: true }).click()
   await expect(page).toHaveURL(/\/app\/patients\/new$/)
-  await page.getByLabel('WhatsApp number').fill(phone)
+  await visible(page.getByLabel('WhatsApp number')).fill(phone)
 
-  await expect(page.getByText('Already a patient with this number')).toBeVisible()
-  await expect(page.getByRole('link').filter({ hasText: patientName })).toBeVisible()
+  await expect(visible(page.getByText('Already a patient with this number'))).toBeVisible()
+  await expect(visible(page.getByRole('link').filter({ hasText: patientName }))).toBeVisible()
 })
 
 test('signs out', async () => {

@@ -32,10 +32,14 @@ async function insertPhotos(doctorId: string, visitId: string, photos: NewPhoto[
   if (photos.some((p) => !p.path.startsWith(prefix))) return { error: 'Invalid photo.' }
 
   const supabase = await createClient()
+  // A retry may re-send photos that were already recorded: skip those rows, keep the new ones
   const { error } = await supabase
     .from('visit_photos')
-    .insert(photos.map((p) => ({ visit_id: visitId, storage_path: p.path, caption: p.caption.trim() })))
-  if (error && error.code !== '23505') return { error: 'Photos uploaded, but could not be attached to the visit. Please try again.' }
+    .upsert(photos.map((p) => ({ visit_id: visitId, storage_path: p.path, caption: p.caption.trim() })), {
+      onConflict: 'storage_path',
+      ignoreDuplicates: true,
+    })
+  if (error) return { error: 'Photos uploaded, but could not be attached to the visit. Please try again.' }
   return {}
 }
 

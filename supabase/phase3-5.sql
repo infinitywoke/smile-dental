@@ -172,6 +172,7 @@ create table if not exists public.booking_requests (
   preferred_time text check (char_length(preferred_time) <= 20),
   notes text check (char_length(notes) <= 1000),
   is_emergency boolean not null default false,
+  client_ip text,                               -- for rate limiting only
   status text not null default 'new'
     check (status in ('new', 'contacted', 'booked', 'declined')),
   patient_id uuid references public.patients (id) on delete set null,
@@ -183,6 +184,9 @@ create table if not exists public.booking_requests (
 create index if not exists booking_requests_owner_status_idx on public.booking_requests (owner_id, status, created_at desc);
 create index if not exists booking_requests_phone_created_idx on public.booking_requests (phone, created_at desc);
 create index if not exists booking_requests_created_idx on public.booking_requests (created_at desc);
+-- Added after the first version of this file; keeps re-runs on an existing table working
+alter table public.booking_requests add column if not exists client_ip text;
+create index if not exists booking_requests_ip_created_idx on public.booking_requests (client_ip, created_at desc);
 create index if not exists booking_requests_patient_idx on public.booking_requests (patient_id);
 create index if not exists booking_requests_appointment_idx on public.booking_requests (appointment_id);
 
@@ -327,6 +331,7 @@ create policy "Owner full access" on public.visit_photos
     owner_id = (select auth.uid())
     and exists (select 1 from public.visits v
                 where v.id = visit_photos.visit_id and v.owner_id = (select auth.uid()))
+    and visit_photos.storage_path like (select auth.uid())::text || '/' || visit_photos.visit_id::text || '/%'
   );
 
 -- Where a row links to a visit and a patient, the visit must belong to the
@@ -361,7 +366,8 @@ create policy "Owner full access" on public.visit_charges
                   and v.patient_id = visit_charges.patient_id)
     and (visit_charges.treatment_item_id is null or exists (
           select 1 from public.treatment_items t
-          where t.id = visit_charges.treatment_item_id and t.owner_id = (select auth.uid())))
+          where t.id = visit_charges.treatment_item_id and t.owner_id = (select auth.uid())
+            and t.patient_id = visit_charges.patient_id))
   );
 
 drop policy if exists "Owner full access" on public.payments;
@@ -437,7 +443,8 @@ create policy "Owner full access" on public.expenses
           where p.id = expenses.patient_id and p.owner_id = (select auth.uid())))
     and (expenses.treatment_item_id is null or exists (
           select 1 from public.treatment_items t
-          where t.id = expenses.treatment_item_id and t.owner_id = (select auth.uid())))
+          where t.id = expenses.treatment_item_id and t.owner_id = (select auth.uid())
+            and (expenses.patient_id is null or t.patient_id = expenses.patient_id)))
     and (expenses.recurring_expense_id is null or exists (
           select 1 from public.recurring_expenses r
           where r.id = expenses.recurring_expense_id and r.owner_id = (select auth.uid())))
@@ -509,6 +516,9 @@ declare
   v_reason text := nullif(btrim(coalesce(p_reason, ''), E' \t\r\n'), '');
   v_time text := nullif(btrim(coalesce(p_preferred_time, ''), E' \t\r\n'), '');
   v_notes text := nullif(btrim(coalesce(p_notes, ''), E' \t\r\n'), '');
+  -- The visitor's IP as seen by the API gateway (first address in X-Forwarded-For)
+  v_ip text := nullif(btrim(split_part(coalesce(
+    nullif(current_setting('request.headers', true), '')::json ->> 'x-forwarded-for', ''), ',', 1)), '');
 begin
   -- Phone: 10-digit Indian mobile (same rule as src/lib/phone.ts)
   if char_length(v_phone) = 12 and left(v_phone, 2) = '91' then
@@ -551,18 +561,22 @@ begin
       where b.phone = v_phone and b.created_at > now() - interval '24 hours') >= 3 then
     raise exception 'We already have your requests from this number today. The clinic will contact you soon, or please call or WhatsApp the clinic.';
   end if;
+  if v_ip is not null and (select count(*) from public.booking_requests b
+      where b.client_ip = v_ip and b.created_at > now() - interval '24 hours') >= 5 then
+    raise exception 'We already have several requests from this device today. Please call or WhatsApp the clinic.';
+  end if;
   if (select count(*) from public.booking_requests b
-      where b.created_at > now() - interval '24 hours') >= 100 then
+      where b.created_at > now() - interval '24 hours') >= 200 then
     raise exception 'Online booking is busy right now. Please call or WhatsApp the clinic.';
   end if;
 
   insert into public.booking_requests (
     owner_id, name, phone, area, city, reason, preferred_date, preferred_time,
-    notes, is_emergency, status
+    notes, is_emergency, client_ip, status
   )
   values (
     v_owner, v_name, v_phone, v_area, v_city, v_reason, p_preferred_date, v_time,
-    v_notes, coalesce(p_is_emergency, false), 'new'
+    v_notes, coalesce(p_is_emergency, false), v_ip, 'new'
   )
   returning id into v_id;
 

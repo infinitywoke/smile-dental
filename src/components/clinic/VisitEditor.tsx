@@ -23,6 +23,12 @@ type NewPhoto = { key: string; file: File; preview: string; caption: string }
 function draftKey(props: Props) {
   return props.mode === 'create' ? `visit-draft:new:${props.patientId}` : `visit-draft:${props.visitId}`
 }
+// For a new visit that was created but not fully saved (e.g. a photo failed), remember its id,
+// so a retry after the tab reloads adds to the same visit instead of creating a second one
+function pendingVisitKey(props: Props) {
+  return props.mode === 'create' ? `visit-pending:${props.patientId}` : null
+}
+
 function readDraft(key: string): string | null {
   try {
     return localStorage.getItem(key)
@@ -73,6 +79,12 @@ function Editor(props: Props) {
 
   // Bring back notes that were never saved (e.g. the tab reloaded after taking a photo)
   useEffect(() => {
+    const pendingKey = pendingVisitKey(props)
+    const pendingId = pendingKey ? readDraft(pendingKey) : null
+    if (pendingId) {
+      visitIdRef.current = pendingId
+      visitCreatedRef.current = true
+    }
     const draft = readDraft(key)
     if (draft && draft.trim() !== initialNotes.trim()) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- the draft lives in browser storage, only readable after mount
@@ -160,7 +172,8 @@ function Editor(props: Props) {
           return
         }
         visitCreatedRef.current = true
-        writeDraft(key, null)
+        const pendingKey = pendingVisitKey(props)
+        if (pendingKey) writeDraft(pendingKey, visitId)
       }
 
       const { records, failed } = await uploadPhotos(visitId)
@@ -177,13 +190,16 @@ function Editor(props: Props) {
       }
 
       setStatus('Saving…')
-      const notesToSave = props.mode === 'edit' && notesChanged ? notes : null
+      // New visit: always send the current notes, so anything typed during a retry is kept
+      const notesToSave = props.mode === 'create' || notesChanged ? notes : null
       const result = await saveVisitChanges(visitId, notesToSave, recorded)
       if (result.error) {
         setError(result.error)
         return
       }
       writeDraft(key, null)
+      const pendingKey = pendingVisitKey(props)
+      if (pendingKey) writeDraft(pendingKey, null)
       finished = true
 
       if (props.mode === 'create') {
@@ -215,7 +231,7 @@ function Editor(props: Props) {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label htmlFor="notes" className="text-sm font-semibold text-gray-700">Notes</label>
-          <MicButton onText={(t) => changeNotes((v) => appendDictation(v, t))} onInterim={setHearing} onListeningChange={setListening} />
+          <MicButton onText={(t) => changeNotes((v) => appendDictation(v, t))} onInterim={setHearing} onListeningChange={setListening} disabled={saving} />
         </div>
         {listening && (
           <p className="min-h-10 rounded-lg bg-blue-50 px-3 py-2 text-sm italic text-blue-900" aria-live="polite">

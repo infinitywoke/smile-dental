@@ -15,8 +15,8 @@ Status as of **2026-10-10**.
 | **Auth** | Supabase email + password, locked to `ALLOWED_EMAIL`; sign-ups disabled in Supabase; session persists until Sign out. |
 | **Phase 1: foundation** | Done and verified on the phone. |
 | **Phase 2: patients and visits** | Done and verified on localhost: Today list, patient search (name/phone), new patient with returning-patient detection, patient page, visits with notes + dictation + captioned photos (private storage), photo viewer, delete visit. DB: `supabase/phase2.sql` (applied to the new project). |
-| **Wave 0 fixes** | Camera vs gallery buttons; dictation stays on until Stop with animation and live preview. **Needs phone acceptance.** |
-| **Tests** | None automated yet (build + lint only). |
+| **Wave 0** | Done 2026-10-10 (agent swarm): review fixes, 124 unit tests, 7 end-to-end tests passing against the real app with the test login, `supabase/phase3-5.sql` (91 checks in local Postgres; **owner must run it in the SQL Editor**), shared types, AI scaffolding (`src/lib/ai/`), price parsing, privacy page, home-screen manifest. |
+| **Next** | Owner runs `phase3-5.sql`; add `ANTHROPIC_API_KEY`; then Wave 1. Open items for Wave 1: store `version` in `visits.summary`; maybe `treatment_slug` on plan items; set `maxDuration` on the Claude route; update privacy page when share links / booking storage ship. |
 
 ## 2. What is left
 

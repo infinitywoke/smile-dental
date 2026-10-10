@@ -1,11 +1,12 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
 import { searchPatients } from '@/lib/data/patients'
 import { ageOn } from '@/lib/dates'
 import { formatPhone } from '@/lib/phone'
-import { SearchBox } from '@/components/clinic/ui'
+import { SearchBox, ScreenLoading } from '@/components/clinic/ui'
 
-export default async function PatientsPage({ searchParams }: PageProps<'/app/patients'>) {
+async function PatientsPageContent({ searchParams }: PageProps<'/app/patients'>) {
   const { q } = await searchParams
   const query = typeof q === 'string' ? q : ''
   const patients = await searchPatients(query)
@@ -45,5 +46,14 @@ export default async function PatientsPage({ searchParams }: PageProps<'/app/pat
         ))}
       </ul>
     </div>
+  )
+}
+
+// Each screen streams in behind its own placeholder, so navigation is instant
+export default function PatientsPage(props: PageProps<'/app/patients'>) {
+  return (
+    <Suspense fallback={<ScreenLoading />}>
+      <PatientsPageContent {...props} />
+    </Suspense>
   )
 }
