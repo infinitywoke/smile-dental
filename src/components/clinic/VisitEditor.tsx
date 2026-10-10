@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, Camera, X } from 'lucide-react'
+import { AlertCircle, Camera, Images, X } from 'lucide-react'
 import { MicButton, appendDictation } from './MicButton'
 import { useResetOnHide } from './useResetOnHide'
 import { createClient } from '@/lib/supabase/client'
@@ -17,6 +17,27 @@ type Props =
 
 type NewPhoto = { key: string; file: File; preview: string; caption: string }
 
+// Unsaved notes are kept on the phone, so they survive Android closing the tab
+// while the camera app is open. Storage can be unavailable (private mode), so never throw.
+function draftKey(props: Props) {
+  return props.mode === 'create' ? `visit-draft:new:${props.patientId}` : `visit-draft:${props.visitId}`
+}
+function readDraft(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+function writeDraft(key: string, value: string | null) {
+  try {
+    if (value === null) localStorage.removeItem(key)
+    else localStorage.setItem(key, value)
+  } catch {
+    // Not critical: the draft is only a safety net
+  }
+}
+
 export function VisitEditor(props: Props) {
   const resetKey = useResetOnHide()
   return <Editor key={resetKey} {...props} />
@@ -27,9 +48,13 @@ function Editor(props: Props) {
   const initialNotes = props.mode === 'edit' ? props.notes : ''
   const [notes, setNotes] = useState(initialNotes)
   const [photos, setPhotos] = useState<NewPhoto[]>([])
+  const [hearing, setHearing] = useState('')
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const fileInput = useRef<HTMLInputElement>(null)
+  const [restored, setRestored] = useState(false)
+  const key = draftKey(props)
+  const cameraInput = useRef<HTMLInputElement>(null)
+  const galleryInput = useRef<HTMLInputElement>(null)
   const saving = status !== null
 
   // Release preview images when they are removed or the editor closes
@@ -39,11 +64,31 @@ function Editor(props: Props) {
   }, [photos])
   useEffect(() => () => photosRef.current.forEach((p) => URL.revokeObjectURL(p.preview)), [])
 
-  const addFiles = (files: FileList | null) => {
-    if (!files) return
-    const added = Array.from(files).map((file) => ({ key: crypto.randomUUID(), file, preview: URL.createObjectURL(file), caption: '' }))
+  // Bring back notes that were never saved (e.g. the tab reloaded after taking a photo)
+  useEffect(() => {
+    const draft = readDraft(key)
+    if (draft && draft.trim() !== initialNotes.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the draft lives in browser storage, only readable after mount
+      setNotes(draft)
+      setRestored(true)
+    }
+    // Only on mount: later edits are written to the draft below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const changeNotes = (update: (current: string) => string) => {
+    setNotes((current) => {
+      const next = update(current)
+      writeDraft(key, next.trim() === initialNotes.trim() ? null : next)
+      return next
+    })
+  }
+
+  const addFiles = (input: HTMLInputElement) => {
+    if (!input.files) return
+    const added = Array.from(input.files).map((file) => ({ key: crypto.randomUUID(), file, preview: URL.createObjectURL(file), caption: '' }))
     setPhotos((current) => [...current, ...added])
-    if (fileInput.current) fileInput.current.value = ''
+    input.value = ''
   }
 
   const removePhoto = (key: string) => {
@@ -101,6 +146,7 @@ function Editor(props: Props) {
           setError(result.error ?? 'Could not save the visit.')
           return
         }
+        writeDraft(key, null)
         const allUploaded = await uploadPhotos(result.visitId)
         // Open the saved visit; any photo that failed can be added again there
         router.push(`/app/visits/${result.visitId}${allUploaded ? '' : '?photos=failed'}`)
@@ -111,6 +157,7 @@ function Editor(props: Props) {
             setError(result.error)
             return
           }
+          writeDraft(key, null)
         }
         await uploadPhotos(props.visitId)
       }
@@ -133,9 +180,17 @@ function Editor(props: Props) {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label htmlFor="notes" className="text-sm font-semibold text-gray-700">Notes</label>
-          <MicButton onText={(t) => setNotes((v) => appendDictation(v, t))} />
+          <MicButton onText={(t) => changeNotes((v) => appendDictation(v, t))} onInterim={setHearing} />
         </div>
-        <textarea id="notes" rows={9} value={notes} onChange={(e) => setNotes(e.target.value)} disabled={saving}
+        {hearing && (
+          <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm italic text-blue-900" aria-live="polite">{hearing}…</p>
+        )}
+        {restored && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
+            Restored notes you hadn&apos;t saved yet.
+          </p>
+        )}
+        <textarea id="notes" rows={9} value={notes} onChange={(e) => { const value = e.target.value; changeNotes(() => value) }} disabled={saving}
           placeholder="Complaint, findings, diagnosis, treatment done, plan, medicines, next visit…"
           className="block w-full rounded-xl border-0 px-4 py-3 text-base leading-relaxed text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
       </div>
@@ -157,11 +212,19 @@ function Editor(props: Props) {
             </div>
           </div>
         ))}
-        <input ref={fileInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
-        <button type="button" onClick={() => fileInput.current?.click()} disabled={saving}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700">
-          <Camera className="h-5 w-5" /> Take or choose photos
-        </button>
+        {/* Two inputs: Android opens the gallery (no camera) when multiple selection is allowed */}
+        <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target)} />
+        <input ref={galleryInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addFiles(e.target)} />
+        <div className="grid grid-cols-2 gap-3">
+          <button type="button" onClick={() => cameraInput.current?.click()} disabled={saving}
+            className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white px-3 py-4 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700">
+            <Camera className="h-5 w-5" /> Take photo
+          </button>
+          <button type="button" onClick={() => galleryInput.current?.click()} disabled={saving}
+            className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white px-3 py-4 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700">
+            <Images className="h-5 w-5" /> Gallery
+          </button>
+        </div>
       </div>
 
       <button type="button" onClick={save} disabled={!canSave}

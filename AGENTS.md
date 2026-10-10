@@ -4,6 +4,8 @@ One Next.js app with two parts:
 - **Public website**: `src/app/(public)/`, components in `src/components/site/`. Clinic details, treatments and the price list live in `src/config/site.ts`, which the Clinic OS also uses.
 - **Clinic OS**: `src/app/app/` (served at `/app`). A simple, phone-first app for one user, Dr. Rahil. Sign-in is email + password through Supabase (Google may be added later). Only the account in `ALLOWED_EMAIL` is allowed in.
 
+**Before any Clinic OS feature work, read [docs/PRODUCT.md](docs/PRODUCT.md)** (what we're building and the decisions behind it) **and [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md)** (status, remaining work, data model contract, agent roles and file ownership).
+
 ## Rules
 - **Auth:** call `getDoctor()` from `src/lib/auth.ts` in every Clinic OS page, server action and route handler before touching data. `src/proxy.ts` only refreshes the session and does an early redirect; don't rely on it alone.
 - **Cache Components is on.** Session reads (`cookies()`, `getDoctor()`) must render inside `<Suspense>`. `new Date()` in a Server Component needs `'use cache'` or a dynamic access before it.
