@@ -41,7 +41,9 @@ export default function PrivacyPage() {
             the reason for the visit) so the clinic can confirm your appointment and prepare for you.
             The form then opens WhatsApp on your phone with a short message to the clinic; nothing is
             sent on WhatsApp until you press Send. We keep these details in the same private records
-            as our patients' details, and only the clinic can see them.
+            as our patients&apos; details, and only the clinic can see them. To save you typing, the
+            &quot;how did you hear about us&quot; answer is pre-filled from the link you came from (for
+            example Google or Instagram); you can change it.
           </p>
           <p>
             <strong className="font-semibold text-gray-900">At the clinic.</strong> When you visit us,

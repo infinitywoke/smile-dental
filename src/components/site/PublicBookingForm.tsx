@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeft, ArrowRight, CalendarCheck, Clock, MessageCircle, Phone } from 'lucide-react'
 import { siteConfig } from '@/config/site'
@@ -8,6 +8,7 @@ import { submitBookingRequest } from '@/lib/actions/booking'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
+import { SOURCE_KEY } from './SourceTracker'
 
 // Same options the clinic app offers when a new patient walks in
 const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Instagram', 'Doctor referral']
@@ -49,6 +50,20 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
   })
   const [error, setError] = useState<string | null>(null)
   const [sentId, setSentId] = useState<string | null>(null)
+  // "Google", "Instagram"... worked out from the link the visitor came from (see SourceTracker)
+  const [guessed, setGuessed] = useState('')
+
+  useEffect(() => {
+    try {
+      const value = sessionStorage.getItem(SOURCE_KEY) ?? ''
+      if (!value) return
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGuessed(value)
+      setDetails((d) => (d.heardFrom ? d : { ...d, heardFrom: value }))
+    } catch {
+      // Storage blocked: the visitor answers it themselves
+    }
+  }, [])
   const [pending, startTransition] = useTransition()
 
   // Free times grouped by day
@@ -206,7 +221,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             <div className="flex items-start gap-3 rounded-xl bg-gray-50 p-4 text-sm text-gray-700">
               <Clock className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
               <p>
-                Need a time after <b>7 PM</b> (open until 9 PM)?{' '}
+                Need a time after <b>7 PM</b>, or don&apos;t see one that suits you?{' '}
                 <a href={callHref} className="font-bold text-blue-700">Please call {siteConfig.phone}</a> to book.
               </p>
             </div>
@@ -266,12 +281,15 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
 
             <div>
               <label htmlFor="alerts" className={labelClass}>Medical alerts <span className="font-normal text-gray-400">(optional)</span></label>
-              <textarea id="alerts" rows={2} placeholder="Allergies, diabetes, BP, blood thinners… Leave empty if none."
+              <textarea id="alerts" rows={3} placeholder="Any allergies / medical conditions we should know about? (e.g. penicillin allergy, diabetes, BP, blood thinners)"
                 value={details.medicalAlerts} onChange={(e) => set({ medicalAlerts: e.target.value })} className={inputClass} />
             </div>
 
             <div>
               <p className={labelClass}>How did you hear about us? <span className="font-normal text-gray-400">(optional)</span></p>
+              {guessed && details.heardFrom === guessed && (
+                <p className="mb-2 text-xs text-gray-400">We filled this in from the link you came from. Change it if it is wrong.</p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {HEARD_FROM.map((option) => (
                   <button key={option} type="button" onClick={() => set({ heardFrom: details.heardFrom === option ? '' : option })}

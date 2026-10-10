@@ -23,7 +23,7 @@ export const siteConfig = {
   googlePhotosLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED]
   
   operatingHours: [
-    { day: "Everyday (Fridays Off)", hours: ["8:30 AM - 12:30 PM", "2:00 PM - 9:00 PM"] }, // [VERIFIED] 2026-10-11, owner
+    { day: "Everyday (Fridays Off)", hours: ["8:30 AM - 1:00 PM", "2:30 PM - 7:30 PM"] }, // [VERIFIED] matches Google Business Profile
   ],
   
   socials: {
@@ -212,7 +212,7 @@ export const faqs = [
   },
   {
     question: "Are you open on Sundays?",
-    answer: "Yes, Smile Dental Clinic in Katapadi is open on Sundays! Our everyday timings are 8:30 AM to 12:30 PM and 2:00 PM to 9:00 PM. We are only closed on Fridays.",
+    answer: "Yes, Smile Dental Clinic in Katapadi is open on Sundays! Our everyday timings are 8:30 AM to 1:00 PM and 2:30 PM to 7:30 PM. We are only closed on Fridays.",
     isVerified: true
   }
 ]

@@ -11,7 +11,7 @@ The single source of truth for **what** we are building and **why**. Read this b
 
 ## Clinic facts the app must respect
 
-- **Hours (from 2026-10-11):** 8:30 AM–12:30 PM and 2:00 PM–9:00 PM, every day **except Friday** (closed). Open Sundays. Break 12:30–2:00. Appointments are **40-minute blocks** (16 a day, last one ends 8:40 PM).
+- **Hours (same as the Google Business Profile):** 8:30 AM–1:00 PM and 2:30 PM–7:30 PM, every day **except Friday** (closed). Open Sundays. Lunch 1:00–2:30. Calendar appointments are **40-minute blocks** that end before closing: 6 in the morning (8:30 to 11:50) and 7 in the afternoon (2:30 to 6:30), 13 a day.
 - **Timezone:** India (Asia/Kolkata), whatever the server timezone.
 - **Price list:** `treatments` in `src/config/site.ts`, the same list the public website shows. **One price list for the website and the app.** Some prices are ranges (e.g. aligners `45,000/- to 65,000/-`) or formulas (`1,200/- + 400/-* number of additional teeth`); never strip digits blindly.
 - **UPI ID for payment QR codes:** `rahil.yusuf.k-1@okhdfcbank` (payee name "Smile Dental Clinic").
@@ -73,4 +73,4 @@ The single source of truth for **what** we are building and **why**. Read this b
 - 2026-10-10 Sign-in is **email + password** via Supabase (Google was attempted but the Google console was unresponsive; may be added later). Sessions persist until Sign out.
 - 2026-10-10 Visits support **multiple photos with captions**. Camera and gallery are separate buttons (Android opens only the gallery when multiple selection is allowed).
 - 2026-10-10 No mic on the patient-details screen (typing is easier). Dictation **stays on until Stop**, with an animation.
-- 2026-10-11 **Online booking and calendar (Phase 5a).** Website SOS button removed. 40-minute blocks: 8:30 AM to 12:30 PM and 2:00 PM to 8:40 PM, Fridays closed. Patients may book only blocks starting **2+ hours ahead**; blocks from **7 PM** are by phone (clinic is open until 9 PM). Patient is told confirmation takes **under 15 minutes** (after 6 AM if requested between 9 PM and 6 AM). The request carries a private link into Clinic OS (a vCard is not possible from a WhatsApp link). Confirmation to the patient stays **one tap** on WhatsApp (Business API deferred).
+- 2026-10-11 **Online booking and calendar (Phase 5a).** Website SOS button removed. 40-minute blocks inside the Google Business Profile hours (13 a day, last 6:30 PM), Fridays closed. Patients may book only blocks starting **2+ hours ahead**; anything from **7 PM**, or a time not shown, is by phone. The website's how-did-you-hear answer is pre-filled from the link the visitor came from. Patient is told confirmation takes **under 15 minutes** (after 6 AM if requested between 9 PM and 6 AM). The request carries a private link into Clinic OS (a vCard is not possible from a WhatsApp link). Confirmation to the patient stays **one tap** on WhatsApp (Business API deferred).

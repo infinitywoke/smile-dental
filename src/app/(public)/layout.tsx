@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { siteConfig } from '@/config/site'
 import { cacheLife } from 'next/cache'
 import { PublicHeader } from '@/components/site/PublicHeader'
+import { SourceTracker } from '@/components/site/SourceTracker'
 
 export default function PublicLayout({
   children,
@@ -12,6 +13,7 @@ export default function PublicLayout({
   return (
     <div className="min-h-screen flex flex-col font-sans">
       <PublicHeader />
+      <SourceTracker />
 
       <main className="flex-1 bg-white">
         {children}

@@ -34,16 +34,17 @@ Each item lists its **acceptance criteria**: what must be true on Dr. Rahil's ph
 Owner request (2026-10-11): remove SOS, keep the booking page simple, show Dr. Rahil's real availability, and let him schedule or confirm a WhatsApp request in a few taps, with a confirmation going to the patient. Ships before the rest of Wave 1. When approved, update PRODUCT.md (hours, journey step 0, decision log).
 
 **Schedule (40-minute blocks, India time):**
-- Morning: 8:30, 9:10, 9:50, 10:30, 11:10, 11:50 (ends 12:30). Break 12:30–2:00.
-- Afternoon: 2:00, 2:40, 3:20, 4:00, 4:40, 5:20, 6:00, 6:40, 7:20, 8:00 (ends 8:40). 16 blocks a day.
-- 8:40–9:00 PM is 20 minutes, not a full block: kept as buffer *(owner to confirm)*. Fridays closed *(owner to confirm)*. Website hours and FAQ change to match; owner updates the Google Business Profile.
+- **Revised 2026-10-11 (owner): hours stay as on the Google Business Profile**, 8:30 AM–1:00 PM and 2:30–7:30 PM, Fridays closed. Blocks must end before closing.
+- Morning: 8:30, 9:10, 9:50, 10:30, 11:10, 11:50 (ends 12:30).
+- Afternoon: 2:30, 3:10, 3:50, 4:30, 5:10, 5:50, 6:30 (ends 7:10). **13 blocks a day.**
+- A 12:30 block would end at 1:10 and a 7:10 block at 7:50, past closing, so they are not offered.
 
 **Online booking rules** (enforced by the database, mirrored on the website for display):
 1. A block can be requested online only if it starts **at least 2 hours after the request**.
-2. Blocks starting **at 7 PM or later** (7:20, 8:00) are not bookable online. The website says "For 7:20 or 8:00 PM, please call the clinic" (tap to call). Dr. Rahil can still book them in the app (appointments run until 9 PM).
+2. Blocks starting **at 7 PM or later** are never offered online (none exist inside the hours today; the rule stays in the database). The website says "after 7 PM, or a time not shown, please call" with tap-to-call.
 3. Fridays, breaks, Dr. Rahil's time off, booked blocks and blocks held by another pending request are never offered. Booking window: the next 4 weeks.
-- Together these give the owner's rule: requests made **6 AM–5 PM** get same-day blocks at least 2 hours away. The last online block is 6:40 PM, so nothing is left for the same day after 4:40 PM; night requests start the next day at 8:30, so he has at least 2 hours from 6 AM.
-  - Examples: request at 10:00 AM → earliest 2:00 PM; 4:30 PM → 6:40 PM; 5:30 PM or 11 PM → tomorrow 8:30 AM.
+- Together these give the owner's rule: requests made **6 AM–5 PM** get same-day blocks at least 2 hours away. The last online block is 6:30 PM, so nothing is left for the same day after 4:30 PM; night requests start the next day at 8:30, so he has at least 2 hours from 6 AM.
+  - Examples: request at 10:00 AM → earliest 2:30 PM; 4:30 PM → 6:30 PM; 5:30 PM or 11 PM → tomorrow 8:30 AM.
 - The patient is told: "Dr. Rahil will confirm on WhatsApp in **under 15 minutes**." Requests sent 9 PM–6 AM say "confirmed after 6 AM" instead *(owner to confirm)*.
 
 **Website booking page (3 steps, no SOS):**
@@ -60,7 +61,7 @@ Owner request (2026-10-11): remove SOS, keep the booking page simple, show Dr. R
 - "Share to Clinic OS" (Android share target) can be added later if still wanted.
 
 **Clinic OS:**
-- **Calendar tab** (Today · Calendar · Patients · New · Money): a day view of the 16 blocks with the break. Swipe to change day; a week strip shows busy days.
+- **Calendar tab** (Today · Calendar · Patients · New · Money): a day view of the 13 blocks with the break. Swipe to change day; a week strip shows busy days.
   - **Free block:** tap to book an existing patient (search) or a new one, for phone bookings including 7:20 and 8:00 PM. Or **Block time** (blocked time disappears from the website).
   - **Booked block:** name and reason. Tap for Open patient / Start visit / Move / Cancel / WhatsApp.
   - **Pending website request:** amber.
@@ -92,7 +93,7 @@ Owner request (2026-10-11): remove SOS, keep the booking page simple, show Dr. R
 **Built (2026-10-11), by the orchestrator inline:**
 - `supabase/patch-booking.sql` + 94 database checks (PGlite, clock pinned through `clinic_now()`), `src/lib/schedule.ts` + 11 unit tests, `src/lib/whatsapp.ts`.
 - Website: `/book` (3 steps), `src/lib/actions/booking.ts`. Clinic OS: `/app/calendar`, `/app/calendar/book`, `/app/requests/[id]`, `/app/appointments/[id]`, Today cards, Calendar tab, sign-in returns to the page opened from WhatsApp.
-- Pending: owner runs the SQL; e2e (public page + request -> slide/tap -> save -> WhatsApp); push; Dr. Rahil's phone test; update the Google Business Profile hours.
+- Pending: owner runs `patch-booking-hours.sql`; e2e (public page + request -> slide/tap -> save -> WhatsApp); push; Dr. Rahil's phone test.
 - Known limits: the public request files under the clinic account, so e2e creates its test request as the test account (the public RPC path is covered by the database checks). The drag gesture is tested by hand; e2e uses the tap fallback.
 
 **Build order** (lean workflow, section 4):
@@ -195,7 +196,7 @@ Wave 0 used a large agent swarm on Opus. It worked, but it spent far more quota 
 |---|---|
 | Wave 0 | Phone test of camera + dictation. Create a **test login** in Supabase (credentials go in a git-ignored `.env.test.local`, never in chat). |
 | Wave 1 | **Anthropic API key** (console.anthropic.com, billing + monthly spend limit) set as `ANTHROPIC_API_KEY` in Vercel and `.env.local`. A fresh **Supabase secret key** for the private bill link, set as `SUPABASE_SECRET_KEY` the same way. |
-| Phase 5a | Answers to the open points (8:40–9:00 buffer, Fridays, 7 PM rule every day, night-request wording, one-tap vs automatic WhatsApp). Dr. Rahil's 1-minute link test. Run `supabase/patch-booking.sql`. Update the Google Business Profile hours. Only if automatic WhatsApp is wanted later: clinic number on the WhatsApp Business app + Meta business verification. |
+| Phase 5a | Answers to the open points (8:40–9:00 buffer, Fridays, 7 PM rule every day, night-request wording, one-tap vs automatic WhatsApp). Dr. Rahil's 1-minute link test. Run `supabase/patch-booking.sql`. Only if automatic WhatsApp is wanted later: clinic number on the WhatsApp Business app + Meta business verification. |
 | Before launch | Hosting plan decisions and backups (section 7). |
 
 ## 7. Risks, costs and operations

@@ -207,7 +207,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         <div className="space-y-4">
           {dayOff && <p className="rounded-xl bg-gray-100 p-3 text-center text-sm font-medium text-gray-600">This day is blocked off in your calendar.</p>}
           <Group title="Morning" times={MORNING_BLOCKS} blocks={blocks} id={id} selected={selected} over={drag?.over ?? null} label={label} onPick={setSelected} wasHere={wasHere?.instant ?? null} />
-          <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-400">Break · 12:30 – 2:00 PM</p>
+          <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-400">Break · 1:00 – 2:30 PM</p>
           <Group title="Afternoon and evening" times={AFTERNOON_BLOCKS} blocks={blocks} id={id} selected={selected} over={drag?.over ?? null} label={label} onPick={setSelected} wasHere={wasHere?.instant ?? null} />
         </div>
       )}

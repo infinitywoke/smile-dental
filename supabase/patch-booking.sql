@@ -34,9 +34,10 @@ parallel safe
 set search_path = ''
 as $$ select p_start + p_minutes * interval '1 minute' $$;
 
--- The 16 clinic blocks of a day, as 40-minute starts in India time:
---   8:30 9:10 9:50 10:30 11:10 11:50   (break 12:30-2:00)
---   2:00 2:40 3:20 4:00 4:40 5:20 6:00 6:40 7:20 8:00   (last block ends 8:40)
+-- The 13 clinic blocks of a day, as 40-minute starts in India time. They sit inside the
+-- Google Business Profile hours (8:30 AM-1:00 PM, 2:30-7:30 PM): a block must end before closing.
+--   8:30 9:10 9:50 10:30 11:10 11:50
+--   2:30 3:10 3:50 4:30 5:10 5:50 6:30
 -- Fridays have none.
 create or replace function public.clinic_slots(p_date date)
 returns setof timestamptz
@@ -45,7 +46,7 @@ stable
 set search_path = ''
 as $$
   select ((p_date::timestamp) + make_interval(mins => m)) at time zone 'Asia/Kolkata'
-  from unnest(array[510, 550, 590, 630, 670, 710, 840, 880, 920, 960, 1000, 1040, 1080, 1120, 1160, 1200]) as m
+  from unnest(array[510, 550, 590, 630, 670, 710, 870, 910, 950, 990, 1030, 1070, 1110]) as m
   where extract(isodow from p_date) <> 5
 $$;
 
