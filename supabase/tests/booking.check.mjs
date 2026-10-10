@@ -1,6 +1,7 @@
 // Checks supabase/patch-booking.sql in a throwaway Postgres (PGlite).
 // Needs @electric-sql/pglite, which is not a project dependency: install it in a scratch folder
 // and run: node booking.check.mjs <path to this repo>
+import { PGlite } from '@electric-sql/pglite'
 import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist'
 import { readFileSync } from 'node:fs'
 
