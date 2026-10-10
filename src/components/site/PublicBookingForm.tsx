@@ -8,6 +8,8 @@ type BookingData = {
   name: string
   phone: string
   dob: string
+  medical_alerts: string
+  heard_from: string
   location: string
   city: string
   reason: string
@@ -16,6 +18,9 @@ type BookingData = {
   preferred_time: string
   preferred_time_ampm: 'AM' | 'PM'
 }
+
+// Same options the clinic app offers when a new patient walks in
+const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Instagram', 'Doctor referral']
 
 const MORNING_SLOTS = ["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00"]
 const AFTERNOON_SLOTS = ["14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"]
@@ -57,6 +62,8 @@ export function PublicBookingForm() {
     name: '',
     phone: '',
     dob: '',
+    medical_alerts: '',
+    heard_from: '',
     location: '',
     city: '',
     reason: '',
@@ -157,7 +164,10 @@ export function PublicBookingForm() {
       data.reason === 'EMERGENCY' ? '*EMERGENCY appointment request (website)*' : '*Appointment request (website)*',
       `Name: ${data.name}`,
       `Phone: ${data.phone}`,
+      ...(data.dob ? [`Date of birth: ${new Date(data.dob).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`] : []),
       `Area: ${data.location}, ${data.city}`,
+      `Medical alerts: ${data.medical_alerts.trim() || 'None'}`,
+      ...(data.heard_from.trim() ? [`Heard about us: ${data.heard_from.trim()}`] : []),
       `Reason: ${data.reason}`,
       `Preferred: ${new Date(data.preferred_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}, ${data.preferred_time ? `${data.preferred_time} ${data.preferred_time_ampm}` : 'any time'}`,
     ]
@@ -277,6 +287,22 @@ export function PublicBookingForm() {
             </div>
 
             <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <Calendar className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="date"
+                  value={data.dob}
+                  onChange={(e) => updateData({ dob: e.target.value })}
+                  max={getLocalDateString()}
+                  className="pl-11 block w-full rounded-lg border-gray-300 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Locality / Area</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -305,7 +331,7 @@ export function PublicBookingForm() {
 
             <button
               onClick={handleNext}
-              disabled={!data.name.trim() || !data.phone.trim() || !data.city.trim() || !data.location.trim()}
+              disabled={!data.name.trim() || !data.phone.trim() || !data.dob || !data.city.trim() || !data.location.trim()}
               className="w-full mt-8 flex items-center justify-center gap-2 py-3.5 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Continue <ArrowRight className="w-5 h-5" />
@@ -334,6 +360,37 @@ export function PublicBookingForm() {
                 <option value="Consultation">Consultation</option>
                 <option value="Other">Other</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Medical Alerts (Optional)</label>
+              <textarea
+                value={data.medical_alerts}
+                onChange={(e) => updateData({ medical_alerts: e.target.value })}
+                rows={2}
+                className="block w-full rounded-lg border-gray-300 py-3 px-4 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                placeholder="Allergies, diabetes, BP, blood thinners, regular medicines… Leave empty if none."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">How did you hear about us? (Optional)</label>
+              <div className="flex flex-wrap gap-2">
+                {HEARD_FROM.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => updateData({ heard_from: data.heard_from === option ? '' : option })}
+                    className={`rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
+                      data.heard_from === option
+                        ? 'bg-blue-600 border-blue-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-blue-500'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -533,9 +590,23 @@ export function PublicBookingForm() {
                 <span className="font-medium text-gray-900">{data.phone}</span>
               </div>
               <div className="flex justify-between border-b border-gray-200 pb-3">
+                <span className="text-gray-500">Date of birth</span>
+                <span className="font-medium text-gray-900">{data.dob ? new Date(data.dob).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-200 pb-3">
                 <span className="text-gray-500">Locality/Area</span>
                 <span className="font-medium text-gray-900">{data.location}, {data.city}</span>
               </div>
+              <div className="flex justify-between gap-4 border-b border-gray-200 pb-3">
+                <span className="text-gray-500 shrink-0">Medical alerts</span>
+                <span className="font-medium text-gray-900 text-right">{data.medical_alerts.trim() || 'None'}</span>
+              </div>
+              {data.heard_from.trim() && (
+                <div className="flex justify-between border-b border-gray-200 pb-3">
+                  <span className="text-gray-500">Heard about us</span>
+                  <span className="font-medium text-gray-900">{data.heard_from}</span>
+                </div>
+              )}
               <div className="flex justify-between border-b border-gray-200 pb-3">
                 <span className="text-gray-500">Reason</span>
                 <span className="font-medium text-gray-900">{data.reason}</span>
