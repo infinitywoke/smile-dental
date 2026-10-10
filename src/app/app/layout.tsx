@@ -1,14 +1,25 @@
 import { Suspense } from 'react'
 import Image from 'next/image'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { LogOut } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
 import { BottomNav } from '@/components/clinic/BottomNav'
 
+// The manifest is linked only here, so "Add to Home screen" installs Clinic OS, not the website.
 export const metadata: Metadata = {
   title: `Clinic OS - ${siteConfig.name}`,
   robots: { index: false },
+  manifest: '/clinic.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'Clinic OS',
+    statusBarStyle: 'default',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#2563eb',
 }
 
 export default function ClinicLayout({ children }: LayoutProps<'/app'>) {
