@@ -52,6 +52,7 @@ test('adds a new patient and starts a visit', async () => {
 
   await visible(page.getByLabel('Name', { exact: true })).fill(patientName)
   await visible(page.getByLabel('WhatsApp number')).fill(phone)
+  await visible(page.getByRole('radio', { name: 'Male' })).click()
   await visible(page.getByLabel('Date of birth')).fill('1990-05-15')
   await visible(page.getByLabel('Medical alerts')).fill('Penicillin allergy')
   await page.getByRole('button', { name: 'Save and start visit' }).click()
@@ -246,6 +247,7 @@ test('the public booking page offers real times, no SOS, and goes straight on af
 
   await page.getByLabel('WhatsApp number').fill('9845021763')
   await page.getByLabel('Full name').fill(`${runId} Public`)
+  await page.getByRole('radio', { name: 'Female' }).click()
   await page.getByLabel('Date of birth').fill('1990-05-15')
   await page.getByLabel('Address').fill('Pangala, Udupi')
   await page.getByRole('button', { name: 'Tooth pain' }).click()

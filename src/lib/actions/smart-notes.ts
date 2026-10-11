@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { todayInIndia } from '@/lib/dates'
-import { generateStructured } from '@/lib/ai/claude'
+import { ageOn, todayInIndia } from '@/lib/dates'
+import { generateNote } from '@/lib/ai/provider'
+import { anonymise, restoreDeep } from '@/lib/ai/anonymise'
+import { parseGender } from '@/lib/gender'
 import { VISIT_SYSTEM_PROMPT, visitNoteContent } from '@/lib/ai/visit-prompt'
 import { allWarnings } from '@/lib/ai/safety'
 import { SUMMARY_VERSION, parseVisitSummary, visitSummarySchema, type VisitSummary } from '@/lib/ai/visit-summary'
@@ -15,8 +17,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MIN_NOTE_LENGTH = 8
 const MAX_NOTE_LENGTH = 8000
 
-// Reads the saved note and asks Claude to tidy it. Nothing is saved here: the doctor sees the
-// Confirm card first, so a wrong answer never touches the record.
+// Reads the saved note and asks the AI to tidy it. Nothing is saved here (apart from keeping the
+// original words safe): the doctor sees the Confirm card first, so a wrong answer never touches
+// the record. Name, address and phone are swapped for placeholders before anything is sent.
 export async function tidyVisitNote(visitId: string): Promise<{ error?: string; summary?: VisitSummary }> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Something went wrong. Please reopen the visit.' }
@@ -24,7 +27,7 @@ export async function tidyVisitNote(visitId: string): Promise<{ error?: string; 
   const supabase = await createClient()
   const { data: visit } = await supabase
     .from('visits')
-    .select('notes, patient:patients!inner (medical_alerts)')
+    .select('notes, notes_original, patient:patients!inner (name, phone, address, date_of_birth, gender, medical_alerts)')
     .eq('id', visitId)
     .maybeSingle()
   if (!visit) return { error: 'That visit was not found.' }
@@ -33,17 +36,36 @@ export async function tidyVisitNote(visitId: string): Promise<{ error?: string; 
   if (notes.length < MIN_NOTE_LENGTH) return { error: 'Write or dictate the note first, then tidy it up.' }
   if (notes.length > MAX_NOTE_LENGTH) return { error: 'This note is too long to tidy in one go. Shorten it and try again.' }
 
-  const patient = (Array.isArray(visit.patient) ? visit.patient[0] : visit.patient) as { medical_alerts: string | null }
-  const result = await generateStructured({
+  const patient = (Array.isArray(visit.patient) ? visit.patient[0] : visit.patient) as {
+    name: string
+    phone: string | null
+    address: string | null
+    date_of_birth: string | null
+    gender: string | null
+    medical_alerts: string | null
+  }
+
+  // The dictated words are kept as they were, before anything is tidied or sent anywhere
+  if (visit.notes_original === null) {
+    await supabase.from('visits').update({ notes_original: visit.notes }).eq('id', visitId).is('notes_original', null)
+  }
+
+  const identity = { name: patient.name, address: patient.address, phone: patient.phone }
+  const safeNotes = anonymise(notes, identity)
+  const safeAlerts = patient.medical_alerts ? anonymise(patient.medical_alerts, identity).text : null
+  const age = patient.date_of_birth ? ageOn(patient.date_of_birth) : null
+  const who = [age !== null ? `${age}-year-old` : null, parseGender(patient.gender)].filter(Boolean).join(' ') || null
+
+  const result = await generateNote({
     system: VISIT_SYSTEM_PROMPT,
-    content: visitNoteContent({ today: todayInIndia(), medicalAlerts: patient.medical_alerts, notes }),
+    content: visitNoteContent({ today: todayInIndia(), patient: who, medicalAlerts: safeAlerts, notes: safeNotes.text }),
     schema: visitSummarySchema,
     maxTokens: 8_000,
   })
   if (!result.ok) return { error: result.error }
 
-  // The deterministic safety checks are added to the model's own warnings
-  const summary = result.data
+  // Real details go back in, then the deterministic safety checks are added to the model's own warnings
+  const summary = restoreDeep(result.data, safeNotes.restore)
   return { summary: { ...summary, warnings: allWarnings(patient.medical_alerts, summary) } }
 }
 

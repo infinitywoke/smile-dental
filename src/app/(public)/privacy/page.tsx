@@ -37,7 +37,7 @@ export default function PrivacyPage() {
           <p>
             <strong className="font-semibold text-gray-900">Through this website.</strong> If you
             request an appointment, we save the details you typed (name, phone or WhatsApp number,
-            date of birth, address, any medical alerts, how you heard about us, the time you chose and
+            gender, date of birth, address, any medical alerts, how you heard about us, the time you chose and
             the reason for the visit) so the clinic can confirm your appointment and prepare for you.
             The form then opens WhatsApp on your phone with a short message to the clinic; nothing is
             sent on WhatsApp until you press Send. We keep these details in the same private records
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
             we record:
           </p>
           <List>
-            <li>your details: name, date of birth, address, phone or WhatsApp number, any medical alerts or allergies, and how you heard about us;</li>
+            <li>your details: name, gender, date of birth, address, phone or WhatsApp number, any medical alerts or allergies, and how you heard about us;</li>
             <li>notes about each visit: your examination, diagnosis, treatment plan and the treatment you received;</li>
             <li>bills, payments and any balance or advance;</li>
             <li>photos of your prescription, X-rays or scans, where needed for your care.</li>
@@ -69,14 +69,16 @@ export default function PrivacyPage() {
 
         <Section title="3. Help from AI">
           <p>
-            To save time on paperwork, the dentist may use Anthropic&apos;s Claude AI service to tidy up
-            visit notes he has dictated or typed, and to read handwritten prescriptions and other photos.
-            For this, the relevant notes or photos are sent securely to Anthropic for processing.
+            To save time on paperwork, the dentist may use Google&apos;s Gemini AI service to tidy up
+            visit notes he has dictated or typed. Your name, address and phone number are removed from
+            the note before it is sent, so the AI only sees the clinical details, your age and your gender.
+            When he dictates by voice, the audio of his dictation is turned into text by a Google speech
+            service.
           </p>
           <p>
-            Anthropic does not use this information to train its AI models by default. The AI only
-            assists: the dentist reviews and confirms everything before it is saved to your record, and
-            all decisions about your care are made by the dentist.
+            While the clinic uses Google&apos;s free service, Google may use this content to improve its
+            products. The AI only assists: the dentist reviews and confirms everything before it is saved
+            to your record, and all decisions about your care are made by the dentist.
           </p>
         </Section>
 

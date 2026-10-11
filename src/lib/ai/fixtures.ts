@@ -35,3 +35,19 @@ export const prakashVisit1: VisitSummary = {
   warnings: [],
   unclear: ['Extra ₹150 charge was not labelled'],
 }
+
+// What the doctor might dictate for the visit above, already anonymised, written as speech-to-text
+// would produce it. Used as the worked example in the prompt, so every answer has the same shape.
+export const prakashDictation = [
+  '[PATIENT] thirty eight male, lower right back tooth pain since one week, worse at night.',
+  'Deep caries four six, tender on percussion. i o p a shows caries close to the pulp.',
+  'Symptomatic irreversible pulpitis four six.',
+  'Did consultation two hundred, i o p a three fifty, started r c t on four six three thousand five hundred.',
+  'Plan post and core twelve hundred then crown, type not decided, three thousand four ninety nine to nine thousand nine ninety nine.',
+  'Amoxicillin five hundred milligram three times a day five days after food.',
+  'Avoid chewing on the right side till the crown is fitted. Prefers evenings after six.',
+  'Next visit Thursday fifteenth six pm. Collected four thousand two hundred by upi, there was one fifty extra, not sure what for.',
+].join(' ')
+
+// The date the example was dictated on (a Saturday), so "Thursday fifteenth" resolves to 2026-10-15
+export const prakashToday = '2026-10-10'

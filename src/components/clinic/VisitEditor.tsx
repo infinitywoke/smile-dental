@@ -264,6 +264,7 @@ function Editor(props: Props) {
         {listening && (
           <p className="min-h-10 rounded-lg bg-blue-50 px-3 py-2 text-sm italic text-blue-900" aria-live="polite">
             {hearing ? `${hearing}…` : 'Listening…'}
+            <span className="mt-1 block text-xs not-italic text-blue-700">You do not need to say the patient&apos;s name.</span>
           </p>
         )}
         {restored && (

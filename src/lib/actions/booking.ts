@@ -5,6 +5,7 @@ import { createPublicClient } from '@/lib/supabase/public'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { isOnlineBookable, inIndia } from '@/lib/schedule'
 import type { SubmitBookingRequestArgs } from '@/lib/data/types'
+import { parseGender } from '@/lib/gender'
 
 // Public: free appointment times for the website's booking page. Start times only, no names.
 export async function getOpenSlots(): Promise<string[]> {
@@ -18,6 +19,7 @@ export type BookingInput = {
   name: string
   phone: string
   dateOfBirth: string
+  gender: string
   address: string
   medicalAlerts: string
   heardFrom: string
@@ -34,6 +36,8 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
   const phone = normalizePhone(input.phone)
   if (!isValidPhone(phone)) return { ok: false, error: 'Please enter a valid 10-digit mobile number.' }
   if (input.name.trim().length < 2) return { ok: false, error: 'Please enter your name.' }
+  const gender = parseGender(input.gender)
+  if (!gender) return { ok: false, error: 'Please choose female, male or other.' }
 
   const start = new Date(input.requestedStart)
   if (Number.isNaN(start.getTime())) return { ok: false, error: 'Please choose a time.' }
@@ -56,6 +60,7 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
     p_reason: input.reason.trim() || null,
     p_notes: input.notes.trim() || null,
     p_requested_start: start.toISOString(),
+    p_gender: gender,
   }
   const { data, error } = await supabase.rpc('submit_booking_request', args)
   if (error || !data) {

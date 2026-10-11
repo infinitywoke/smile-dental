@@ -11,6 +11,8 @@ import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
 import { SOURCE_KEY } from './SourceTracker'
+import { GENDER_LABEL, type Gender } from '@/lib/gender'
+import { GenderChoice } from '@/components/GenderChoice'
 
 // Same options the clinic app offers when a new patient walks in
 const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Instagram', 'Doctor referral']
@@ -23,6 +25,7 @@ const labelClass = 'mb-1.5 block text-sm font-semibold text-gray-700'
 type Details = {
   phone: string
   name: string
+  gender: Gender | ''
   dateOfBirth: string
   address: string
   medicalAlerts: string
@@ -69,7 +72,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
   // Coming back from the review to change the time: return straight to the review afterwards
   const [returnToReview, setReturnToReview] = useState(false)
   const [details, setDetails] = useState<Details>({
-    phone: '', name: '', dateOfBirth: '', address: '', medicalAlerts: '', heardFrom: '', reason: initialReason.slice(0, 100), notes: '',
+    phone: '', name: '', gender: '', dateOfBirth: '', address: '', medicalAlerts: '', heardFrom: '', reason: initialReason.slice(0, 100), notes: '',
   })
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState<{ url: string } | null>(null)
@@ -121,7 +124,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
   const set = (patch: Partial<Details>) => setDetails((d) => ({ ...d, ...patch }))
 
   const phoneOk = isValidPhone(normalizePhone(details.phone))
-  const detailsOk = phoneOk && details.name.trim().length >= 2 && !!details.dateOfBirth && details.address.trim().length > 0 && !!details.reason
+  const detailsOk = phoneOk && details.name.trim().length >= 2 && !!details.gender && !!details.dateOfBirth && details.address.trim().length > 0 && !!details.reason
   const callHref = `tel:${siteConfig.phone.replace(/[^\d+]/g, '')}`
 
   function chooseTime(slot: string) {
@@ -148,6 +151,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
         name: details.name,
         phone: details.phone,
         dateOfBirth: details.dateOfBirth,
+        gender: details.gender,
         address: details.address,
         medicalAlerts: details.medicalAlerts,
         heardFrom: details.heardFrom,
@@ -354,6 +358,11 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             </div>
 
             <div>
+              <p className={labelClass}>Gender</p>
+              <GenderChoice value={details.gender} onChange={(gender) => set({ gender })} />
+            </div>
+
+            <div>
               <label htmlFor="dob" className={labelClass}>Date of birth</label>
               <input id="dob" type="date" max={today} autoComplete="bday"
                 value={details.dateOfBirth} onChange={(e) => set({ dateOfBirth: e.target.value })} className={inputClass} />
@@ -442,6 +451,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             <dl className="divide-y divide-gray-100 rounded-2xl border border-gray-100 text-sm">
               <Row label="Name" value={details.name.trim()} onChange={() => changeField('name')} />
               <Row label="WhatsApp" value={details.phone.trim()} onChange={() => changeField('phone')} />
+              <Row label="Gender" value={details.gender ? GENDER_LABEL[details.gender] : ''} onChange={() => changeField('gender')} />
               <Row label="Date of birth" value={details.dateOfBirth} onChange={() => changeField('dob')} />
               <Row label="Address" value={details.address.trim()} onChange={() => changeField('address')} />
               <Row label="Reason" value={details.reason} onChange={() => changeField('reason')} />

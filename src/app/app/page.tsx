@@ -13,6 +13,7 @@ import { RequestCard } from '@/components/clinic/RequestCard'
 import { SlotGrid } from '@/components/clinic/SlotGrid'
 import { DayOffButton } from '@/components/clinic/CalendarActions'
 import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
+import { genderLabel } from '@/lib/gender'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
@@ -94,7 +95,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                 canConfirm={request.confirmable}
                 otherTimeHref={`/app/requests/${request.id}${wanted ? `?d=${wanted.date >= today ? wanted.date : today}` : ''}`}
                 details={{
-                  age: request.date_of_birth ? `${ageOn(request.date_of_birth)} yrs` : null,
+                  age: [request.date_of_birth && `${ageOn(request.date_of_birth)} yrs`, genderLabel(request.gender)].filter(Boolean).join(' · ') || null,
                   address: request.address || [request.area, request.city].filter(Boolean).join(', ') || null,
                   heardFrom: request.heard_from,
                   notes: request.notes,

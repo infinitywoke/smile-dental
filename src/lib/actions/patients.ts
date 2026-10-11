@@ -9,6 +9,7 @@ import { PHOTO_BUCKET } from '@/lib/data/visits'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { todayInIndia } from '@/lib/dates'
 import { isPracticeMode } from '@/lib/practice'
+import { parseGender } from '@/lib/gender'
 
 export type PatientFormState = { error?: string }
 
@@ -21,14 +22,17 @@ function readPatientForm(formData: FormData) {
     name: text('name'),
     phone: normalizePhone(text('phone')),
     date_of_birth: text('date_of_birth'),
+    gender: parseGender(formData.get('gender')),
     address: text('address'),
     medical_alerts: text('medical_alerts'),
     heard_from: text('heard_from'),
   }
 }
 
-function validate(patient: ReturnType<typeof readPatientForm>): string | null {
+// Gender is required for a new patient; older patients without one can still be edited
+function validate(patient: ReturnType<typeof readPatientForm>, isNew = false): string | null {
   if (!patient.name) return 'Please enter the patient’s name.'
+  if (isNew && !patient.gender) return 'Please choose the patient’s gender.'
   if (patient.phone && !isValidPhone(patient.phone)) return 'Please enter a 10-digit mobile number.'
   if (patient.date_of_birth && patient.date_of_birth > todayInIndia()) return 'Date of birth can’t be in the future.'
   return null
@@ -38,7 +42,7 @@ function validate(patient: ReturnType<typeof readPatientForm>): string | null {
 export async function createPatient(_prev: PatientFormState, formData: FormData): Promise<PatientFormState> {
   await getDoctor()
   const patient = readPatientForm(formData)
-  const problem = validate(patient)
+  const problem = validate(patient, true)
   if (problem) return { error: problem }
 
   const supabase = await createClient()

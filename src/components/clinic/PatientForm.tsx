@@ -8,6 +8,8 @@ import { lookupPhone, type PatientFormState } from '@/lib/actions/patients'
 import { formatPhone, normalizePhone } from '@/lib/phone'
 import { ageOn, todayInIndia } from '@/lib/dates'
 import type { Patient } from '@/lib/data/types'
+import { parseGender, type Gender } from '@/lib/gender'
+import { GenderChoice } from '@/components/GenderChoice'
 
 type Props = {
   action: (prev: PatientFormState, formData: FormData) => Promise<PatientFormState>
@@ -31,6 +33,7 @@ function PatientFields({ action, patient, submitLabel }: Props) {
   const [phone, setPhone] = useState(patient?.phone ? formatPhone(patient.phone) : '')
   const [name, setName] = useState(patient?.name ?? '')
   const [dateOfBirth, setDateOfBirth] = useState(patient?.date_of_birth ?? '')
+  const [gender, setGender] = useState<Gender | ''>(parseGender(patient?.gender) ?? '')
   const [address, setAddress] = useState(patient?.address ?? '')
   const [alerts, setAlerts] = useState(patient?.medical_alerts ?? '')
   const [heardFrom, setHeardFrom] = useState(patient?.heard_from ?? '')
@@ -89,6 +92,11 @@ function PatientFields({ action, patient, submitLabel }: Props) {
         <label htmlFor="name" className={labelClass}>Name</label>
         <input id="name" name="name" required autoComplete="off" placeholder="Prakash Shetty"
           value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+      </div>
+
+      <div className="space-y-1.5">
+        <p className={labelClass}>Gender</p>
+        <GenderChoice value={gender} onChange={setGender} name="gender" />
       </div>
 
       <div className="space-y-1.5">

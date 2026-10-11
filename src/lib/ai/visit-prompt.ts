@@ -1,4 +1,5 @@
 import { priceListOptions } from '@/lib/pricing'
+import { prakashDictation, prakashToday, prakashVisit1 } from './fixtures'
 
 // The system prompt is identical on every call (no dates, names or IDs), so it is served from
 // the prompt cache. Today's date and the patient's alerts go in the user message instead.
@@ -22,14 +23,35 @@ Rules:
 - Medical alerts: allergies, long-term conditions and regular medicines the patient mentions are added to "medical_alerts_add". Do not repeat ones already on the patient's record.
 - "warnings": real safety concerns only, for example an allergy against a prescribed medicine, or a tooth number that does not match the side said. Do not warn about anything else.
 - "unclear": words or details you could not understand, as short phrases. List them; never guess.
+- Identity: the patient's name, address and phone number are replaced by [PATIENT], [ADDRESS] and [PHONE]. Keep those placeholders exactly as written. Never write any real person's name, place or number into the answer; if the note names someone else, write "a relative" or "another doctor" instead.
+- The answer is only the JSON object, with every key present, in the same shape and style as the worked example below. Use short plain phrases, the same section names, and the same wording for common things ("Root canal treatment", "IOPA X-ray", "Consultation").
 
 Price list (slug: treatment, option):
-${PRICE_LIST}`
+${PRICE_LIST}
+
+Worked example. Input:
+
+Today's date: ${prakashToday}
+Patient: 38-year-old male
+Medical alerts already on the patient's record: none
+
+Visit note:
+${prakashDictation}
+
+Answer:
+${JSON.stringify(prakashVisit1)}`
 
 // The user message: today's date, what the record already says, then the note
-export function visitNoteContent(args: { today: string; medicalAlerts: string | null; notes: string }): string {
+export function visitNoteContent(args: {
+  today: string
+  // e.g. '38-year-old male'; no name, address or phone
+  patient: string | null
+  medicalAlerts: string | null
+  notes: string
+}): string {
   return [
     `Today's date: ${args.today}`,
+    `Patient: ${args.patient ?? 'not given'}`,
     `Medical alerts already on the patient's record: ${args.medicalAlerts?.trim() || 'none'}`,
     '',
     'Visit note:',

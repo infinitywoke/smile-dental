@@ -9,6 +9,8 @@ export type Patient = {
   name: string
   phone: string | null
   date_of_birth: string | null
+  // 'female' | 'male' | 'other'; null on patients added before it was asked
+  gender?: string | null
   address: string | null
   medical_alerts: string | null
   heard_from: string | null
@@ -142,6 +144,7 @@ export type BookingRequest = {
   city: string | null
   address: string | null
   date_of_birth: string | null
+  gender?: string | null
   medical_alerts: string | null
   heard_from: string | null
   reason: string | null
@@ -172,6 +175,7 @@ export type SubmitBookingRequestArgs = {
   p_reason: string | null
   p_notes: string | null
   p_requested_start: string
+  p_gender: string | null
 }
 
 // Time the doctor has blocked off; hidden from the website

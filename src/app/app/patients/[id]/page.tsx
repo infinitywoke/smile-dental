@@ -11,6 +11,7 @@ import { whatsappLink } from '@/lib/whatsapp'
 import { BackLink, MedicalAlert, ScreenLoading, TestBadge } from '@/components/clinic/ui'
 import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
 import { CancelAppointmentButton } from '@/components/clinic/CalendarActions'
+import { genderLabel } from '@/lib/gender'
 
 // The patient page is the hub: one smart button leads, then what is coming up, then history.
 async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
@@ -36,7 +37,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
             {patient.is_test && <TestBadge />}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            {[patient.date_of_birth && `${ageOn(patient.date_of_birth)} yrs`, formatPhone(patient.phone)].filter(Boolean).join(' · ')}
+            {[patient.date_of_birth && `${ageOn(patient.date_of_birth)} yrs`, genderLabel(patient.gender), formatPhone(patient.phone)].filter(Boolean).join(' · ')}
           </p>
         </div>
         {patient.phone && (

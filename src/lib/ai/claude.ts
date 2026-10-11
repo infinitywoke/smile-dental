@@ -23,7 +23,7 @@ export function getClaude(): Anthropic {
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export type StructuredResult<T> =
-  | { ok: true; data: T; model: string; usage: Anthropic.Beta.BetaUsage }
+  | { ok: true; data: T; model: string; usage?: Anthropic.Beta.BetaUsage }
   | { ok: false; error: string; retryable: boolean }
 
 export type GenerateStructuredOptions<T extends z.ZodType> = {

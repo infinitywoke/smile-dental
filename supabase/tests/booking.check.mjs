@@ -259,6 +259,27 @@ await expectOk('delete test patient cascades', `delete from public.patients wher
 r = await db.query('select count(*)::int as n from public.appointments a join public.patients p on p.id = a.patient_id where p.is_test')
 check('no appointments left for test patients', r.rows[0].n === 0)
 
+// --- Gender (patch-gender.sql) ---------------------------------------------------------------
+await db.exec('reset role')
+for (let i = 1; i <= 2; i++) {
+  try { await db.exec(read('patch-gender.sql')); ok(`patch-gender.sql run ${i} (idempotent)`) } catch (e) { bad(`patch-gender.sql run ${i}`, e) }
+}
+await as('anon')
+const submitG = `select public.submit_booking_request($1, $2, $3::date, $4, $5, $6, $7, $8, $9::timestamptz, $10) as id`
+r = await expectOk('visitor sends a request with gender', submitG, ['Gender Check', '9444455555', null, null, null, null, null, null, at(SAT, '10:30'), 'Female'])
+const reqG = r?.rows?.[0]?.id
+await expectErr('an unknown gender is refused', submitG, ['Gender Two', '9444455556', null, null, null, null, null, null, at(SAT, '11:10'), 'robot'], /female, male or other/)
+r = await expectOk('the old nine-argument call still works (gender optional)', submit, ['No Gender', '9444455557', null, null, null, null, null, null, at(SAT, '11:50')])
+await as('authenticated', A)
+r = await db.query('select gender from public.booking_requests where id = $1', [reqG])
+check('request stores gender in lower case', r.rows[0]?.gender === 'female', JSON.stringify(r.rows))
+r = await expectOk('confirm copies gender to the patient', `select * from public.confirm_booking_request('${reqG}'::uuid, '${at(SAT, '10:30')}'::timestamptz, null)`)
+r = await db.query('select gender from public.patients where id = $1', [r?.rows?.[0]?.patient_id])
+check('patient has the gender', r.rows[0]?.gender === 'female', JSON.stringify(r.rows))
+await expectErr('patients refuse a gender outside the three', `update public.patients set gender = 'x' where gender = 'female'`, [], /check/)
+await as('anon')
+await expectErr('only the ten-argument function exists for the website', `select public.submit_booking_request('a','b',null,null,null,null,null,null,null,null,null)`, [], /does not exist|function/)
+
 await as('postgres')
 console.log(`\n${passes} passed, ${failures} failed`)
 process.exit(failures ? 1 : 0)

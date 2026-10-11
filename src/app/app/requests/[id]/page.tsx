@@ -9,6 +9,7 @@ import { formatPhone } from '@/lib/phone'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { BackLink, Card, MedicalAlert, ScreenLoading, TestBadge } from '@/components/clinic/ui'
 import { SlotScheduler } from '@/components/clinic/SlotScheduler'
+import { genderLabel } from '@/lib/gender'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -53,7 +54,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
               {request.is_test && <TestBadge />}
             </h1>
             <p className="text-sm text-gray-500">
-              {[request.date_of_birth && `${ageOn(request.date_of_birth)} yrs (born ${formatDate(request.date_of_birth)})`, formatPhone(request.phone)]
+              {[request.date_of_birth && `${ageOn(request.date_of_birth)} yrs (born ${formatDate(request.date_of_birth)})`, genderLabel(request.gender), formatPhone(request.phone)]
                 .filter(Boolean).join(' · ')}
             </p>
           </div>
