@@ -1,0 +1,82 @@
+# Build log: the simplification build
+
+Started 11 Oct 2026. The plan is [SIMPLIFY.md](SIMPLIFY.md) (fresh-eyes review). This file records **everything built under it**, so the build can be resumed at any point, by anyone, in a new session.
+
+## How to resume (owner)
+1. Open Claude Code in this folder. Choose **Opus 5.5** (`/model opus`) and **max effort** (`/effort max`).
+2. Say: **"Resume the build from docs/BUILD_LOG.md."**
+3. The orchestrator reads this file, [SIMPLIFY.md](SIMPLIFY.md) and [AGENTS.md](../AGENTS.md), checks `git status` and `git log`, and carries on from the first unticked step under **Progress**.
+
+## How to resume (orchestrator)
+- The next step is the **first unticked box** under Progress. Read the latest **Log** entries first: they say what was in flight.
+- Builders work from the briefs in [docs/build/](build/). Re-run a builder by giving it its brief file (Agent tool, `isolation: "worktree"`, model and effort as in the table below). If a builder's worktree branch already exists (`git branch --list "worktree-*"`), review and merge it rather than starting over.
+- Gates before any merge to `main` (all free, no AI): `npx tsc --noEmit`, `npm test`, `npm run lint`, `npm run build`, `npm run test:e2e` (the four spec files), and for the waves that change screens, the evidence tour (below).
+- Database changes: write a dated SQL file in `supabase/`, check it with PGlite (`supabase/tests/booking.check.mjs`, run from a scratch folder that has `@electric-sql/pglite`), then apply it live with
+  `npx supabase db query --linked --project-ref pmuecirfwmtsvojxleoq --file supabase/<file>.sql`
+  (the CLI is signed in on the owner's PC). Record it in the log.
+- After each step: tick it here, add a Log line (date, what, result, commit), commit this file with the work.
+
+## Architecture (owner-approved, 11 Oct 2026)
+
+| Agent | Model, effort | Job |
+|---|---|---|
+| Orchestrator | Opus 5.5, max (the main session) | Wave 0 set-up, briefs, merges, every check, database changes, this log |
+| Builder 1A (visit page) | Opus 5.5, high | Hardest piece: one visit page that saves by itself |
+| Builders 1B, 2A, 2B, 3 | Sonnet 5.5, medium | Time pickers; Today and patients; website form; clean-up |
+| Fresh-eyes reviewer | Opus 5.5, high, once per wave | Looks at the new screens and the diff as a first-time user before the merge |
+
+Rules: at most two builders at a time, each in its own worktree, never editing the same file (owners listed in each brief). The app is not in daily use yet, so each wave merges straight to `main` once the gates pass; the owner then checks it on the OnePlus 13.
+
+## Decisions (owner, 11 Oct 2026): all five "yes"
+- **D1** One visit page instead of the Notes / Bill / Send tabs.
+- **D2** "Tidy up with AI" removed for launch (code stays in git history).
+- **D3** Age instead of date of birth, in the app and on the website (stored as birth year).
+- **D4** Practice mode, "Delete test data" and TEST badges removed; trial data erased once at go-live with `supabase/reset-all-data.sql`.
+- **D5** Shorter website booking: no review page; only phone, name, gender and reason required.
+
+## Evidence tour
+A scripted walk through every daily job on a OnePlus 13-sized screen, recording screenshots, taps, typing, 48 dp misses and Back-gesture results. Files: `tour/tour.spec.ts`, `tour/playwright.config.ts`; output in `tour/out/` (git-ignored). Run against a production build signed in as the test account:
+```
+npm run build
+ALLOWED_EMAIL=<TEST_EMAIL from .env.test.local> npx next start -p 3100   (leave running)
+npx playwright test -c tour/playwright.config.ts
+```
+Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 5 screens; 4 Back-gesture failures; 54 Clinic OS controls under 48 dp; "Tidy up" hung over 75 s. The tour's selectors follow the screens, so update it when a wave changes them.
+
+## Progress
+
+### Wave 0: prepare (orchestrator)
+- [x] Fresh-eyes review written: `docs/SIMPLIFY.md`
+- [x] Owner decisions D1–D5 recorded (here and in PRODUCT.md)
+- [x] Old agent worktrees and their branches removed (all four were merged and clean)
+- [ ] Database: birth year added (`supabase/patch-age.sql`), checked with PGlite, applied live
+- [ ] End-to-end tests split into `e2e/visit.spec.ts`, `times.spec.ts`, `today.spec.ts`, `website.spec.ts`, with a shared `e2e/helpers.ts` that cleans the test account through the API (no Practice mode needed); OnePlus 13 screen profile
+- [ ] Evidence tour moved into the repo (`tour/`)
+- [ ] Briefs written: `docs/build/1A-visit.md`, `1B-times.md`, `2A-today-patients.md`, `2B-website.md`, `3-cleanup.md`
+- [ ] Gates pass on the unchanged app; `main` fast-forwarded and pushed (the base for Wave 1 worktrees)
+
+### Wave 1: visit page and time pickers (two builders in parallel)
+- [ ] 1A Visit page (Opus, high): C1, C3, C4, C6, C7, C16 + visit parts of C5, C15, C17, C18
+- [ ] 1B Time pickers and bookings (Sonnet, medium): C2, C14 + parts of C10, C17, C18, C21, C22
+- [ ] Merged, gates pass, tour re-run, fresh-eyes review, pushed
+- [ ] Owner phone check on the OnePlus 13
+
+### Wave 2: Today, patients and the website form (two builders in parallel)
+- [ ] 2A Today, navigation and patients (Sonnet, medium): C8, C9, C11, C12, C13 + parts of C5, C10, C15, C18, C21
+- [ ] 2B Website booking (Sonnet, medium): C19 + website side of D3
+- [ ] Merged, gates pass, tour re-run, fresh-eyes review, pushed
+- [ ] Owner phone check on the OnePlus 13
+
+### Wave 3: clean-up (one builder, orchestrator runs the database script)
+- [ ] Builder 3 (Sonnet, medium): C22–C27 and what is left of C3 and C13
+- [ ] Database clean-up script checked with PGlite and applied live
+- [ ] Gates pass, pushed; owner does every daily job once on the phone
+
+### Wave 4 (optional): short prescription link (C20)
+- [ ] Owner creates a server-only Supabase secret key and adds it in Vercel
+- [ ] Built, checked, pushed
+
+## Log
+- 2026-10-11 Evidence tour run on a production build (OnePlus 13 profile). Found: "Tidy up" hangs (gemini-3.8-flash overloaded on the free tier, and the Google library retries timeouts 4 more times); 4 Back-gesture failures; time pickers never pre-select (timestamp text mismatch); next visit booked by default.
+- 2026-10-11 Fresh-eyes reviewer (Opus 5.5, max) wrote `docs/SIMPLIFY.md`. Orchestrator verified its three main technical claims (SlotScheduler timestamp comparison, SDK default `maxRetries: 4` with timeouts retryable, next visit pre-filled in VisitSendStep).
+- 2026-10-11 Owner: "yes on all" (D1–D5, the architecture, Supabase CLI access). Wave 0 started. Removed the four old agent worktrees (2.4 GB). Supabase CLI confirmed signed in; `db query --linked --project-ref` works. Live data is trial data only (Dr. Rahil: 1 TEST patient, 1 request; test account: leftovers).
