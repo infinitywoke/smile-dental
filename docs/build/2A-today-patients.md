@@ -2,7 +2,14 @@
 
 **Builder:** Sonnet 5.5, effort medium. **Wave 2**, in parallel with 2B (website form). **End-to-end port:** `E2E_PORT=3101`. Read [README.md](README.md) first (shared rules).
 
-> Orchestrator: refresh this brief after Wave 1 merges (file names, the Start visit button and the visit-status helper may have changed).
+## Facts from Wave 1 (merged 11 Oct)
+- **Start a visit with** `<StartVisitButton patientId appointmentId? label? className? />` (`src/components/clinic/StartVisitButton.tsx`): it calls `startVisit`, which reuses today's visit for that patient or creates one, and opens `/app/visits/<id>`. Never link to a "start" URL (Next prefetches links).
+- **`nextActionFor`** (`src/lib/next-action.ts`) now returns `{ start: { appointmentId? } }` for start actions instead of an `href`; the patient page renders `StartVisitButton` for those. You may simplify or delete it for C8.
+- Visit links ending in `?step=bill` scroll to the visit's payment card (Today's money-owed rows and "Collect" can keep using them); `?step=notes` does nothing.
+- Visit state is now two facts: money (`Paid` / `₹X due` / `No bill`) and `WhatsApp sent` (`src/lib/visit-status.ts`, `VisitStatusBadge.tsx`, owned by nobody in Wave 2: use, don't edit). Empty visits (nothing in them) are already hidden.
+- The New patient button says "Save and start visit"; `e2e/visit.spec.ts` matches `/start visit/i`, so renaming it to "Start visit" is safe.
+- **Still under 48 dp after Wave 1 (tour, OnePlus 13 size), all on your screens:** `BackLink` in `ui.tsx` (about 16-24 px tall), the bottom-bar links "Today" and "Patients" (57x20 and 71x20: the text, not the whole bar, is the link), "Menu" (44x44, being removed), the day-strip arrows on Today (40x40), the "heard from" chips on New patient (32 px tall), "Move" on the patient page (60x32), the patient-name links in lists (20-32 px tall), "Call patient" / "WhatsApp patient" icons (44x44), and the login page's "Back to website" link (20 px).
+- Back-gesture results still failing (yours): the "+" pop-up and the ⋯ menu leave the page instead of closing (both are removed in this brief), and a half-typed New patient form loses its typing.
 
 **Changes (SIMPLIFY.md):** C8, C9, C11, C12, C13; the Today and Patients part of C10; the rest of C5, C15, C21; C18 on these screens. **Decisions:** D3 (age instead of date of birth) and D4 (no Practice mode) are yes.
 
