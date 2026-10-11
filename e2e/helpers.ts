@@ -101,6 +101,25 @@ export async function createAppointment(patientId: string, day: string, hhmm: st
   return data.id as string
 }
 
+// A visit on `day` with one charge and, if `paid` is given, one cash payment
+export async function createVisit(patientId: string, day: string, charge: number, paid = 0): Promise<string> {
+  const { supabase } = await testDb()
+  const { data, error } = await supabase.from('visits').insert({ patient_id: patientId, visit_date: day }).select('id').single()
+  if (error) throw new Error(`creating visit: ${error.message}`)
+  const visitId = data.id as string
+  const { error: chargeError } = await supabase
+    .from('visit_charges')
+    .insert({ visit_id: visitId, patient_id: patientId, description: 'Check-up', amount: charge, kind: 'extra' })
+  if (chargeError) throw new Error(`creating charge: ${chargeError.message}`)
+  if (paid > 0) {
+    const { error: payError } = await supabase
+      .from('payments')
+      .insert({ visit_id: visitId, patient_id: patientId, amount: paid, method: 'cash', kind: 'payment' })
+    if (payError) throw new Error(`creating payment: ${payError.message}`)
+  }
+  return visitId
+}
+
 // A website booking request, filed under the test account (the public form files requests
 // under the clinic's own account, so tests insert them directly)
 export async function makeRequest(runId: string, label: string, hhmm: string, daysAhead: number) {
