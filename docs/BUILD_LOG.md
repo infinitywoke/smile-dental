@@ -50,8 +50,8 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 - [x] Owner decisions D1–D5 recorded (here and in PRODUCT.md)
 - [x] Old agent worktrees and their branches removed (all four were merged and clean)
 - [x] Database: birth year added (`supabase/patch-age.sql`), checked with PGlite (115 checks), applied live
-- [ ] End-to-end tests split into `e2e/visit.spec.ts`, `times.spec.ts`, `today.spec.ts`, `website.spec.ts`, with a shared `e2e/helpers.ts` that cleans the test account through the API (no Practice mode needed); OnePlus 13 screen profile
-- [ ] Evidence tour moved into the repo (`tour/`)
+- [x] End-to-end tests split into `e2e/visit.spec.ts`, `times.spec.ts`, `today.spec.ts`, `website.spec.ts`, with a shared `e2e/helpers.ts` (each run cleans only its own data through the API, so two builders can test at once; no Practice mode needed); OnePlus 13 screen profile; `E2E_PORT` lets each builder use its own port
+- [x] Evidence tour moved into the repo (`tour/`)
 - [ ] Briefs written: `docs/build/1A-visit.md`, `1B-times.md`, `2A-today-patients.md`, `2B-website.md`, `3-cleanup.md`
 - [ ] Gates pass on the unchanged app; `main` fast-forwarded and pushed (the base for Wave 1 worktrees)
 
@@ -81,3 +81,4 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 - 2026-10-11 Fresh-eyes reviewer (Opus 5.5, max) wrote `docs/SIMPLIFY.md`. Orchestrator verified its three main technical claims (SlotScheduler timestamp comparison, SDK default `maxRetries: 4` with timeouts retryable, next visit pre-filled in VisitSendStep).
 - 2026-10-11 Owner: "yes on all" (D1–D5, the architecture, Supabase CLI access). Wave 0 started. Removed the four old agent worktrees (2.4 GB). Supabase CLI confirmed signed in; `db query --linked --project-ref` works. Live data is trial data only (Dr. Rahil: 1 TEST patient, 1 request; test account: leftovers).
 - 2026-10-11 Applied `supabase/patch-age.sql` live via the CLI: `birth_year` on patients and booking_requests; `submit_booking_request` now takes an optional `p_birth_year` (11 arguments; the old 10-argument version dropped, the website's named-argument call still matches); confirm copies it. PGlite: 115 passed.
+- 2026-10-11 Split `e2e/clinic.spec.ts` into four spec files plus `e2e/helpers.ts` (scoped clean-up by runId; `cleanTestAccount()` sweep for the tour only). Dropped the AI tidy-up e2e test (feature removed by D2; it was failing on the Gemini outage). Playwright profile: OnePlus 13 (412x905, Android 15 Chrome UA). `E2E_PORT` env. 13/13 pass; test account left with zero rows and zero photo files.

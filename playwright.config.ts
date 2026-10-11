@@ -1,13 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
 import { appEnv, NO_TEST_LOGIN, testLogin } from './e2e/env'
 
-const PORT = 3100
+// Each builder may run its own copy on its own port (E2E_PORT=3101, 3102, ...)
+const PORT = Number(process.env.E2E_PORT ?? 3100)
 const baseURL = `http://localhost:${PORT}`
 
 // Say why once (workers load this file too)
 if (!testLogin && !process.env.TEST_WORKER_INDEX) console.log(NO_TEST_LOGIN)
 
-// End-to-end tests on a mobile Chromium viewport, signed in as the test account.
+// End-to-end tests on an Android phone screen, signed in as the test account.
 // Without .env.test.local no server starts and the specs skip.
 export default defineConfig({
   testDir: 'e2e',
@@ -25,7 +26,15 @@ export default defineConfig({
     // A blocked click fails fast with a clear message instead of using up the test timeout
     actionTimeout: 15_000,
   },
-  projects: [{ name: 'mobile-chromium', use: { ...devices['Pixel 7'] } }],
+  // The owner's phone: a OnePlus 13 (Android 15, Chrome), 412 x 905 CSS pixels
+  projects: [{
+    name: 'oneplus-13',
+    use: {
+      ...devices['Pixel 7'],
+      viewport: { width: 412, height: 905 },
+      userAgent: 'Mozilla/5.0 (Linux; Android 15; CPH2649) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+    },
+  }],
   webServer: testLogin
     ? {
         command: `npx next dev -p ${PORT}`,

@@ -52,3 +52,6 @@ next-env.d.ts
 
 # supabase cli temporary data
 supabase/.temp/
+
+# Evidence tour output (docs/BUILD_LOG.md)
+/tour/out/

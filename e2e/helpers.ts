@@ -1,0 +1,131 @@
+import { expect, type Locator, type Page } from '@playwright/test'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { addDays, blockInstant, inIndia, isClosedDay } from '../src/lib/schedule'
+import { appEnv, testLogin } from './env'
+
+// Shared by every spec file. Each spec signs in, makes its own data and cleans up after itself,
+// so the files can be run alone and edited by different people at the same time.
+
+// Next keeps recently visited screens mounted but hidden, so the same text or
+// field can exist twice on the page. Only ever match what's visible.
+export const visible = <T extends Locator>(locator: T) => locator.filter({ visible: true }) as T
+
+// Unique per run, so runs never collide
+export const newRunId = (prefix = 'E2E') => `${prefix}-${Date.now()}`
+export const newPhone = (first = '9') => `${first}${String(Date.now()).slice(-9)}`
+
+export async function signIn(page: Page) {
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(testLogin!.email)
+  await page.getByLabel('Password').fill(testLogin!.password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/app$/)
+}
+
+let db: { supabase: SupabaseClient; userId: string } | null = null
+
+// The test account, straight to the database. It only ever sees its own rows: every table is
+// limited to its owner, so nothing here can touch Dr. Rahil's patients.
+export async function testDb() {
+  if (db) return db
+  const supabase = createClient(appEnv.NEXT_PUBLIC_SUPABASE_URL!, appEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false },
+  })
+  const { data, error } = await supabase.auth.signInWithPassword({ email: testLogin!.email, password: testLogin!.password })
+  if (error || !data.user) throw new Error(`test login failed: ${error?.message}`)
+  db = { supabase, userId: data.user.id }
+  return db
+}
+
+const PHOTO_BUCKET = 'visit-photos'
+
+// Removes what one run made: its patients (with their visits, bills, payments, photo records and
+// appointments), its website requests, and the photo files. Every name a run creates starts with
+// its runId, so two people can run the tests at the same time without deleting each other's data.
+export async function cleanRun(runId: string) {
+  const { supabase } = await testDb()
+  const { data: patients } = await supabase.from('patients').select('id').like('name', `${runId}%`)
+  const ids = (patients ?? []).map((p) => p.id as string)
+  if (ids.length > 0) {
+    const { data: photos } = await supabase.from('visit_photos').select('storage_path, visits!inner (patient_id)').in('visits.patient_id', ids)
+    const { error } = await supabase.from('patients').delete().in('id', ids)
+    if (error) throw new Error(`cleaning patients: ${error.message}`)
+    const paths = (photos ?? []).map((p) => p.storage_path as string)
+    if (paths.length > 0) await supabase.storage.from(PHOTO_BUCKET).remove(paths)
+  }
+  const { error } = await supabase.from('booking_requests').delete().like('name', `${runId}%`)
+  if (error) throw new Error(`cleaning requests: ${error.message}`)
+}
+
+// Removes EVERYTHING the test account owns, including leftovers from runs that crashed.
+// Only for a sweep when nobody else is running tests (the evidence tour uses it).
+export async function cleanTestAccount() {
+  const { supabase, userId } = await testDb()
+  const { data: photos } = await supabase.from('visit_photos').select('storage_path')
+  for (const table of ['booking_requests', 'appointments', 'time_off', 'patients']) {
+    const { error } = await supabase.from(table).delete().not('id', 'is', null)
+    if (error) throw new Error(`cleaning ${table}: ${error.message}`)
+  }
+  const paths = new Set((photos ?? []).map((p) => p.storage_path as string))
+  // Files left behind without a row (an upload that never finished)
+  const { data: folders } = await supabase.storage.from(PHOTO_BUCKET).list(userId)
+  for (const folder of folders ?? []) {
+    const { data: files } = await supabase.storage.from(PHOTO_BUCKET).list(`${userId}/${folder.name}`)
+    for (const file of files ?? []) paths.add(`${userId}/${folder.name}/${file.name}`)
+  }
+  if (paths.size > 0) await supabase.storage.from(PHOTO_BUCKET).remove([...paths])
+}
+
+// An open clinic day at least `daysAhead` days from now
+export function openDay(daysAhead: number): string {
+  let day = addDays(inIndia(new Date()).date, daysAhead)
+  while (isClosedDay(day)) day = addDays(day, 1)
+  return day
+}
+
+export async function createPatient(name: string, phone: string): Promise<string> {
+  const { supabase } = await testDb()
+  const { data, error } = await supabase.from('patients').insert({ name, phone, gender: 'male' }).select('id').single()
+  if (error) throw new Error(`creating patient: ${error.message}`)
+  return data.id as string
+}
+
+export async function createAppointment(patientId: string, day: string, hhmm: string): Promise<string> {
+  const { supabase } = await testDb()
+  const { data, error } = await supabase
+    .from('appointments')
+    .insert({ patient_id: patientId, starts_at: blockInstant(day, hhmm), duration_min: 40, reason: 'Check-up', status: 'booked' })
+    .select('id')
+    .single()
+  if (error) throw new Error(`creating appointment: ${error.message}`)
+  return data.id as string
+}
+
+// A website booking request, filed under the test account (the public form files requests
+// under the clinic's own account, so tests insert them directly)
+export async function makeRequest(runId: string, label: string, hhmm: string, daysAhead: number) {
+  const { supabase } = await testDb()
+  const day = openDay(daysAhead)
+  const requestPhone = newPhone('8')
+  const requestName = `${runId} ${label}`
+  const { data, error } = await supabase.from('booking_requests').insert({
+    name: requestName, phone: requestPhone, gender: 'female', birth_year: 1985, address: 'Katapadi',
+    medical_alerts: 'Diabetes', heard_from: 'Google', reason: 'Tooth pain', requested_start: blockInstant(day, hhmm),
+    preferred_date: day, preferred_time: hhmm, status: 'new', is_test: true,
+  }).select('id').single()
+  if (error) throw new Error(`creating request: ${error.message}`)
+  return { id: data.id as string, day, requestName, requestPhone }
+}
+
+// Stops WhatsApp opening for real: the test reads the link the app would open
+export async function captureWhatsapp(page: Page) {
+  const captured = { url: '' }
+  await page.unroute('https://wa.me/**').catch(() => {})
+  await page.route('https://wa.me/**', (route) => {
+    captured.url = route.request().url()
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>WhatsApp</body></html>' })
+  })
+  return captured
+}
+
+export const whatsappText = (url: string) => new URL(url).searchParams.get('text') ?? ''
