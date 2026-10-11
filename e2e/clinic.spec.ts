@@ -82,6 +82,31 @@ test('saves a visit with notes and a captioned photo, and lands on the bill', as
   await expect(visible(page.getByText(caption, { exact: true }))).toBeVisible()
 })
 
+test('tidies the note with AI, shows the Confirm card, and keeps the original words', async () => {
+  await visible(page.getByRole('button', { name: 'Tidy up with AI' })).click()
+
+  // Claude answers in a few seconds; the card is where the doctor checks it
+  const card = visible(page.getByLabel('Tidy note'))
+  await expect(card).toBeVisible({ timeout: 60_000 })
+  await expect(card).not.toHaveValue('')
+  // The patient's penicillin allergy is not in the note, so no allergy warning is invented
+  await expect(visible(page.getByRole('button', { name: /Confirm and bill/ }))).toBeVisible()
+
+  // Going back leaves the dictated words untouched
+  await visible(page.getByRole('button', { name: 'Back to my words' })).click()
+  await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(notes)
+
+  // Confirming saves the tidy note and moves on to the bill
+  await visible(page.getByRole('button', { name: 'Tidy up with AI' })).click()
+  await expect(visible(page.getByLabel('Tidy note'))).toBeVisible({ timeout: 60_000 })
+  await visible(page.getByRole('button', { name: /Confirm and bill/ })).click()
+  await expect(visible(page.getByText('No charges yet'))).toBeVisible({ timeout: 30_000 })
+
+  // Back on Notes for the next test
+  await page.getByRole('navigation', { name: 'Visit steps' }).getByRole('button', { name: 'Notes' }).click()
+  await expect(visible(page.getByRole('button', { name: 'Tidy up again' }))).toBeVisible()
+})
+
 test('walks the visit: bill, cash payment, next visit, one WhatsApp message, done', async () => {
   // Notes -> Next: Bill (nothing new to save, so it just moves on)
   await visible(page.getByRole('button', { name: 'Next: Bill' })).click()

@@ -8,7 +8,7 @@ import type { Patient, Visit, VisitDetail, VisitStatus } from './types'
 
 export const PHOTO_BUCKET = 'visit-photos'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at, updated_at, closed_at'
+const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, confirmed_at, created_at, updated_at, closed_at'
 
 export type TodayVisit = Visit & {
   patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'is_test'>

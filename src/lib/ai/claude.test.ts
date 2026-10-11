@@ -27,7 +27,7 @@ function reply(content: unknown[], stop_reason = 'end_turn', extra: Record<strin
     id: 'msg_test',
     type: 'message',
     role: 'assistant',
-    model: 'claude-opus-5-5',
+    model: 'claude-haiku-5-5',
     content,
     stop_reason,
     stop_details: null,
@@ -71,20 +71,19 @@ describe('generateStructured', () => {
     const { generateStructured, CLAUDE_MODEL } = await load()
     const result = await generateStructured({ ...request, effort: 'high' })
 
-    expect(result).toMatchObject({ ok: true, data: prakashVisit1, model: 'claude-opus-5-5' })
+    expect(result).toMatchObject({ ok: true, data: prakashVisit1, model: 'claude-haiku-5-5' })
     const params = create.mock.calls[0][0]
     expect(params).toMatchObject({
       model: CLAUDE_MODEL,
       max_tokens: 16000,
-      fallbacks: 'default',
-      betas: ['server-side-fallback-2026-07-01'],
       thinking: { type: 'adaptive' },
       system: [{ type: 'text', text: 'You tidy dental notes.', cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: 'Prakash, four six, r c t...' }],
       output_config: { effort: 'high', format: { type: 'json_schema' } },
     })
     expect(JSON.stringify(params.output_config.format.schema)).toContain('"enum":["11","12"')
-    expect(CLAUDE_MODEL).toBe('claude-opus-5-5')
+    expect(CLAUDE_MODEL).toBe('claude-haiku-5-5')
+    expect(params).not.toHaveProperty('fallbacks')
   })
 
   it('defaults to medium effort', async () => {

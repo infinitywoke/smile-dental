@@ -4,11 +4,9 @@ import type { z } from 'zod'
 import { structuredOutputFormat } from './output-format'
 import { formatZodError } from './zod-error'
 
-export const CLAUDE_MODEL = 'claude-opus-5-5'
-
-// If Claude's safety filters decline a request (rare false positives on medical text), the API
-// re-runs it on Anthropic's recommended fallback model instead of returning a refusal.
-const FALLBACK_BETA = 'server-side-fallback-2026-07-01'
+// The cheapest model that does the job (owner decision 2026-10-10, about ₹0.1 per visit).
+// Move up to 'claude-sonnet-5-5' only if the evaluation set shows Haiku falls short.
+export const CLAUDE_MODEL = 'claude-haiku-5-5'
 
 let client: Anthropic | null = null
 
@@ -34,7 +32,7 @@ export type GenerateStructuredOptions<T extends z.ZodType> = {
   // The note text, or text + image blocks (e.g. a prescription photo)
   content: string | Anthropic.Beta.BetaContentBlockParam[]
   schema: T
-  // Thinking depth and token spend. Opus 5.5 always thinks; 'medium' is its default.
+  // Thinking depth and token spend; 'medium' is the model's default.
   effort?: Effort
   maxTokens?: number
 }
@@ -55,8 +53,6 @@ export async function generateStructured<T extends z.ZodType>({
     response = await getClaude().beta.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: maxTokens,
-      betas: [FALLBACK_BETA],
-      fallbacks: 'default',
       thinking: { type: 'adaptive' },
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content }],
