@@ -166,15 +166,21 @@ test('evidence tour', async ({ page }) => {
     await tap(visible(page.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)$/ })))
     await page.waitForTimeout(600); await snap(page, 'site-book-2-details')
     await type(page.getByLabel('WhatsApp number'), '9845021763')
-    await type(page.getByLabel('Full name'), 'Tour Visitor')
+    await type(visible(page.getByLabel(/^(Full name|Name)$/)), 'Tour Visitor')
     await tap(page.getByRole('radio', { name: 'Female', exact: true }))
-    await type(page.getByLabel('Date of birth'), '1990-05-15'); current.pickers++
+    const age = visible(page.getByLabel(/^Age/))
+    if (await age.count()) await type(age, '36')
+    else { await type(page.getByLabel('Date of birth'), '1990-05-15'); current.pickers++ }
     await type(page.getByLabel('Address'), 'Pangala, Udupi')
     await tap(page.getByRole('button', { name: 'Tooth pain' }))
     await snap(page, 'site-book-2-filled')
-    await tap(page.getByRole('button', { name: 'Review' }))
-    await page.waitForTimeout(600); await snap(page, 'site-book-3-review')
-    current.notes.push('Stopped before "Confirm and send on WhatsApp" (that tap would be the last one).')
+    const review = visible(page.getByRole('button', { name: 'Review' }))
+    if (await review.count()) {
+      await tap(review)
+      await page.waitForTimeout(600); await snap(page, 'site-book-3-review')
+    }
+    current.notes.push(`Send button enabled on the details page: ${await visible(page.getByRole('button', { name: /Send on WhatsApp/ })).isEnabled().catch(() => false)}`)
+    current.notes.push('Stopped before the Send tap (that tap would be the last one).')
     current.taps++
   })
 
@@ -187,13 +193,6 @@ test('evidence tour', async ({ page }) => {
     await tap(page.getByRole('button', { name: 'Sign in' }))
     await page.waitForURL(/\/app$/)
     await snap(page, 'today-empty')
-  })
-  await step('practice mode on + menu', async () => {
-    await page.getByRole('button', { name: 'Menu' }).click()
-    await snap(page, 'menu-open')
-    // Close it again (a second tap on the same button)
-    await page.getByRole('button', { name: 'Menu' }).click()
-    await page.waitForTimeout(300)
   })
 
   // ---------------------------------------------------------------- job A
@@ -312,8 +311,9 @@ test('evidence tour', async ({ page }) => {
     await tap(page.getByRole('link', { name: 'Patients', exact: true }))
     await snap(page, 'patients-list')
     await type(visible(page.getByPlaceholder('Search name or phone')), phone)
-    await tap(visible(page.getByRole('button', { name: 'Search' })))
-    await page.waitForTimeout(1000); await snap(page, 'patients-search')
+    const go = visible(page.getByRole('button', { name: 'Search' }))
+    if (await go.count()) await tap(go)
+    await page.waitForTimeout(1500); await snap(page, 'patients-search')
     await tap(visible(page.getByRole('link').filter({ hasText: patientName })))
     await page.waitForURL(/\/app\/patients\/[0-9a-f-]{36}$/); patientUrl = page.url()
     await visible(page.getByRole('heading', { name: patientName })).waitFor({ timeout: 20_000 })
@@ -355,15 +355,19 @@ test('evidence tour', async ({ page }) => {
   })
 
   // ---------------------------------------------------------------- job C
-  startJob('C. Phone booking for an existing patient (from + button)')
+  startJob('C. Phone booking for an existing patient (from a free time on Today)')
   await step('book existing', async () => {
     await page.goto('/app')
     current.taps = 0; current.typed = 0; current.screens = ['/app']
-    await tap(page.getByRole('button', { name: 'Add' }))
-    const book = visible(page.getByRole('link', { name: /Book|Appointment/ }))
-    await tap(book); await page.waitForTimeout(1500); await snap(page, 'book-1-times')
-    // Late in the day there may be no times left today: look at the next day (not counted as a tap)
+    const add = visible(page.getByRole('button', { name: 'Add' }))
     const times = visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ }))
+    if (await add.count()) {
+      // Before Wave 2: the "+" pop-up had "Book an appointment"
+      await tap(add)
+      await tap(visible(page.getByRole('link', { name: /Book|Appointment/ }))); await page.waitForTimeout(1500)
+    }
+    await snap(page, 'book-1-times')
+    // Late in the day there may be no times left today: look at the next day (not counted as a tap)
     for (let i = 0; i < 4 && (await times.count()) === 0; i++) {
       await visible(page.getByRole('link', { name: 'Next day' })).click()
       await page.waitForLoadState('networkidle')
@@ -433,15 +437,19 @@ test('evidence tour', async ({ page }) => {
     const d = addDays(inIndia(new Date()).date, 3)
     await page.goto(`/app?d=${d}`); await snap(page, 'day-sheet-future')
   })
-  await step('back: + sheet', async () => {
+  await step('back: + button', async () => {
     await page.goto('/app/patients'); await page.goto('/app')
-    await page.getByRole('button', { name: 'Add' }).click(); await page.waitForTimeout(300)
+    const add = visible(page.getByRole('button', { name: 'Add' }))
+    if (await add.count()) await add.click(); else await visible(page.getByRole('link', { name: 'New patient' })).click()
+    await page.waitForTimeout(1000)
     await page.goBack(); await page.waitForTimeout(1000)
-    back.push({ where: '"+" sheet open on Today', after: new URL(page.url()).pathname })
+    back.push({ where: '"+" tapped on Today, then Back', after: new URL(page.url()).pathname })
   })
   await step('back: header menu', async () => {
     await page.goto('/app/patients'); await page.goto('/app')
-    await page.getByRole('button', { name: 'Menu' }).click(); await page.waitForTimeout(300)
+    const menu = visible(page.getByRole('button', { name: 'Menu' }))
+    if (!(await menu.count())) return
+    await menu.click(); await page.waitForTimeout(300)
     await page.goBack(); await page.waitForTimeout(1000)
     back.push({ where: 'Header menu open on Today', after: new URL(page.url()).pathname })
   })
