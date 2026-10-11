@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { anonymise, restoreDeep } from './anonymise'
+import { anonymise, createAnonymiser, restoreDeep } from './anonymise'
 
 const identity = { name: 'Prakash Shetty', address: 'Near Church Road, Pangala, Udupi', phone: '9845021763' }
 
@@ -50,5 +50,25 @@ describe('restoreDeep', () => {
       n: 5,
       none: null,
     })
+  })
+})
+
+describe('other names in the note', () => {
+  it('masks a capitalised name in the middle of a sentence, with a way back', () => {
+    const { text, restore } = anonymise('Wife Sunita and Dr Hegde advised RCT. Thursday visit.', { name: null, address: null, phone: null })
+    expect(text).toBe('Wife [NAME1] and Dr [NAME2] advised RCT. Thursday visit.')
+    expect(restore('[NAME1] will bring him; refer to [NAME2]')).toBe('Sunita will bring him; refer to Hegde')
+  })
+
+  it('leaves medicines, days, months and sentence starts alone', () => {
+    const { text } = anonymise('Prescribed Amoxicillin on Saturday in October. Augmentin if needed. Sunita called.', { name: null, address: null, phone: null })
+    expect(text).toBe('Prescribed Amoxicillin on Saturday in October. Augmentin if needed. Sunita called.')
+  })
+
+  it('gives the same person the same placeholder across texts', () => {
+    const a = createAnonymiser({ name: null, address: null, phone: null })
+    expect(a.text('Came with Sunita')).toBe('Came with [NAME1]')
+    expect(a.text('Allergy told by Sunita and Ramesh')).toBe('Allergy told by [NAME1] and [NAME2]')
+    expect(a.restore('[NAME2] and [NAME1]')).toBe('Ramesh and Sunita')
   })
 })

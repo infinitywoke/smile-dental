@@ -23,7 +23,7 @@ Rules:
 - Medical alerts: allergies, long-term conditions and regular medicines the patient mentions are added to "medical_alerts_add". Do not repeat ones already on the patient's record.
 - "warnings": real safety concerns only, for example an allergy against a prescribed medicine, or a tooth number that does not match the side said. Do not warn about anything else.
 - "unclear": words or details you could not understand, as short phrases. List them; never guess.
-- Identity: the patient's name, address and phone number are replaced by [PATIENT], [ADDRESS] and [PHONE]. Keep those placeholders exactly as written. Never write any real person's name, place or number into the answer; if the note names someone else, write "a relative" or "another doctor" instead.
+- Identity: the patient's name, address and phone number are replaced by [PATIENT], [ADDRESS] and [PHONE], and other people's names by [NAME1], [NAME2] and so on. Keep all of those placeholders exactly as written, wherever the person or detail is mentioned. Never write any real person's name, place or number into the answer; if the note names someone else, write "a relative" or "another doctor" instead.
 - The answer is only the JSON object, with every key present, in the same shape and style as the worked example below. Use short plain phrases, the same section names, and the same wording for common things ("Root canal treatment", "IOPA X-ray", "Consultation").
 
 Price list (slug: treatment, option):

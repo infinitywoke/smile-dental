@@ -6,6 +6,9 @@ import { getNextVisitSuggestion } from '@/lib/data/next-visit'
 import { VisitFlow } from '@/components/clinic/VisitFlow'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 
+// Tidying a note calls the AI from this page's server action, which can take longer than the default
+export const maxDuration = 60
+
 async function VisitPageContent({ params, searchParams }: PageProps<'/app/visits/[id]'>) {
   const { id } = await params
   const { step } = await searchParams

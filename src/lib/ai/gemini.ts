@@ -7,6 +7,9 @@ import type { StructuredResult } from './claude'
 // Live summaries. Model IDs are from ai.google.dev/gemini-api/docs/models.
 export const GEMINI_MODEL = 'gemini-3.8-flash'
 
+// A server function may run for a minute; one slow answer must leave room for the retry message
+const REQUEST_TIMEOUT_MS = 40_000
+
 let client: GoogleGenAI | null = null
 
 // One client per server instance, created on first use so builds work without the key
@@ -72,7 +75,7 @@ export async function generateStructuredGemini<T extends z.ZodType>({
         store: false,
         generation_config: { thinking_level: 'low', max_output_tokens: maxTokens },
         response_format: { type: 'text', mime_type: 'application/json', schema: jsonSchema },
-      })
+      }, { timeout_ms: REQUEST_TIMEOUT_MS })
       if (interaction.status && interaction.status !== 'completed') {
         return { ok: false, error: 'Gemini did not finish the answer. Try again.', retryable: true }
       }

@@ -5,9 +5,10 @@ import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { ageOn, todayInIndia } from '@/lib/dates'
 import { generateNote } from '@/lib/ai/provider'
-import { anonymise, restoreDeep } from '@/lib/ai/anonymise'
+import { restoreDeep } from '@/lib/ai/anonymise'
 import { parseGender } from '@/lib/gender'
-import { VISIT_SYSTEM_PROMPT, visitNoteContent } from '@/lib/ai/visit-prompt'
+import { VISIT_SYSTEM_PROMPT } from '@/lib/ai/visit-prompt'
+import { prepareNoteForAi } from '@/lib/ai/safe-content'
 import { allWarnings } from '@/lib/ai/safety'
 import { SUMMARY_VERSION, parseVisitSummary, visitSummarySchema, type VisitSummary } from '@/lib/ai/visit-summary'
 
@@ -50,22 +51,28 @@ export async function tidyVisitNote(visitId: string): Promise<{ error?: string; 
     await supabase.from('visits').update({ notes_original: visit.notes }).eq('id', visitId).is('notes_original', null)
   }
 
-  const identity = { name: patient.name, address: patient.address, phone: patient.phone }
-  const safeNotes = anonymise(notes, identity)
-  const safeAlerts = patient.medical_alerts ? anonymise(patient.medical_alerts, identity).text : null
-  const age = patient.date_of_birth ? ageOn(patient.date_of_birth) : null
-  const who = [age !== null ? `${age}-year-old` : null, parseGender(patient.gender)].filter(Boolean).join(' ') || null
+  // The only door to the AI: identifying words are removed, the message is built from an
+  // allow-list, and it is checked again before it can be sent (see lib/ai/safe-content.ts)
+  const prepared = prepareNoteForAi({
+    today: todayInIndia(),
+    identity: { name: patient.name, address: patient.address, phone: patient.phone },
+    ageYears: patient.date_of_birth ? ageOn(patient.date_of_birth) : null,
+    gender: parseGender(patient.gender),
+    medicalAlerts: patient.medical_alerts,
+    notes,
+  })
+  if (!prepared.ok) return { error: prepared.error }
 
   const result = await generateNote({
     system: VISIT_SYSTEM_PROMPT,
-    content: visitNoteContent({ today: todayInIndia(), patient: who, medicalAlerts: safeAlerts, notes: safeNotes.text }),
+    content: prepared.content,
     schema: visitSummarySchema,
     maxTokens: 8_000,
   })
   if (!result.ok) return { error: result.error }
 
   // Real details go back in, then the deterministic safety checks are added to the model's own warnings
-  const summary = restoreDeep(result.data, safeNotes.restore)
+  const summary = restoreDeep(result.data, prepared.restore)
   return { summary: { ...summary, warnings: allWarnings(patient.medical_alerts, summary) } }
 }
 
