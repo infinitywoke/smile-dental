@@ -75,6 +75,8 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
   // "Google", "Instagram"... worked out from the link the visitor came from (see SourceTracker)
   const [guessed, setGuessed] = useState('')
   const [pending, startTransition] = useTransition()
+  // Set when Send was tapped with something missing
+  const [tried, setTried] = useState(false)
 
   useEffect(() => {
     try {
@@ -87,6 +89,14 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
       // Storage blocked: the visitor answers it themselves
     }
   }, [])
+
+  // Back on the details step returns to the times (everything typed is kept)
+  useEffect(() => {
+    if (step !== 2) return
+    const onBack = () => setStep(1)
+    window.addEventListener('popstate', onBack)
+    return () => window.removeEventListener('popstate', onBack)
+  }, [step])
 
   // Each new step comes into view with its next action ready: the first field to fill
   useEffect(() => {
@@ -117,7 +127,16 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
   const set = (patch: Partial<Details>) => setDetails((d) => ({ ...d, ...patch }))
 
   const phoneOk = isValidPhone(normalizePhone(details.phone))
-  const detailsOk = phoneOk && details.name.trim().length >= 2 && !!details.gender && !!details.reason
+  // The first required answer still missing, in the order of the form
+  const missing = !phoneOk
+    ? { id: 'phone', text: 'Please enter your WhatsApp number' }
+    : details.name.trim().length < 2
+      ? { id: 'name', text: 'Please enter your name' }
+      : !details.gender
+        ? { id: 'gender', text: 'Please choose female, male or other' }
+        : !details.reason
+          ? { id: 'reason', text: 'Please choose a reason' }
+          : null
   const callHref = `tel:${siteConfig.phone.replace(/[^\d+]/g, '')}`
 
   function chooseTime(slot: string) {
@@ -125,12 +144,21 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
     setError(null)
     // A moment to see the choice highlighted, then straight on
     setTimeout(() => {
+      // One history entry for the details step, so Back returns to the times
+      if (window.history.state?.bookingStep !== 2) window.history.pushState({ ...window.history.state, bookingStep: 2 }, '')
       setStep(2)
     }, 220)
   }
 
   function submit() {
     if (!picked) return
+    if (missing) {
+      setTried(true)
+      const el = document.getElementById(missing.id)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el?.focus({ preventScroll: true })
+      return
+    }
     setError(null)
     startTransition(async () => {
       const result = await submitBookingRequest({
@@ -163,7 +191,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
       // The time was probably taken meanwhile: reload the free times and go back to choose again
       if (/no longer available|available times/i.test(result.error)) {
         setPicked(null)
-        setStep(1)
+        window.history.back()
         router.refresh()
       }
     })
@@ -234,8 +262,8 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             {dayKeys.length === 0 ? (
               <div className="rounded-2xl bg-gray-50 p-6 text-center text-gray-700">
                 <p className="font-semibold">No online times are free right now.</p>
-                <a href={callHref} className="mt-3 inline-flex items-center gap-2 font-bold text-blue-700">
-                  <Phone className="h-4 w-4" /> Call {siteConfig.phone}
+                <a href={callHref} className="mt-3 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 font-bold text-blue-700 ring-1 ring-inset ring-blue-300">
+                  <Phone className="h-4 w-4" /> Call the clinic
                 </a>
               </div>
             ) : (
@@ -304,10 +332,12 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             <div className="flex items-start gap-3 rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
               <Clock className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
               <p>
-                Closed on Fridays. Need a time after <b>7 PM</b>, or don&apos;t see one that suits you?{' '}
-                <a href={callHref} className="font-bold text-blue-700">Please call {siteConfig.phone}</a>.
+                Closed on Fridays. Need a time after <b>7 PM</b>, or don&apos;t see one that suits you? Please call the clinic on {siteConfig.phone}.
               </p>
             </div>
+            <a href={callHref} className="flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 font-bold text-blue-700 ring-1 ring-inset ring-blue-300">
+              <Phone className="h-4 w-4" /> Call the clinic
+            </a>
           </div>
         )}
 
@@ -315,7 +345,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
         {step === 2 && (
           <div className="space-y-5">
             {pickedParts && (
-              <button type="button" onClick={() => setStep(1)}
+              <button type="button" onClick={() => window.history.back()}
                 className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-left ring-1 ring-blue-100">
                 <CalendarDays className="h-5 w-5 shrink-0 text-blue-600" />
                 <span className="min-w-0 flex-1 text-sm font-semibold text-blue-900">
@@ -344,20 +374,8 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             </div>
 
             <div>
-              <p className={labelClass}>Gender</p>
+              <p id="gender" tabIndex={-1} className={`${labelClass} outline-none`}>Gender</p>
               <GenderChoice value={details.gender} onChange={(gender) => set({ gender })} />
-            </div>
-
-            <div>
-              <label htmlFor="age" className={labelClass}>Age <span className="font-normal text-gray-400">(optional)</span></label>
-              <input id="age" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="35"
-                value={details.age} onChange={(e) => set({ age: e.target.value.replace(/\D/g, '') })} className={inputClass} />
-            </div>
-
-            <div>
-              <label htmlFor="address" className={labelClass}>Address <span className="font-normal text-gray-400">(optional)</span></label>
-              <textarea id="address" rows={2} autoComplete="street-address" placeholder="Pangala, Udupi"
-                value={details.address} onChange={(e) => set({ address: e.target.value })} className={inputClass} />
             </div>
 
             <div>
@@ -372,6 +390,20 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
                   </button>
                 ))}
               </div>
+            </div>
+
+            <p className="border-t border-gray-100 pt-5 text-sm font-bold uppercase tracking-wide text-gray-500">Optional</p>
+
+            <div>
+              <label htmlFor="age" className={labelClass}>Age <span className="font-normal text-gray-400">(optional)</span></label>
+              <input id="age" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="35"
+                value={details.age} onChange={(e) => set({ age: e.target.value.replace(/\D/g, '') })} className={inputClass} />
+            </div>
+
+            <div>
+              <label htmlFor="address" className={labelClass}>Address <span className="font-normal text-gray-400">(optional)</span></label>
+              <textarea id="address" rows={2} autoComplete="street-address" placeholder="Pangala, Udupi"
+                value={details.address} onChange={(e) => set({ address: e.target.value })} className={inputClass} />
             </div>
 
             <div>
@@ -405,7 +437,10 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
 
             <p className="text-sm text-gray-600">{promise}</p>
 
-            <button type="button" onClick={submit} disabled={pending || !detailsOk}
+            {tried && missing && (
+              <p className="text-sm font-semibold text-red-700" role="alert">{missing.text}</p>
+            )}
+            <button type="button" onClick={submit} disabled={pending}
               className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white shadow-lg shadow-green-600/30 hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:opacity-50">
               <MessageCircle className="h-6 w-6" />
               {pending ? 'Sending…' : 'Send on WhatsApp'}
@@ -413,7 +448,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             <p className="text-center text-xs text-gray-500">
               WhatsApp opens with your message ready. Just press Send there.
             </p>
-            <button type="button" onClick={() => setStep(1)}
+            <button type="button" onClick={() => window.history.back()}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 text-base font-medium text-gray-700 hover:bg-gray-200">
               <ArrowLeft className="h-5 w-5" /> Back
             </button>

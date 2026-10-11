@@ -55,7 +55,7 @@ export default function LoginPage({ searchParams }: PageProps<'/login'>) {
         </form>
       </div>
 
-      <Link href="/" className="mt-6 text-sm text-gray-500 hover:text-blue-600">
+      <Link href="/" className="mt-6 inline-flex min-h-12 items-center text-sm text-gray-500 hover:text-blue-600">
         &larr; Back to website
       </Link>
     </main>
