@@ -53,18 +53,3 @@ export async function getVisitBill(visitId: string): Promise<VisitBill> {
     summary: summarise({ charges: visitCharges, payments: visitPayments, earlier }),
   }
 }
-
-// What a patient owes (positive) or has in advance (negative), across all visits
-export async function getPatientBalance(patientId: string): Promise<number> {
-  await getDoctor()
-  const supabase = await createClient()
-  const [charges, payments] = await Promise.all([
-    supabase.from('visit_charges').select('amount').eq('patient_id', patientId),
-    supabase.from('payments').select('amount').eq('patient_id', patientId),
-  ])
-  if (charges.error) throw charges.error
-  if (payments.error) throw payments.error
-  const billed = sumAmounts(charges.data.map((c) => ({ amount: Number(c.amount) })))
-  const paid = sumAmounts(payments.data.map((p) => ({ amount: Number(p.amount) })))
-  return Math.round((billed - paid) * 100) / 100
-}

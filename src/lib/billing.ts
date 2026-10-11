@@ -41,34 +41,6 @@ export function summarise(args: {
   return { total, paid, balance, earlier: args.earlier, due }
 }
 
-// The WhatsApp message to the patient after the visit: bill, payment and balance
-export function billMessage(args: {
-  patientName: string
-  visitDate: string
-  lines: { description: string; amount: number }[]
-  payments: { amount: number; method: 'upi' | 'cash' }[]
-  summary: BillSummary
-}): string {
-  const first = args.patientName.trim().split(/\s+/)[0]
-  const { summary } = args
-  const out = [
-    `Hello ${first}, thank you for visiting ${siteConfig.name} on ${formatDate(args.visitDate)}.`,
-    '',
-    '*Bill*',
-    ...args.lines.map((line) => `• ${line.description || 'Charge'}: ${formatRupees(line.amount)}`),
-    `*Total: ${formatRupees(summary.total)}*`,
-  ]
-  if (summary.paid > 0) {
-    const methods = [...new Set(args.payments.map((p) => (p.method === 'upi' ? 'UPI' : 'cash')))].join(' + ')
-    out.push(`Paid: ${formatRupees(summary.paid)}${methods ? ` (${methods})` : ''}`)
-  }
-  if (summary.balance > 0) out.push(`Balance: ${formatRupees(summary.balance)}`)
-  if (summary.balance < 0) out.push(`Advance with us: ${formatRupees(-summary.balance)}`)
-  if (summary.earlier > 0) out.push(`Earlier balance: ${formatRupees(summary.earlier)}`, `*Total due: ${formatRupees(summary.due)}*`)
-  out.push('', `Thank you!`, `– ${siteConfig.dentist.name}`)
-  return out.join('\n')
-}
-
 // Combined WhatsApp message for R2: bill, payments, next appointment, and signed prescription photo link(s)
 export function visitMessage(args: {
   patientName: string

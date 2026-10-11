@@ -46,15 +46,3 @@ export async function findPatientsByPhone(phone: string): Promise<Patient[]> {
   if (error) throw error
   return data
 }
-
-export async function countTestPatients(): Promise<number> {
-  await getDoctor()
-  const supabase = await createClient()
-  const [patients, requests] = await Promise.all([
-    supabase.from('patients').select('id', { count: 'exact', head: true }).eq('is_test', true),
-    supabase.from('booking_requests').select('id', { count: 'exact', head: true }).eq('is_test', true),
-  ])
-  if (patients.error) throw patients.error
-  if (requests.error) throw requests.error
-  return (patients.count ?? 0) + (requests.count ?? 0)
-}

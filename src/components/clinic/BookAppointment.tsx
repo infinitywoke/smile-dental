@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertCircle, CalendarCheck, MessageCircle } from 'lucide-react'
 import { bookAppointment, bookNewPatient } from '@/lib/actions/appointments'
@@ -13,15 +13,19 @@ type Props = {
   when: string
   patients: PatientOption[]
   backTo: string
+  // Booking for a patient already chosen (from their page): nothing to pick
+  only?: { id: string; name: string }
+  // Shown instead of the form while the time is not free (but never over a booking just made)
+  notice?: ReactNode
 }
 
 const inputClass =
   'block w-full rounded-xl border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
 
 // Phone booking from the calendar: pick a patient already in the app, or add a new one with just a name and number
-export function BookAppointment({ startsAt, when, patients, backTo }: Props) {
-  const [mode, setMode] = useState<'existing' | 'new'>(patients.length > 0 ? 'existing' : 'new')
-  const [patientId, setPatientId] = useState<string | null>(null)
+export function BookAppointment({ startsAt, when, patients, backTo, only, notice }: Props) {
+  const [mode, setMode] = useState<'existing' | 'new'>(only || patients.length > 0 ? 'existing' : 'new')
+  const [patientId, setPatientId] = useState<string | null>(only?.id ?? null)
   const [reason, setReason] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -61,11 +65,13 @@ export function BookAppointment({ startsAt, when, patients, backTo }: Props) {
     )
   }
 
+  if (notice) return <div className="space-y-5">{notice}</div>
+
   const ready = mode === 'existing' ? !!patientId : name.trim().length > 0
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 rounded-full bg-gray-100 p-1 text-sm font-semibold">
+      {!only && <div className="flex gap-2 rounded-full bg-gray-100 p-1 text-sm font-semibold">
         <button type="button" onClick={() => setMode('existing')}
           className={`flex-1 rounded-full px-3 py-2 ${mode === 'existing' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
           Existing patient
@@ -74,9 +80,11 @@ export function BookAppointment({ startsAt, when, patients, backTo }: Props) {
           className={`flex-1 rounded-full px-3 py-2 ${mode === 'new' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
           New patient
         </button>
-      </div>
+      </div>}
 
-      {mode === 'existing' ? (
+      {only ? (
+        <p className="rounded-xl bg-blue-50 px-4 py-3 text-base font-semibold text-blue-900 ring-1 ring-blue-100">{only.name}</p>
+      ) : mode === 'existing' ? (
         <div className="space-y-2">
           {patients.length === 0 && <p className="text-sm text-gray-500">No patients found. Search above, or add a new patient.</p>}
           {patients.map((p) => (

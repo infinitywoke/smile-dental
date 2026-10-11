@@ -17,6 +17,7 @@ test.describe.configure({ mode: 'serial' })
 test.skip(!testLogin, NO_TEST_LOGIN)
 
 let page: Page
+let patientId = ''
 
 // Next keeps recently visited screens mounted but hidden, so the same text or
 // field can exist twice on the page. Only ever match what's visible.
@@ -56,6 +57,7 @@ test('adds a new patient and starts a visit', async () => {
   await page.getByRole('button', { name: 'Save and start visit' }).click()
 
   await expect(page).toHaveURL(/\/app\/patients\/[^/]+\/visits\/new$/)
+  patientId = page.url().match(/\/app\/patients\/([^/]+)\/visits/)![1]
   await expect(page.getByRole('heading', { name: 'New visit' })).toBeVisible()
   await expect(visible(page.locator('p', { hasText: 'Medical alert:' }))).toContainText('Penicillin allergy')
 })
@@ -137,12 +139,51 @@ test('lists the visit on Today as done, with the money', async () => {
   // The WhatsApp hand-off left the app, so come back in
   await page.goto('/app')
   await expect(page).toHaveURL(/\/app$/)
-  const visit = visible(page.getByRole('link').filter({ hasText: patientName }))
+  // The visit card (the money owed shows separately under Needs you)
+  const visit = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: '1 photo' }))
   await expect(visit).toHaveCount(1)
   await expect(visit).toContainText(runId)
   await expect(visit).toContainText('1 photo')
   await expect(visit).toContainText('Done')
   await expect(visit).toContainText('₹1,200 billed')
+})
+
+test('Today lists the money owed, and the patient page leads with Collect', async () => {
+  await page.goto('/app')
+  const due = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' }))
+  await expect(due).toHaveCount(1)
+  await expect(due).toContainText('₹200 due')
+
+  await page.goto(`/app/patients/${patientId}`)
+  await expect(visible(page.getByRole('heading', { name: 'Coming up' }))).toBeVisible()
+  await expect(visible(page.getByText('Done').first())).toBeVisible()
+  await visible(page.getByRole('link', { name: 'Collect ₹200' })).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[^/?]+\?step=bill$/)
+
+  // The amount is already filled in; cash settles it
+  await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
+  await visible(page.getByRole('button', { name: /Collected cash/ })).click()
+  await expect(visible(page.getByText('Paid by cash')).first()).toBeVisible()
+})
+
+test('cancels the coming visit from the patient page, then books the next one for them', async () => {
+  await page.goto(`/app/patients/${patientId}`)
+  page.once('dialog', (dialog) => dialog.accept())
+  await visible(page.getByRole('button', { name: 'Cancel appointment' })).click()
+  await expect(visible(page.getByRole('heading', { name: 'Coming up' }))).toHaveCount(0)
+
+  // Nothing owed and nothing coming: the page leads with booking
+  await visible(page.getByRole('link', { name: 'Book next visit' })).click()
+  await expect(page).toHaveURL(/\/app\/book\?patient=/)
+  await expect(visible(page.getByRole('heading', { name: `Book ${patientName}` }))).toBeVisible()
+
+  // Pick a time; the patient is already chosen, so there is only the reason and Book
+  await visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ }).first()).click()
+  await expect(visible(page.getByText(patientName, { exact: true }))).toBeVisible()
+  await expect(visible(page.getByRole('button', { name: 'New patient' }))).toHaveCount(0)
+  await visible(page.getByRole('button', { name: 'Book appointment' })).click()
+  await expect(visible(page.getByRole('heading', { name: 'Booked' }))).toBeVisible()
+  await expect(visible(page.getByRole('link', { name: /Send confirmation on WhatsApp/ }))).toBeVisible()
 })
 
 test('finds the patient by phone on the Patients tab', async () => {

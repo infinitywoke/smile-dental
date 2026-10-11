@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { billMessage, parseAmount, summarise, sumAmounts, visitMessage } from './billing'
+import { parseAmount, summarise, sumAmounts, visitMessage } from './billing'
 import { upiLink } from './upi'
 
 describe('sumAmounts', () => {
@@ -55,25 +55,6 @@ describe('upiLink', () => {
 
   it('drops risky characters from the note', () => {
     expect(upiLink({ amount: 10, note: 'a&b=c#d' })).toContain('tn=abcd')
-  })
-})
-
-describe('billMessage', () => {
-  it('lists the bill, payment and balance', () => {
-    const summary = summarise({ charges: [{ amount: 1200 }, { amount: 300 }], payments: [{ amount: 1000 }], earlier: 0 })
-    const text = billMessage({
-      patientName: 'Prakash Shetty',
-      visitDate: '2026-10-15',
-      lines: [{ description: 'Scaling', amount: 1200 }, { description: 'X-ray', amount: 300 }],
-      payments: [{ amount: 1000, method: 'upi' }],
-      summary,
-    })
-    expect(text).toContain('Hello Prakash')
-    expect(text).toContain('• Scaling: ₹1,200')
-    expect(text).toContain('Total: ₹1,500')
-    expect(text).toContain('Paid: ₹1,000 (UPI)')
-    expect(text).toContain('Balance: ₹500')
-    expect(text).not.toContain('Earlier balance')
   })
 })
 

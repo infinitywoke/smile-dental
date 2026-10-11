@@ -2,7 +2,6 @@ import 'server-only'
 import { notFound } from 'next/navigation'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { todayInIndia } from '@/lib/dates'
 import { sumAmounts } from '@/lib/billing'
 import { visitStatus } from '@/lib/visit-status'
 import type { Patient, Visit, VisitDetail, VisitStatus } from './types'
@@ -47,27 +46,6 @@ export async function getVisitsOn(date: string): Promise<TodayVisit[]> {
       balance,
     }
   })
-}
-
-export async function getTodayVisits(): Promise<TodayVisit[]> {
-  await getDoctor()
-  return getVisitsOn(todayInIndia())
-}
-
-export type VisitSummary = Visit & { photo_count: number }
-
-export async function getPatientVisits(patientId: string): Promise<VisitSummary[]> {
-  await getDoctor()
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('visits')
-    .select(`${VISIT_COLUMNS}, visit_photos (count)`)
-    .eq('patient_id', patientId)
-    .order('visit_date', { ascending: false })
-    .order('created_at', { ascending: false })
-  if (error) throw error
-
-  return data.map(({ visit_photos, ...visit }) => ({ ...visit, photo_count: visit_photos?.[0]?.count ?? 0 }))
 }
 
 export async function getVisit(id: string): Promise<VisitDetail> {

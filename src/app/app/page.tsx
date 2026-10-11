@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { AlertTriangle, Camera, CalendarClock, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getVisitsOn } from '@/lib/data/visits'
+import { getDues } from '@/lib/data/dues'
 import { getAppointmentsOn, getBusyCounts, getDaySchedule, getPendingRequests } from '@/lib/data/appointments'
 import { ageOn, formatDate, todayInIndia } from '@/lib/dates'
 import { addDays, formatBlock, formatDay, inIndia, weekday } from '@/lib/schedule'
@@ -25,12 +26,13 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   const date = typeof d === 'string' && DATE.test(d) ? d : today
   const isToday = date === today
 
-  const [schedule, appointments, visits, requests, busy] = await Promise.all([
+  const [schedule, appointments, visits, requests, busy, dues] = await Promise.all([
     getDaySchedule(date),
     getAppointmentsOn(date),
     getVisitsOn(date),
     getPendingRequests(),
     getBusyCounts(today, STRIP_DAYS),
+    getDues(),
   ])
 
   const strip = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i))
@@ -75,7 +77,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
       <SearchBox />
 
       {/* Needs you */}
-      {requests.length > 0 && (
+      {(requests.length > 0 || dues.length > 0) && (
         <section className="space-y-2">
           <h2 className="text-lg font-bold text-gray-900">Needs you</h2>
           {requests.map((request) => {
@@ -100,6 +102,19 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
               />
             )
           })}
+          {dues.map((due) => (
+            <Link key={due.patientId} href={`/app/visits/${due.visitId}?step=bill`}
+              className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-red-200 hover:ring-red-400">
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="truncate text-base font-semibold text-gray-900">{due.patientName}</span>
+                  {due.isTest && <TestBadge />}
+                </span>
+                <span className="block text-sm font-semibold text-red-700">{formatRupees(due.amount)} due</span>
+              </span>
+              <span className="rounded-full bg-red-600 px-3 py-1.5 text-sm font-semibold text-white">Collect</span>
+            </Link>
+          ))}
         </section>
       )}
 
@@ -109,7 +124,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
           {appointments.length === 0 ? `No appointments ${isToday ? 'today' : 'this day'}` : `${appointments.length} appointment${appointments.length === 1 ? '' : 's'}`}
         </h2>
         {appointments.map((appointment) => (
-          <Link key={appointment.id} href={`/app/appointments/${appointment.id}`}
+          <Link key={appointment.id} href={`/app/patients/${appointment.patient_id}`}
             className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 hover:ring-blue-400">
             <CalendarClock className="h-5 w-5 shrink-0 text-blue-600" />
             <span className="w-[4.5rem] shrink-0 text-sm font-semibold tabular-nums text-gray-900">
