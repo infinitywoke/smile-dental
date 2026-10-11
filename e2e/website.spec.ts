@@ -7,7 +7,7 @@ const runId = newRunId()
 
 test.skip(!testLogin, NO_TEST_LOGIN)
 
-test('the public booking page offers real times, no SOS, and goes straight on after a time is tapped', async ({ page }) => {
+test('the public booking page offers real times, no SOS, and needs only four answers, with Send on the details page', async ({ page }) => {
   await page.goto('/book')
   await expect(page.getByRole('heading', { name: 'When suits you?' })).toBeVisible()
   await expect(page.getByText(/SOS|Emergency/i)).toHaveCount(0)
@@ -22,17 +22,13 @@ test('the public booking page offers real times, no SOS, and goes straight on af
   await page.getByLabel('WhatsApp number').fill('9845021763')
   await page.getByLabel('Full name').fill(`${runId} Public`)
   await page.getByRole('radio', { name: 'Female', exact: true }).click()
-  await page.getByLabel('Date of birth').fill('1990-05-15')
-  await page.getByLabel('Address').fill('Pangala, Udupi')
   await page.getByRole('button', { name: 'Tooth pain' }).click()
-  await page.getByRole('button', { name: 'Review' }).click()
 
-  // The review puts the Send button in focus; nothing is sent in the test
-  await expect(page.getByRole('heading', { name: 'Looks good?' })).toBeVisible()
+  // Age is optional and opens the number keypad; the address is optional too
+  await expect(page.getByLabel(/^Age/)).toHaveAttribute('inputmode', 'numeric')
   await expect(page.getByText(/in under 15 minutes|after 6 AM/)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Confirm and send on WhatsApp' })).toBeFocused()
 
-  // Editing a row jumps to that field
-  await page.getByRole('button', { name: 'Edit' }).nth(4).click()
-  await expect(page.getByLabel('Address')).toBeFocused()
+  // No review page: Send is on this page, ready once the four required answers are in. Nothing is sent.
+  await expect(page.getByRole('heading', { name: 'Looks good?' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Send on WhatsApp' })).toBeEnabled()
 })

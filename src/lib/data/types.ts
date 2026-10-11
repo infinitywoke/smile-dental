@@ -184,6 +184,7 @@ export type SubmitBookingRequestArgs = {
   p_notes: string | null
   p_requested_start: string
   p_gender: string | null
+  p_birth_year: number | null
 }
 
 // Time the doctor has blocked off; hidden from the website
