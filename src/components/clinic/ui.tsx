@@ -1,13 +1,12 @@
 import Link from 'next/link'
-import Form from 'next/form'
 import { AlertTriangle, ChevronLeft } from 'lucide-react'
 
 // Shared building blocks for Clinic OS screens
 
 export function BackLink({ href, label }: { href: string; label: string }) {
   return (
-    <Link href={href} className="inline-flex items-center gap-1 text-sm font-medium text-blue-600">
-      <ChevronLeft className="h-4 w-4" />
+    <Link href={href} className="-ml-2 inline-flex min-h-12 items-center gap-1 pr-4 pl-2 text-base font-medium text-blue-600">
+      <ChevronLeft className="h-5 w-5" />
       {label}
     </Link>
   )
@@ -20,16 +19,6 @@ export function MedicalAlert({ alerts }: { alerts: string | null }) {
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
       <p><span className="font-semibold">Medical alert:</span> {alerts}</p>
     </div>
-  )
-}
-
-export function SearchBox({ defaultValue = '' }: { defaultValue?: string }) {
-  return (
-    <Form action="/app/patients" className="flex gap-2">
-      <input name="q" type="search" defaultValue={defaultValue} placeholder="Search name or phone"
-        className="block w-full rounded-full border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
-      <button type="submit" className="rounded-full bg-gray-900 px-5 text-sm font-semibold text-white">Search</button>
-    </Form>
   )
 }
 
@@ -46,7 +35,7 @@ export function ScreenLoading() {
   )
 }
 
-// Marks trial data so it isn't mistaken for a real patient
+// Marks a test booking request from the website (the patient screens no longer show it)
 export function TestBadge() {
   return <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-800">TEST</span>
 }

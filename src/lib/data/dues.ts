@@ -6,7 +6,6 @@ import { sumAmounts } from '@/lib/billing'
 export type Due = {
   patientId: string
   patientName: string
-  isTest: boolean
   amount: number
   // The most recent visit that still has a balance: where "Collect" goes
   visitId: string
@@ -18,14 +17,14 @@ export async function getDues(limit = 5): Promise<Due[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('visits')
-    .select('id, patient_id, visit_date, created_at, patient:patients!inner (name, is_test), visit_charges!inner (amount), payments (amount)')
+    .select('id, patient_id, visit_date, created_at, patient:patients!inner (name), visit_charges!inner (amount), payments (amount)')
     .order('visit_date', { ascending: false })
     .order('created_at', { ascending: false })
   if (error) throw error
 
   const byPatient = new Map<string, Due>()
   for (const row of data) {
-    const patient = (Array.isArray(row.patient) ? row.patient[0] : row.patient) as { name: string; is_test: boolean }
+    const patient = (Array.isArray(row.patient) ? row.patient[0] : row.patient) as { name: string }
     const total = sumAmounts((row.visit_charges ?? []).map((c) => ({ amount: Number(c.amount) })))
     const paid = sumAmounts((row.payments ?? []).map((p) => ({ amount: Number(p.amount) })))
     const balance = Math.round((total - paid) * 100) / 100
@@ -38,7 +37,6 @@ export async function getDues(limit = 5): Promise<Due[]> {
       byPatient.set(row.patient_id, {
         patientId: row.patient_id,
         patientName: patient.name,
-        isTest: patient.is_test,
         amount: balance,
         visitId: row.id,
       })

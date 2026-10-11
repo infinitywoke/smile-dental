@@ -4,11 +4,10 @@ import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertCircle, CalendarCheck, MessageCircle, Search } from 'lucide-react'
 import { bookAppointment, bookNewPatient, findPatientsToBook } from '@/lib/actions/appointments'
-import { TestBadge } from './ui'
 import { GenderChoice } from '@/components/GenderChoice'
 import type { Gender } from '@/lib/gender'
 
-type PatientOption = { id: string; name: string; phone: string | null; isTest: boolean; age: number | null }
+type PatientOption = { id: string; name: string; phone: string | null; age: number | null }
 
 type Props = {
   startsAt: string
@@ -118,10 +117,7 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
             <button key={p.id} type="button" onClick={() => setPatientId(p.id)} aria-pressed={patientId === p.id}
               className={`flex min-h-14 w-full items-center gap-3 rounded-xl px-4 py-2 text-left ring-inset ${patientId === p.id ? 'bg-blue-50 ring-2 ring-blue-600' : 'bg-white ring-1 ring-gray-300'}`}>
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2 text-base font-semibold text-gray-900">
-                  <span className="truncate">{p.name}</span>
-                  {p.isTest && <TestBadge />}
-                </span>
+                <span className="block truncate text-base font-semibold text-gray-900">{p.name}</span>
                 <span className="block text-sm text-gray-500">
                   {[p.age !== null && `${p.age} yrs`, p.phone].filter(Boolean).join(' · ')}
                 </span>

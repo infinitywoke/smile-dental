@@ -4,12 +4,10 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AlertCircle, AlertTriangle, CalendarCheck, ChevronDown, MessageCircle } from 'lucide-react'
 import { confirmRequestAsAsked } from '@/lib/actions/appointments'
-import { TestBadge } from './ui'
 
 type Props = {
   id: string
   name: string
-  isTest: boolean
   // "Tue 13 Oct, 11:10 AM", or null when no time was asked for
   whenLabel: string | null
   reason: string | null
@@ -21,7 +19,7 @@ type Props = {
 }
 
 // A website booking on Today: Confirm books the time asked for in one tap
-export function RequestCard({ id, name, isTest, whenLabel, reason, alerts, canConfirm, otherTimeHref, details }: Props) {
+export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, otherTimeHref, details }: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<{ whatsappUrl?: string } | null>(null)
@@ -65,10 +63,7 @@ export function RequestCard({ id, name, isTest, whenLabel, reason, alerts, canCo
     <div className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-300">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-base font-semibold text-gray-900">
-            <span className="truncate">{name}</span>
-            {isTest && <TestBadge />}
-          </p>
+          <p className="truncate text-base font-semibold text-gray-900">{name}</p>
           <p className="text-sm text-amber-900">
             {whenLabel ?? 'No time chosen'}
             {reason ? ` · ${reason}` : ''}
