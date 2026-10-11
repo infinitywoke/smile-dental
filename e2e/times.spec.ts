@@ -99,8 +99,14 @@ test('cancels the coming visit from the patient page, then books the next one fo
   await expect(page).toHaveURL(/\/app\/book\?patient=/)
   await expect(visible(page.getByRole('heading', { name: `Book ${patientName}` }))).toBeVisible()
 
-  // Pick a time; the patient is already chosen, so there is only the reason and Book
-  await visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ }).first()).click()
+  // Pick a time (late in the day there may be none left today: go to the next day); the patient is
+  // already chosen, so there is only the reason and Book
+  const times = visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ }))
+  for (let i = 0; i < 4 && (await times.count()) === 0; i++) {
+    await visible(page.getByRole('link', { name: 'Next day' })).click()
+    await page.waitForLoadState('networkidle')
+  }
+  await times.first().click()
   await expect(visible(page.getByText(patientName, { exact: true })).first()).toBeVisible()
   await expect(visible(page.getByRole('button', { name: 'New patient' }))).toHaveCount(0)
   await visible(page.getByRole('button', { name: 'Book appointment' })).click()

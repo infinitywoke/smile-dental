@@ -191,98 +191,93 @@ test('evidence tour', async ({ page }) => {
   })
 
   // ---------------------------------------------------------------- job A
-  startJob('A. Walk-in: new patient to finished visit (notes, bill, payment, WhatsApp, next visit)')
+  startJob('A. Walk-in: new patient to finished visit (notes, photo, bill, payment, next visit, WhatsApp)')
   let visitUrl = ''
   await step('add sheet', async () => {
     await page.goto('/app')
     current.taps = 0; current.typed = 0; current.screens = ['/app']
-    await tap(page.getByRole('button', { name: 'Add' })); await snap(page, 'add-sheet')
-    await tap(page.getByRole('link', { name: /New patient/ }))
+    const add = page.getByRole('button', { name: 'Add' })
+    if (await add.count()) {
+      await tap(add); await snap(page, 'add-sheet')
+      const link = visible(page.getByRole('link', { name: /New patient/ }))
+      if (await link.count()) await tap(link)
+    } else {
+      await tap(visible(page.getByRole('link', { name: /New patient|Add/ })))
+    }
     await page.waitForURL(/patients\/new/); await snap(page, 'new-patient-empty')
   })
   await step('new patient form', async () => {
     await type(visible(page.getByLabel('WhatsApp number')), phone)
     await type(visible(page.getByLabel('Name', { exact: true })), patientName)
     await tap(visible(page.getByRole('radio', { name: 'Male', exact: true })))
-    await type(visible(page.getByLabel('Date of birth')), '1988-02-10'); current.pickers++
-    await type(visible(page.getByLabel('Address')), 'Near Church Road, Pangala')
+    const age = visible(page.getByLabel(/^Age/))
+    if (await age.count()) await type(age, '38')
+    else { await type(visible(page.getByLabel('Date of birth')), '1988-02-10'); current.pickers++ }
+    const address = visible(page.getByLabel('Address'))
+    if (await address.count()) await type(address, 'Near Church Road, Pangala')
     await type(visible(page.getByLabel('Medical alerts')), 'Penicillin allergy')
-    await tap(visible(page.getByRole('button', { name: 'Walked past' })))
+    const chip = visible(page.getByRole('button', { name: 'Walked past' }))
+    if (await chip.count()) await tap(chip)
     await snap(page, 'new-patient-filled')
-    await tap(visible(page.getByRole('button', { name: 'Save and start visit' })))
-    await page.waitForURL(/visits\/new/); await snap(page, 'visit-new')
+    await tap(visible(page.getByRole('button', { name: /start visit/i })))
+    await page.waitForURL(/\/app\/visits\/[0-9a-f-]{36}/, { timeout: 30_000 })
+    visitUrl = page.url().split(/[?#]/)[0]
+    await snap(page, 'visit-page')
   })
-  await step('notes + photo', async () => {
+  await step('back from the visit page', async () => {
+    await page.goBack(); await page.waitForTimeout(1500)
+    back.push({ where: 'Visit page, reached from the New patient form', after: new URL(page.url()).pathname, heading: await visible(page.locator('h1')).first().innerText().catch(() => '') })
+    await page.goto(visitUrl)
+  })
+  await step('notes save by themselves', async () => {
     await type(visible(page.getByLabel('Notes', { exact: true })),
-      'Pain lower right back tooth for a week, worse at night. Deep caries 46, tender on percussion. Did consultation 200 and IOPA 350. Started RCT on 46, 3500. Amoxicillin 500 three times a day for 5 days. Review Thursday evening.')
-    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Gallery' }).click()])
+      'Pain lower right back tooth for a week, worse at night. Deep caries 46, tender on percussion. Started RCT on 46. Amoxicillin 500 three times a day for 5 days. Review Thursday evening.')
+    const started = Date.now()
+    await visible(page.getByText('Saved', { exact: true })).waitFor({ timeout: 20_000 })
+    current.notes.push(`Notes showed "Saved" ${Math.round((Date.now() - started) / 100) / 10}s after typing stopped`)
+  })
+  await step('photo', async () => {
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), visible(page.getByRole('button', { name: 'Gallery' })).click()])
     current.taps++
     await chooser.setFiles(path.join(__dirname, '..', 'e2e', 'fixtures', 'tooth.png'))
-    await type(visible(page.getByPlaceholder('What is this?')), 'x-ray')
-    await snap(page, 'visit-new-filled')
-    await tap(page.getByRole('button', { name: 'Next: Bill' }))
-    await page.waitForURL(/\/app\/visits\/[^/?]+\?step=bill/, { timeout: 30_000 })
-    visitUrl = page.url().split('?')[0]
-    await snap(page, 'visit-bill-empty')
+    await visible(page.getByRole('img', { name: /^Photo 1/ })).waitFor({ timeout: 30_000 })
+    await tap(visible(page.getByRole('button', { name: 'Prescription', exact: true })))
+    await snap(page, 'visit-photo')
   })
-  await step('back gesture from Bill step', async () => {
-    await page.goBack(); await page.waitForTimeout(1200)
-    back.push({ where: 'Visit, Bill step (reached with "Next: Bill")', after: new URL(page.url()).pathname + new URL(page.url()).search, heading: await page.locator('h1').first().innerText().catch(() => '') })
-    await page.goto(`${visitUrl}?step=notes`)
-  })
-  await step('tidy up with AI', async () => {
-    const started = Date.now()
-    await tap(visible(page.getByRole('button', { name: /Tidy up/ })))
-    const card = visible(page.getByLabel('Tidy note'))
-    const error = page.locator('p[role="alert"]').filter({ visible: true }).filter({ hasNotText: 'Clinic OS' })
-    await page.waitForFunction(() => {
-      const busy = [...document.querySelectorAll('button')].some((b) => b.offsetParent !== null && /Tidying up/.test(b.textContent ?? ''))
-      return !busy && (document.querySelector('#tidy-note') !== null || document.querySelector('p[role="alert"]') !== null)
-    }, undefined, { timeout: 75_000 }).catch(() => {})
-    const secs = Math.round((Date.now() - started) / 1000)
-    if (await card.count()) {
-      current.notes.push(`Tidy up answered in ${secs}s`)
-      await snap(page, 'smart-note-card')
-      const cardFull = await page.locator('body').innerText()
-      messages['tidy-card-text'] = cardFull.slice(0, 3000)
-      await page.goBack(); await page.waitForTimeout(1200)
-      back.push({ where: 'Smart-note Confirm card open', after: new URL(page.url()).pathname + new URL(page.url()).search, cardStillOpen: (await visible(page.getByLabel('Tidy note')).count()) > 0 })
-      if (!page.url().includes('/visits/')) await page.goto(`${visitUrl}?step=notes`)
-      if (await visible(page.getByLabel('Tidy note')).count()) {
-        await tap(visible(page.getByRole('button', { name: /Confirm and bill/ })))
-        await page.waitForTimeout(3000)
-      } else {
-        current.notes.push('Card was gone after Back; tidy-up not confirmed')
-      }
-    } else {
-      current.notes.push(`Tidy up gave no card after ${secs}s; message: ${(await error.allInnerTexts()).join(' | ').slice(0, 200)}`)
-      await snap(page, 'smart-note-failed')
-    }
-  })
-  await step('bill: add charge, UPI QR, part payment', async () => {
-    await page.goto(`${visitUrl}?step=bill`)
-    await snap(page, 'visit-bill')
+  await step('add a charge from the price list', async () => {
     await tap(visible(page.getByRole('button', { name: 'Add charge' })))
-    await snap(page, 'add-charge-open')
-    await type(visible(page.getByLabel('What for')), 'Scaling')
-    await type(visible(page.locator('#charge-amount')), '1500')
-    await tap(visible(page.getByRole('button', { name: 'Add to bill' })))
+    const sheet = page.getByRole('dialog', { name: 'Add charge' })
+    await sheet.waitFor({ timeout: 10_000 })
+    await snap(page, 'price-list')
+    await page.goBack(); await page.waitForTimeout(800)
+    back.push({ where: 'Price list open on the visit page', after: new URL(page.url()).pathname, listStillOpen: (await sheet.count()) > 0 && (await sheet.isVisible().catch(() => false)) })
+    if (!page.url().startsWith(visitUrl)) await page.goto(visitUrl)
+    await tap(visible(page.getByRole('button', { name: 'Add charge' })))
+    await type(sheet.getByLabel('Filter the price list'), 'moderate')
+    await tap(sheet.getByRole('button', { name: /Scaling .*Moderate case/ }))
     await page.waitForTimeout(1500)
-    await type(visible(page.locator('#payment-amount')), '1000')
-    await tap(visible(page.getByRole('button', { name: /Show UPI QR/ })))
-    await snap(page, 'upi-qr')
-    await tap(visible(page.getByRole('button', { name: /Collected cash/ })))
-    await page.waitForTimeout(1500)
-    await snap(page, 'visit-bill-part-paid')
+    await snap(page, 'visit-bill')
   })
-  await step('send: next visit + WhatsApp', async () => {
-    await tap(visible(page.getByRole('button', { name: 'Next: Send' })))
-    await page.waitForTimeout(800)
-    await snap(page, 'visit-send')
-    const box = visible(page.getByLabel('x-ray'))
-    if (await box.count()) await tap(box)
+  await step('part payment, cash; UPI QR', async () => {
+    await type(visible(page.locator('#payment-amount')), '400')
+    await tap(visible(page.getByRole('button', { name: 'Cash received' })))
+    await visible(page.getByText('Paid by cash')).first().waitFor({ timeout: 15_000 })
+    await snap(page, 'visit-part-paid')
+    await tap(visible(page.getByRole('button', { name: 'UPI', exact: true })))
+    const qr = page.getByRole('dialog').filter({ has: page.getByRole('img', { name: /UPI QR/ }) })
+    await qr.waitFor({ timeout: 10_000 })
+    await snap(page, 'upi-qr')
+    await page.goBack(); await page.waitForTimeout(800)
+    back.push({ where: 'UPI QR open on the visit page', after: new URL(page.url()).pathname, qrStillOpen: (await qr.count()) > 0 && (await qr.isVisible().catch(() => false)) })
+    if (!page.url().startsWith(visitUrl)) await page.goto(visitUrl)
+    current.taps -= 1 // the QR look was for evidence, not part of the job
+  })
+  await step('next visit and WhatsApp', async () => {
+    await snap(page, 'visit-next-and-send')
+    const suggestion = visible(page.getByRole('button', { name: /^Book / }))
+    if (await suggestion.count()) { await tap(suggestion); await page.waitForTimeout(2000) }
     await captureWhatsapp(page, 'visit-message')
-    await tap(visible(page.getByRole('button', { name: 'Send on WhatsApp' })))
+    await tap(visible(page.getByRole('link', { name: 'Send on WhatsApp' })))
     await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
     await snap(page, 'whatsapp-handoff')
   })
@@ -294,9 +289,12 @@ test('evidence tour', async ({ page }) => {
     current.taps = 0; current.typed = 0; current.screens = ['/app']
     const due = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' }))
     await tap(due)
-    await page.waitForTimeout(1500); await snap(page, 'collect-bill')
-    await tap(visible(page.getByRole('button', { name: /Collected cash/ })))
-    await page.waitForTimeout(1500); await snap(page, 'collect-done')
+    await page.waitForURL(/\/app\/visits\//)
+    await visible(page.getByRole('button', { name: 'Cash received' })).waitFor({ timeout: 15_000 })
+    await snap(page, 'collect-payment-card')
+    await tap(visible(page.getByRole('button', { name: 'Cash received' })))
+    await visible(page.getByText('Paid in full')).first().waitFor({ timeout: 15_000 })
+    await snap(page, 'collect-done')
   })
 
   // ---------------------------------------------------------------- job B / H / F
@@ -330,6 +328,7 @@ test('evidence tour', async ({ page }) => {
     const move = visible(page.getByRole('link', { name: /^Move$/ }))
     if (!(await move.count())) { current.notes.push('No Move link on the patient page'); return }
     await tap(move); await page.waitForTimeout(1500); await snap(page, 'move-page')
+    current.notes.push(`Current time marked on the move page: ${(await page.locator('[aria-pressed="true"]').filter({ visible: true }).count()) > 0}`)
     const times = visible(page.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)/ }))
     const n = await times.count()
     if (n > 1) await tap(times.nth(n - 1))
@@ -364,12 +363,14 @@ test('evidence tour', async ({ page }) => {
     if (await search.count()) {
       await type(search, phone)
       const go = visible(page.getByRole('button', { name: 'Search' }))
-      if (await go.count()) await tap(go); else await search.first().press('Enter')
+      if (await go.count()) await tap(go)
       await page.waitForTimeout(1500)
       await snap(page, 'book-2-search')
     } else current.notes.push('No patient search box on the booking screen')
-    const option = visible(page.locator('label').filter({ hasText: patientName }))
-    if (await option.count()) await tap(option)
+    const row = visible(page.getByRole('button').filter({ hasText: patientName }))
+    const label = visible(page.locator('label').filter({ hasText: patientName }))
+    if (await row.count()) await tap(row)
+    else if (await label.count()) await tap(label)
     else current.notes.push('The patient was not offered in the list to pick from')
     await snap(page, 'book-3-ready')
     await tap(visible(page.getByRole('button', { name: 'Book appointment' })))
@@ -401,6 +402,7 @@ test('evidence tour', async ({ page }) => {
     await tap(card.getByRole('link', { name: 'Other time' }))
     await page.waitForURL(new RegExp(`/app/requests/${id}`)); await page.waitForTimeout(1500)
     await snap(page, 'request-page')
+    current.notes.push(`"Save and confirm" enabled before any tap: ${await visible(page.getByRole('button', { name: 'Save and confirm' })).isEnabled().catch(() => false)}`)
     await tap(visible(page.getByRole('button', { name: /^11:10 AM/ })))
     await snap(page, 'request-picked')
     await captureWhatsapp(page, 'request-other-time')
@@ -442,9 +444,7 @@ test('evidence tour', async ({ page }) => {
   await step('visit menu', async () => {
     if (!visitUrl) return
     await page.goto(visitUrl)
-    const menu = visible(page.getByRole('button', { name: 'Visit menu' }))
-    if (await menu.count()) { await menu.click(); await snap(page, 'visit-menu-open') }
-    await page.goto(visitUrl); await snap(page, 'visit-notes-after')
+    await page.goto(visitUrl); await snap(page, 'visit-after-everything')
   })
 
   // ---------------------------------------------------------------- clean up
