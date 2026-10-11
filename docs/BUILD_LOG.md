@@ -57,7 +57,7 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 
 ### Wave 1: visit page and time pickers (two builders in parallel)
 - [ ] 1A Visit page (Opus, high): C1, C3, C4, C6, C7, C16 + visit parts of C5, C15, C17, C18
-- [ ] 1B Time pickers and bookings (Sonnet, medium): C2, C14 + parts of C10, C17, C18, C21, C22
+- [x] 1B Time pickers and bookings (Sonnet, medium): C2, C14 + parts of C10, C17, C18, C21, C22 (commit 4daa19e, merged as cff4247)
 - [ ] Merged, gates pass, tour re-run, fresh-eyes review, pushed
 - [ ] Owner phone check on the OnePlus 13
 
@@ -84,3 +84,4 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 - 2026-10-11 Split `e2e/clinic.spec.ts` into four spec files plus `e2e/helpers.ts` (scoped clean-up by runId; `cleanTestAccount()` sweep for the tour only). Dropped the AI tidy-up e2e test (feature removed by D2; it was failing on the Gemini outage). Playwright profile: OnePlus 13 (412x905, Android 15 Chrome UA). `E2E_PORT` env. 13/13 pass; test account left with zero rows and zero photo files.
 - 2026-10-11 Wave 0 complete. Briefs in `docs/build/`. `main` fast-forwarded to this commit and pushed; local work moves to `main` (the `rework-flow` branch is retired). Next: spawn builders 1A (Opus, high, port 3101) and 1B (Sonnet, medium, port 3102) in their own worktrees.
 - 2026-10-11 Wave 1 started from `main` @ 1adea50: builder 1A (Opus 5.5, high, `docs/build/1A-visit.md`, port 3101) and builder 1B (Sonnet 5.5, medium, `docs/build/1B-times.md`, port 3102), each in its own worktree under `.claude/worktrees/` on a `worktree-agent-*` branch. If this session ends before they report: list those branches, check each one's last commit and gate results, then review and merge (1B first, it is smaller), or re-run a builder from its brief.
+- 2026-10-11 Builder 1B done (4daa19e): `sameInstant()` fixes the pickers; drag removed; solid Save bar; search-as-you-type booking (`findPatientsToBook`, rows 56 px); gender required for phone-booked new patients; fallback "Open WhatsApp" buttons; `movedMessage`; `/app/appointments/[id]` and `/app/calendar` redirects deleted; 48 dp on its screens. Orchestrator reviewed the diff (search input escaped, stale results ignored), merged to `main` (cff4247): tsc, 208 unit, lint, build, 15/15 e2e pass. Pushed. Open item for 2A: `BackLink` in `ui.tsx` is ~16 px tall. Note: after removing a route, delete `.next/dev/types` before `tsc`.
