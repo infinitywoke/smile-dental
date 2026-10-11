@@ -12,21 +12,22 @@ One Next.js app with two parts:
 - **Data access stays on the server.** Never expose the Supabase secret or service-role key to the client.
 - **Keep it simple.** Optimise for fast data entry on a phone (dictation, photos, one-tap actions) over feature breadth.
 
-## Delegation: models and effort (owner-approved, 2026-10-10)
-Match the model and effort to the task; never spend more than the task needs. When delegating to an agent, set its model and effort from this table:
+## Agents: roles, models and effort (owner decision, 2026-10-11)
+One orchestrator, a few specialists. When delegating, set the agent's model and effort from this table.
 
-| Task | Delegate to |
-|---|---|
-| Searches, lookups, reading code | Claude Haiku, effort low, or Gemini 3.8 Flash (`gemini -p`) |
-| Running checks, summarising test or build logs | Gemini 3.8 Flash, or no AI at all (just run the script) |
-| Routine code changes | Claude Sonnet, effort medium |
-| Second-opinion code review | Gemini 3.1 Pro, effort High, or Claude Opus, effort medium (one review per wave) |
-| Database / auth / security rules, AI prompt design | Claude Opus, effort high |
+| Role | Model | Effort | Used for |
+|---|---|---|---|
+| **Orchestrator and strategist** | Claude Opus 5.5 (the main session) | max | Strategy, priorities, briefs for builders, integration, final checks, talking to the owner |
+| **Fresh-eyes reviewer** (one per wave) | Claude Opus 5.5 | max for a strategy, high for a wave review | Reviews the app as a first-time user would; never sees the orchestrator's reasoning |
+| **Builders** (at most 2 at a time, each in its own worktree) | Claude Sonnet 5.5 | medium | Well-specified changes from a written brief |
+| **Lookups and log summaries** | Claude Haiku 5.5 | low | Searches, reading code, summarising test output |
 
-- **Gemini access (checked 2026-10-10):** Try using gemini since we are on Antigravity IDE, If unable to use, skip the Gemini rows and use the Claude option.
-- Never use effort `max`, and never send patient data or database exports to any AI service outside the app (Gemini CLI included). Code and docs only.
-- Prefer doing small jobs (under about an hour) directly over spawning agents. At most 1–2 parallel builders. Install packages once, before creating worktrees.
+- **Max effort is only for the orchestrator and strategy work.** Everything routine runs on the cheapest model that does the job.
+- **No Gemini (or any other outside AI) for development work.** Never send patient data or database exports to any AI service outside the app. Code and docs only.
+- Prefer doing small jobs directly over spawning agents. Install packages once, before creating worktrees. Push the base commit before creating worktrees.
 - Automated checks (`npm test`, `npm run build`, `npm run lint`, `npm run test:e2e`) cost no AI quota: run them instead of asking a model to verify.
+- **The clinic is live.** Work on a branch; deploy to `main` only after clinic hours (after 7:30 PM IST) unless the owner says otherwise.
+- **Primary device: Android phones** (owner tests on a OnePlus 13, Chrome). Design and test for Android Chrome first: the system Back gesture, the on-screen keyboard, thumb reach.
 - Start a fresh session per task; the context lives in `docs/` and memory, not in chat history.
 
 <!-- BEGIN:nextjs-agent-rules -->
