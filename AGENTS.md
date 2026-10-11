@@ -26,7 +26,7 @@ One orchestrator, a few specialists. When delegating, set the agent's model and 
 - **No Gemini (or any other outside AI) for development work.** Never send patient data or database exports to any AI service outside the app. Code and docs only.
 - Prefer doing small jobs directly over spawning agents. Install packages once, before creating worktrees. Push the base commit before creating worktrees.
 - Automated checks (`npm test`, `npm run build`, `npm run lint`, `npm run test:e2e`) cost no AI quota: run them instead of asking a model to verify.
-- **The clinic is live.** Work on a branch; deploy to `main` only after clinic hours (after 7:30 PM IST) unless the owner says otherwise.
+- **Not in daily use yet** (owner, 2026-10-11): changes may be bold, including breaking ones. Once Dr. Rahil starts using it, work on a branch and deploy after clinic hours (after 7:30 PM IST).
 - **Primary device: Android phones** (owner tests on a OnePlus 13, Chrome). Design and test for Android Chrome first: the system Back gesture, the on-screen keyboard, thumb reach.
 - Start a fresh session per task; the context lives in `docs/` and memory, not in chat history.
 
