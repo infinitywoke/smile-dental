@@ -59,7 +59,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
             </p>
           </div>
           <a href={`tel:+91${request.phone}`} aria-label="Call patient"
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-gray-300">
+            className="flex min-h-12 shrink-0 items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-gray-300">
             <Phone className="h-4 w-4" /> Call
           </a>
         </div>

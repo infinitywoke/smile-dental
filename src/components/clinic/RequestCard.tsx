@@ -36,21 +36,23 @@ export function RequestCard({ id, name, isTest, whenLabel, reason, alerts, canCo
         return
       }
       setDone({ whatsappUrl: result.whatsappUrl })
-      // The patient's chat opens with the confirmation ready; the doctor taps Send
+      // The patient's chat opens with the confirmation ready; the "Open WhatsApp" button below is the fallback
       if (result.whatsappUrl) window.location.assign(result.whatsappUrl)
     })
   }
 
   if (done) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl bg-green-50 p-4 ring-1 ring-green-200">
-        <CalendarCheck className="h-6 w-6 shrink-0 text-green-600" />
-        <p className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
-          {name} is booked{whenLabel ? ` · ${whenLabel}` : ''}
-        </p>
+      <div className="space-y-3 rounded-2xl bg-green-50 p-4 ring-1 ring-green-200">
+        <div className="flex items-center gap-3">
+          <CalendarCheck className="h-6 w-6 shrink-0 text-green-600" />
+          <p className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
+            {name} is booked{whenLabel ? ` · ${whenLabel}` : ''}
+          </p>
+        </div>
         {done.whatsappUrl && (
-          <a href={done.whatsappUrl} className="flex shrink-0 items-center gap-1.5 rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white">
-            <MessageCircle className="h-4 w-4" /> Send
+          <a href={done.whatsappUrl} className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-green-600 px-4 py-3 text-base font-semibold text-white">
+            <MessageCircle className="h-5 w-5" /> Open WhatsApp
           </a>
         )}
       </div>
@@ -74,7 +76,7 @@ export function RequestCard({ id, name, isTest, whenLabel, reason, alerts, canCo
         </div>
         {hasDetails && (
           <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Details"
-            className="rounded-full p-1.5 text-amber-800 hover:bg-amber-100">
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-amber-800 hover:bg-amber-100">
             <ChevronDown className={`h-5 w-5 transition ${open ? 'rotate-180' : ''}`} />
           </button>
         )}
@@ -105,12 +107,12 @@ export function RequestCard({ id, name, isTest, whenLabel, reason, alerts, canCo
       <div className="mt-3 flex gap-2">
         {canConfirm && (
           <button type="button" onClick={confirm} disabled={pending}
-            className="flex-1 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
+            className="min-h-12 flex-1 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
             {pending ? 'Booking…' : 'Confirm'}
           </button>
         )}
         <Link href={otherTimeHref}
-          className="flex-1 rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-gray-900 ring-1 ring-gray-300">
+          className="flex min-h-12 flex-1 items-center justify-center rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-gray-900 ring-1 ring-gray-300">
           Other time
         </Link>
       </div>

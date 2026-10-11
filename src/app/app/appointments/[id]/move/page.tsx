@@ -8,7 +8,7 @@ import { SlotScheduler } from '@/components/clinic/SlotScheduler'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
-// Moving an appointment: the day's times, tap or slide the name to another block
+// Moving an appointment: the day's times, tap another time
 async function MovePageContent({ params, searchParams }: PageProps<'/app/appointments/[id]/move'>) {
   const { id } = await params
   const { d } = await searchParams

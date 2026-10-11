@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { confirmationMessage, declineMessage } from './whatsapp'
+import { confirmationMessage, declineMessage, movedMessage } from './whatsapp'
 import { visitMessage } from './billing'
 
 // Messages to a patient carry the patient's name and nothing else that identifies them:
@@ -12,6 +12,15 @@ describe('messages to the patient', () => {
   it('confirmation uses the first name only', () => {
     const text = confirmationMessage({ name: 'Prakash Shetty', startsAt: starts })
     expect(text).toContain('Hello Prakash,')
+    expect(text).not.toContain('Shetty')
+    expect(text).not.toMatch(FORBIDDEN)
+  })
+
+  it('moved says "has been moved to" with the new time, first name only', () => {
+    const text = movedMessage({ name: 'Prakash Shetty', startsAt: starts })
+    expect(text).toContain('Hello Prakash,')
+    expect(text).toContain('has been moved to')
+    expect(text).not.toContain('is confirmed')
     expect(text).not.toContain('Shetty')
     expect(text).not.toMatch(FORBIDDEN)
   })

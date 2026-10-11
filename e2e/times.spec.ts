@@ -63,9 +63,15 @@ test('request screen: tap another time, save, WhatsApp confirmation for the pati
   await expect(visible(page.getByText(`Asked for ${formatDay(day)}, ${formatBlock('10:30')}`))).toBeVisible()
   await page.goto(`/app/requests/${id}?d=${day}`)
 
-  // Move the name from 10:30 to 11:10 (tap), then save
+  // The asked time (10:30) is already chosen and Save works at once; no drag chip anywhere
+  await expect(visible(page.getByRole('button', { name: /^10:30 AM/ }))).toHaveAttribute('aria-pressed', 'true')
+  await expect(visible(page.getByRole('button', { name: 'Save and confirm' }))).toBeEnabled()
+  await expect(page.getByText(/slide the name/i)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Drag / })).toHaveCount(0)
+
+  // Tap 11:10 instead, then save
   await visible(page.getByRole('button', { name: /^11:10 AM/ })).click()
-  await expect(visible(page.getByText(/Placed at/))).toContainText('11:10 AM')
+  await expect(visible(page.getByRole('button', { name: /^11:10 AM/ }))).toHaveAttribute('aria-pressed', 'true')
   await visible(page.getByRole('button', { name: 'Save and confirm' })).click()
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
 
@@ -100,4 +106,54 @@ test('cancels the coming visit from the patient page, then books the next one fo
   await visible(page.getByRole('button', { name: 'Book appointment' })).click()
   await expect(visible(page.getByRole('heading', { name: 'Booked' }))).toBeVisible()
   await expect(visible(page.getByRole('link', { name: /Send confirmation on WhatsApp/ }))).toBeVisible()
+})
+
+test('Move: the current time is marked; a new time sends "has been moved to"', async () => {
+  const moverName = `${runId} Mover`
+  const moverId = await createPatient(moverName, newPhone())
+  const day = openDay(5)
+  await createAppointment(moverId, day, '11:10')
+  const whatsapp = await captureWhatsapp(page)
+
+  await page.goto(`/app/patients/${moverId}`)
+  await visible(page.getByRole('link', { name: 'Move' })).click()
+  await expect(page).toHaveURL(/\/move/)
+  await page.goto(`${new URL(page.url()).pathname}?d=${day}`)
+
+  await expect(visible(page.getByRole('button', { name: /^11:10 AM/ }))).toHaveAttribute('aria-pressed', 'true')
+  await expect(visible(page.getByRole('button', { name: 'Move appointment' }))).toBeDisabled()
+  await expect(page.getByText(/slide the name/i)).toHaveCount(0)
+
+  await visible(page.getByRole('button', { name: /^2:30 PM/ })).click()
+  await expect(visible(page.getByRole('button', { name: 'Move appointment' }))).toBeEnabled()
+  await visible(page.getByRole('button', { name: 'Move appointment' })).click()
+  await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
+
+  const text = whatsappText(whatsapp.url)
+  expect(text).toContain('has been moved to')
+  expect(text).not.toContain('confirmed')
+  expect(text).toContain(formatBlock('14:30'))
+})
+
+test('phone booking: type part of the phone, tap the patient row, Book, WhatsApp button', async () => {
+  const phone = newPhone()
+  const bookName = `${runId} Phoned`
+  await createPatient(bookName, phone)
+  const day = openDay(6)
+
+  await page.goto(`/app/book?d=${day}`)
+  await visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ }).first()).click()
+  await expect(visible(page.getByRole('button', { name: 'Search' }))).toHaveCount(0)
+
+  // Results appear while typing; the whole row is the tap target
+  await visible(page.getByRole('searchbox')).fill(phone.slice(-6))
+  const row = visible(page.getByRole('button', { name: new RegExp(bookName) }))
+  await expect(row).toBeVisible()
+  const box = await row.boundingBox()
+  expect(box!.height).toBeGreaterThanOrEqual(48)
+  await row.click()
+  await visible(page.getByRole('button', { name: 'Book appointment' })).click()
+  await expect(visible(page.getByRole('heading', { name: 'Booked' }))).toBeVisible()
+  await expect(visible(page.getByRole('link', { name: /Send confirmation on WhatsApp/ }))).toBeVisible()
+  await expect(visible(page.getByRole('link', { name: 'Back to Today' }))).toBeVisible()
 })
