@@ -33,6 +33,8 @@ const back: Record<string, unknown>[] = []
 const failures: string[] = []
 const messages: Record<string, string> = {}
 let shotNo = 0
+// The page, so a failed step can leave a screenshot of what was on screen
+let tourPage: Page | null = null
 
 const visible = <T extends Locator>(l: T) => l.filter({ visible: true }) as T
 
@@ -56,6 +58,7 @@ async function step(name: string, fn: () => Promise<void>) {
     const msg = `${current.job} / ${name}: ${(e as Error).message.split('\n')[0].slice(0, 300)}`
     failures.push(msg)
     console.log('FAIL', msg)
+    await tourPage?.screenshot({ path: path.join(OUT, `FAIL-${failures.length}.png`) }).catch(() => {})
   }
 }
 
@@ -139,6 +142,7 @@ async function captureWhatsapp(page: Page, key: string) {
 const makeRequest = (label: string, hhmm: string, offset: number) => makeTestRequest(runId, label, hhmm, 2 + offset)
 
 test('evidence tour', async ({ page }) => {
+  tourPage = page
   test.setTimeout(20 * 60_000)
   fs.rmSync(OUT, { recursive: true, force: true })
   fs.mkdirSync(OUT, { recursive: true })
@@ -187,7 +191,9 @@ test('evidence tour', async ({ page }) => {
   await step('practice mode on + menu', async () => {
     await page.getByRole('button', { name: 'Menu' }).click()
     await snap(page, 'menu-open')
-    await page.keyboard.press('Escape').catch(() => {})
+    // Close it again (a second tap on the same button)
+    await page.getByRole('button', { name: 'Menu' }).click()
+    await page.waitForTimeout(300)
   })
 
   // ---------------------------------------------------------------- job A
@@ -356,7 +362,13 @@ test('evidence tour', async ({ page }) => {
     await tap(page.getByRole('button', { name: 'Add' }))
     const book = visible(page.getByRole('link', { name: /Book|Appointment/ }))
     await tap(book); await page.waitForTimeout(1500); await snap(page, 'book-1-times')
-    await tap(visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ })))
+    // Late in the day there may be no times left today: look at the next day (not counted as a tap)
+    const times = visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ }))
+    for (let i = 0; i < 4 && (await times.count()) === 0; i++) {
+      await visible(page.getByRole('link', { name: 'Next day' })).click()
+      await page.waitForLoadState('networkidle')
+    }
+    await tap(times)
     await visible(page.getByRole('button', { name: 'Book appointment' })).waitFor({ timeout: 20_000 })
     await snap(page, 'book-2-who')
     const search = visible(page.getByPlaceholder(/name or phone/i))
