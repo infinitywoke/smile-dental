@@ -2,30 +2,24 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Camera, CalendarClock, ChevronDown, ChevronRight, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { getPatientHub } from '@/lib/data/patient-hub'
-import { ageOn, formatDate } from '@/lib/dates'
+import { formatDate } from '@/lib/dates'
+import { patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
 import { formatRupees } from '@/lib/pricing'
-import { nextActionFor } from '@/lib/next-action'
 import { blockEnd, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { whatsappLink } from '@/lib/whatsapp'
-import { BackLink, MedicalAlert, ScreenLoading, TestBadge } from '@/components/clinic/ui'
+import { BackLink, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
 import { StartVisitButton } from '@/components/clinic/StartVisitButton'
 import { CancelAppointmentButton } from '@/components/clinic/CalendarActions'
 import { genderLabel } from '@/lib/gender'
 
-// The patient page is the hub: one smart button leads, then what is coming up, then history.
+// The patient page is the hub: Start visit first, then what is coming up, then history.
 async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
   const { id } = await params
-  const { patient, visits, coming, balance, situation } = await getPatientHub(id)
-  const action = nextActionFor(situation)
-  const showNewVisitLink = action.label !== 'New visit' && action.label !== 'Continue visit' && action.label !== 'Start visit'
-
-  const tone = {
-    visit: 'bg-blue-600 hover:bg-blue-700',
-    money: 'bg-red-600 hover:bg-red-700',
-    calm: 'bg-blue-600 hover:bg-blue-700',
-  }[action.tone]
+  const { patient, visits, coming, balance, todayVisitId, appointmentTodayId, due } = await getPatientHub(id)
+  const age = patientAge(patient)
+  const startClass = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-70'
 
   return (
     <div className="space-y-5">
@@ -35,20 +29,19 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-gray-900">
             <span className="truncate">{patient.name}</span>
-            {patient.is_test && <TestBadge />}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            {[patient.date_of_birth && `${ageOn(patient.date_of_birth)} yrs`, genderLabel(patient.gender), formatPhone(patient.phone)].filter(Boolean).join(' · ')}
+            {[age !== null && `${age} yrs`, genderLabel(patient.gender), formatPhone(patient.phone)].filter(Boolean).join(' · ')}
           </p>
         </div>
         {patient.phone && (
           <div className="flex shrink-0 gap-2">
             <a href={`tel:+91${patient.phone}`} aria-label="Call patient"
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-800 ring-1 ring-gray-300">
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-800 ring-1 ring-gray-300">
               <Phone className="h-5 w-5" />
             </a>
             <a href={whatsappLink(patient.phone, '')} aria-label="WhatsApp patient"
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-green-600 text-white">
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-green-600 text-white">
               <MessageCircle className="h-5 w-5" />
             </a>
           </div>
@@ -57,27 +50,28 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
 
       <MedicalAlert alerts={patient.medical_alerts} />
 
-      {balance !== 0 && action.tone !== 'money' && (
-        <p className={`rounded-xl px-3 py-2 text-sm font-semibold ring-1 ${balance > 0 ? 'bg-red-50 text-red-800 ring-red-200' : 'bg-green-50 text-green-800 ring-green-200'}`}>
-          {balance > 0 ? `Balance due: ${formatRupees(balance)}` : `Advance with us: ${formatRupees(-balance)}`}
-        </p>
-      )}
-
-      {/* The one button */}
+      {/* Start visit first, always */}
       <div className="space-y-2">
-        {action.start ? (
-          <StartVisitButton patientId={patient.id} appointmentId={action.start.appointmentId} label={action.label}
-            className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-lg font-semibold text-white shadow-sm disabled:opacity-70 ${tone}`} />
+        {todayVisitId ? (
+          <Link href={`/app/visits/${todayVisitId}`} className={startClass}>Open today’s visit</Link>
         ) : (
-          <Link href={action.href}
-            className={`flex items-center justify-center gap-2 rounded-2xl px-5 py-4 text-lg font-semibold text-white shadow-sm ${tone}`}>
-            {action.label}
+          <StartVisitButton patientId={patient.id} appointmentId={appointmentTodayId ?? undefined} className={startClass} />
+        )}
+        {due && (
+          <Link href={`/app/visits/${due.visitId}?step=bill`}
+            className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-red-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-red-700">
+            Collect {formatRupees(due.amount)}
           </Link>
         )}
-        {showNewVisitLink && (
-          <StartVisitButton patientId={patient.id} label="+ New visit"
-            className="flex min-h-12 w-full items-center justify-center gap-1.5 text-base font-semibold text-blue-700 disabled:opacity-60" />
+        {balance < 0 && (
+          <p className="rounded-xl bg-green-50 px-3 py-2 text-sm font-semibold text-green-800 ring-1 ring-green-200">
+            Advance with us: {formatRupees(-balance)}
+          </p>
         )}
+        <Link href={`/app/book?patient=${patient.id}`}
+          className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-white px-5 text-base font-semibold text-blue-700 ring-1 ring-gray-300">
+          Book appointment
+        </Link>
       </div>
 
       {/* Coming up */}
@@ -94,12 +88,12 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
                     <p className="font-semibold text-gray-900">{formatDay(date)}, {formatBlock(time)} – {formatBlock(blockEnd(time))}</p>
                     {appointment.reason && <p className="truncate text-sm text-gray-500">{appointment.reason}</p>}
                   </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <Link href={`/app/appointments/${appointment.id}/move`}
-                    className="rounded-full px-3 py-1.5 text-sm font-semibold text-blue-700 ring-1 ring-blue-200">
+                    className="flex min-h-12 items-center justify-center rounded-full bg-white px-4 text-sm font-semibold text-blue-700 ring-1 ring-blue-200">
                     Move
                   </Link>
-                </div>
-                <div className="mt-2">
                   <CancelAppointmentButton appointmentId={appointment.id} backTo={`/app/patients/${patient.id}`} />
                 </div>
               </div>
@@ -139,7 +133,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
 
       {/* Details, out of the way */}
       <details className="group rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
-        <summary className="flex cursor-pointer list-none items-center justify-between font-semibold text-gray-900">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between font-semibold text-gray-900">
           Details
           <ChevronDown className="h-5 w-5 text-gray-400 transition group-open:rotate-180" />
         </summary>
@@ -150,7 +144,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
           <p className="text-gray-700">
             <span className="text-gray-500">First visit:</span> {visits.length > 0 ? formatDate(visits[visits.length - 1].visit_date) : '—'}
           </p>
-          <Link href={`/app/patients/${patient.id}/edit`} className="inline-flex items-center gap-1 pt-1 font-semibold text-blue-600">
+          <Link href={`/app/patients/${patient.id}/edit`} className="inline-flex min-h-12 items-center gap-1 text-base font-semibold text-blue-600">
             <Pencil className="h-4 w-4" /> Edit details
           </Link>
         </div>

@@ -9,13 +9,15 @@ export type Patient = {
   name: string
   phone: string | null
   date_of_birth: string | null
+  // Year of birth (the doctor is asked for an age); older patients may only have date_of_birth
+  birth_year?: number | null
   // 'female' | 'male' | 'other'; null on patients added before it was asked
   gender?: string | null
   address: string | null
   medical_alerts: string | null
   heard_from: string | null
-  // Trial data, removable in one go from the Patients screen
-  is_test: boolean
+  // No longer used (Practice mode is gone); the column stays until the database clean-up
+  is_test?: boolean
   // Optional until every patient query selects it
   preferred_times?: string | null
   created_at: string
@@ -152,6 +154,7 @@ export type BookingRequest = {
   city: string | null
   address: string | null
   date_of_birth: string | null
+  birth_year?: number | null
   gender?: string | null
   medical_alerts: string | null
   heard_from: string | null

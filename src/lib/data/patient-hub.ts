@@ -6,7 +6,6 @@ import { todayInIndia } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
 import { isEmptyVisit, visitStatus } from '@/lib/visit-status'
 import { getPatient } from './patients'
-import type { PatientSituation } from '@/lib/next-action'
 import type { Patient, VisitStatus } from './types'
 
 export type HubVisit = {
@@ -27,7 +26,12 @@ export type PatientHub = {
   coming: HubAppointment[]
   // What the patient owes (positive) or has in advance (negative), across all visits
   balance: number
-  situation: PatientSituation
+  // The visit already started today, if any: the main button opens it instead of starting another
+  todayVisitId: string | null
+  // Booked for today with no visit started from it yet: the Start button passes it along
+  appointmentTodayId: string | null
+  // The most recent visit that still has money owed, and how much to collect
+  due: { visitId: string; amount: number } | null
 }
 
 // Everything the patient page needs, in parallel queries; time-based decisions are made here
@@ -95,7 +99,7 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
   const advance = sumAmounts(standalonePayments.data.map((p) => ({ amount: Number(p.amount) })))
   const balance = Math.round((sumAmounts(visits.map((v) => ({ amount: v.balance }))) - advance) * 100) / 100
 
-  const openVisit = visitRows.data.find((row) => row.visit_date === today && !row.closed_at) ?? null
+  const todayVisit = visitRows.data.find((row) => row.visit_date === today) ?? null
   const dueVisit = visits.find((v) => v.balance > 0) ?? null
 
   return {
@@ -103,12 +107,8 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
     visits,
     coming,
     balance,
-    situation: {
-      patientId: id,
-      openVisit: openVisit ? { id: openVisit.id, hasNotes: openVisit.notes.trim().length > 0 } : null,
-      appointmentToday: appointmentToday ? { id: appointmentToday.id } : null,
-      due: dueVisit ? { visitId: dueVisit.id, amount: balance > 0 ? Math.min(dueVisit.balance, balance) : dueVisit.balance } : null,
-      hasFutureAppointment: coming.length > 0,
-    },
+    todayVisitId: todayVisit?.id ?? null,
+    appointmentTodayId: appointmentToday?.id ?? null,
+    due: dueVisit ? { visitId: dueVisit.id, amount: balance > 0 ? Math.min(dueVisit.balance, balance) : dueVisit.balance } : null,
   }
 }

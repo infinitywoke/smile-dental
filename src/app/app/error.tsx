@@ -13,10 +13,10 @@ export default function ClinicError({ retry }: { error: Error & { digest?: strin
         <p className="mt-1 text-sm text-gray-600">Check the internet connection and try again.</p>
       </div>
       <button type="button" onClick={() => retry()}
-        className="w-full rounded-full bg-blue-600 px-5 py-3 text-base font-semibold text-white hover:bg-blue-700">
+        className="min-h-12 w-full rounded-full bg-blue-600 px-5 py-3 text-base font-semibold text-white hover:bg-blue-700">
         Try again
       </button>
-      <Link href="/app" className="block text-sm font-medium text-blue-600">Go to Today</Link>
+      <Link href="/app" className="flex min-h-12 items-center justify-center text-base font-medium text-blue-600">Go to Today</Link>
     </div>
   )
 }

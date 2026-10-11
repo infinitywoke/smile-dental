@@ -7,8 +7,7 @@ import { BLOCK_MINUTES, blockInstant, clinicBlockOf } from '@/lib/schedule'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { confirmationMessage, declineMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 import { parseGender } from '@/lib/gender'
-import { ageOn } from '@/lib/dates'
-import { isPracticeMode } from '@/lib/practice'
+import { patientAge, titleCaseName } from '@/lib/patient-fields'
 import { findPatientsByPhone, searchPatients } from '@/lib/data/patients'
 import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
 
@@ -139,7 +138,7 @@ export async function bookNewPatient(input: { name: string; phone: string; gende
   const supabase = await createClient()
   const { data: patient, error } = await supabase
     .from('patients')
-    .insert({ name, phone, gender, is_test: await isPracticeMode() })
+    .insert({ name: titleCaseName(name), phone, gender })
     .select('id')
     .single()
   if (error) return { error: 'Could not save the patient. Please try again.' }
@@ -193,7 +192,7 @@ export async function findPatientsToBook(query: string) {
   await getDoctor()
   const patients = await searchPatients(String(query).slice(0, 60))
   return patients.slice(0, 8).map((p) => ({
-    id: p.id, name: p.name, phone: p.phone, isTest: p.is_test, age: p.date_of_birth ? ageOn(p.date_of_birth) : null,
+    id: p.id, name: p.name, phone: p.phone, age: patientAge(p),
   }))
 }
 
