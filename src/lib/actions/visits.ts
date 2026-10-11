@@ -4,8 +4,10 @@ import { RedirectType, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { PHOTO_BUCKET, SHARE_LINK_SECONDS, findOrCreateTodaysVisit } from '@/lib/data/visits'
+import { PHOTO_BUCKET, SHARE_LINK_SECONDS, appointmentsOfVisit, findOrCreateTodaysVisit } from '@/lib/data/visits'
+import { getVisitBill, type VisitBill } from '@/lib/data/billing'
 import { getNextVisitSuggestion } from '@/lib/data/next-visit'
+import { MAX_PHOTOS_TO_SEND } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { BLOCK_MINUTES, clinicBlockOf } from '@/lib/schedule'
 import { PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
@@ -122,14 +124,40 @@ export async function bookNextVisit(visitId: string, startsAt: string): Promise<
   return {}
 }
 
-// The doctor tapped Send on WhatsApp. Makes the 30-day links for the ticked photos (only now, and
-// only photos of this visit), then records the visit as "WhatsApp sent" (closed_at keeps the first
-// time) and today's appointment for it as done. Returns the links for the message, by photo id.
-export async function markWhatsappSent(visitId: string, photoIds: string[] = []): Promise<Result & { links?: Record<string, string> }> {
+// What the WhatsApp message says, read fresh from the database at the tap
+export type MessageData = {
+  charges: VisitBill['charges']
+  payments: VisitBill['payments']
+  summary: VisitBill['summary']
+  nextAppointment: { starts_at: string } | null
+  // 30-day links for the ticked photos, by photo id
+  links: Record<string, string>
+}
+
+// The doctor tapped Send on WhatsApp. Reads the bill and the next appointment fresh (server actions
+// run one after another, so a booking, charge or payment tapped just before is already saved), makes
+// the 30-day links for the ticked photos (only now, and only photos of this visit), then records the
+// visit as "WhatsApp sent" (closed_at keeps the first time) and today's appointment for it as done.
+export async function markWhatsappSent(visitId: string, photoIds: string[] = []): Promise<Result & { message?: MessageData }> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
-  if (photoIds.length > 10 || photoIds.some((id) => !UUID.test(id))) return { error: 'Invalid photo.' }
+  if (photoIds.length > MAX_PHOTOS_TO_SEND) return { error: `You can send up to ${MAX_PHOTOS_TO_SEND} photos at a time.` }
+  if (photoIds.some((id) => !UUID.test(id))) return { error: 'Invalid photo.' }
   const supabase = await createClient()
+
+  let fresh: Omit<MessageData, 'links'>
+  try {
+    const bill = await getVisitBill(visitId)
+    const { next } = await appointmentsOfVisit(visitId, bill.patient.id)
+    fresh = {
+      charges: bill.charges,
+      payments: bill.payments,
+      summary: bill.summary,
+      nextAppointment: next ? { starts_at: next.starts_at } : null,
+    }
+  } catch {
+    return { error: 'Could not prepare the message. Please try again.' }
+  }
 
   const links: Record<string, string> = {}
   if (photoIds.length > 0) {
@@ -151,7 +179,7 @@ export async function markWhatsappSent(visitId: string, photoIds: string[] = [])
   if (error) return { error: 'Could not record the message.' }
   await supabase.from('appointments').update({ status: 'done' }).eq('visit_id', visitId).eq('status', 'booked')
   refreshClinicScreens()
-  return { links }
+  return { message: { ...fresh, links } }
 }
 
 export async function deleteVisit(visitId: string): Promise<Result> {

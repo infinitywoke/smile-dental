@@ -10,6 +10,9 @@ export function sumAmounts(items: { amount: number }[]): number {
 
 export const MAX_AMOUNT = 1_000_000
 
+// Photo links in one WhatsApp message
+export const MAX_PHOTOS_TO_SEND = 10
+
 // A rupee amount typed by hand: "1,250", "₹ 1250.50". Returns null when it isn't a sensible amount.
 export function parseAmount(input: string): number | null {
   const cleaned = input.replace(/[₹,\s]|rs\.?/gi, '')
@@ -23,9 +26,9 @@ export type BillSummary = {
   paid: number
   // This visit's balance: billed minus paid (negative = paid more than billed)
   balance: number
-  // What the patient owed (positive) or had in advance (negative) before this visit
+  // What the patient owes (positive) or has in advance (negative) from their other visits
   earlier: number
-  // Everything still due, earlier balance included
+  // Everything still due, other visits included
   due: number
 }
 
@@ -70,7 +73,7 @@ export function visitMessage(args: {
     }
     if (args.summary.balance > 0) out.push(`Balance: ${formatRupees(args.summary.balance)}`)
     if (args.summary.balance < 0) out.push(`Advance with us: ${formatRupees(-args.summary.balance)}`)
-    if (args.summary.earlier > 0) out.push(`Earlier balance: ${formatRupees(args.summary.earlier)}`, `*Total due: ${formatRupees(args.summary.due)}*`)
+    if (args.summary.earlier > 0) out.push(`Due from other visits: ${formatRupees(args.summary.earlier)}`, `*Total due: ${formatRupees(args.summary.due)}*`)
   }
 
   if (args.nextAppointment?.starts_at) {

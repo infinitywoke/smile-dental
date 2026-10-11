@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useMemo, useRef, useTransition } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import type { VisitBill } from '@/lib/data/billing'
 import { removeCharge } from '@/lib/actions/billing'
@@ -8,19 +8,48 @@ import { formatRupees } from '@/lib/pricing'
 import { useBackToClose } from './FullScreen'
 import { PriceListSheet } from './PriceListSheet'
 
+// Runs a save after the typed notes, and lets Send on WhatsApp wait for it (see VisitFlow)
+export type Save = <T>(action: () => Promise<T>) => Promise<T>
+
+// One id per intended charge or payment, made on the phone. Trying the same thing again (after
+// "Couldn't reach the server") reuses the id, so a save whose reply was lost is never stored twice.
+// Something different (another amount or item) gets a new id.
+export type SaveId = { idFor: (what: string) => string; done: () => void }
+
+export function useSaveId(): SaveId {
+  const last = useRef<{ what: string; id: string } | null>(null)
+  return useMemo(
+    () => ({
+      idFor(what: string) {
+        if (last.current?.what !== what) last.current = { what, id: crypto.randomUUID() }
+        return last.current.id
+      },
+      // Saved: the next one is a new charge or payment
+      done() {
+        last.current = null
+      },
+    }),
+    [],
+  )
+}
+
 // The bill: its lines and total, and "Add charge", which opens the clinic price list
 export function BillSection({
   visitId,
   charges,
   total,
   beforeAction,
+  save,
 }: {
   visitId: string
   charges: VisitBill['charges']
   total: number
   beforeAction: () => Promise<void>
+  save: Save
 }) {
   const sheet = useBackToClose()
+  // Kept here, not in the sheet, so closing and reopening the list still recognises a retry
+  const saveId = useSaveId()
 
   return (
     <section className="space-y-3">
@@ -50,7 +79,7 @@ export function BillSection({
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700">
         <Plus className="h-5 w-5" /> Add charge
       </button>
-      {sheet.open && <PriceListSheet visitId={visitId} onAdded={sheet.close} onClose={sheet.close} />}
+      {sheet.open && <PriceListSheet visitId={visitId} save={save} saveId={saveId} onAdded={sheet.close} onClose={sheet.close} />}
     </section>
   )
 }

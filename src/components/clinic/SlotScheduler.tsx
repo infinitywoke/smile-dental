@@ -153,7 +153,8 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         </div>
       )}
 
-      <div className="sticky bottom-20 z-30 -mx-4 space-y-2 bg-gray-50 px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+      {/* Sits right on top of the bottom bar (64 px tall, plus the phone's gesture area), solid, so no times show through */}
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 space-y-2 border-t border-gray-200 bg-gray-50 px-4 pb-2 pt-2">
         <button type="button" onClick={save} disabled={!selected || pending || (mode === 'move' && sameInstant(selected, originalInstant))}
           className="min-h-14 w-full rounded-full bg-blue-600 px-5 py-4 text-lg font-semibold text-white shadow-lg hover:bg-blue-700 disabled:opacity-50">
           {pending ? 'Saving…' : mode === 'request' ? 'Save and confirm' : 'Move appointment'}

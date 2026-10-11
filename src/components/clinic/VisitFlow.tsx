@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ChevronRight } from 'lucide-react'
-import type { VisitDetail, VisitPhoto } from '@/lib/data/types'
+import type { VisitPhoto } from '@/lib/data/types'
 import type { VisitBill } from '@/lib/data/billing'
+import type { VisitPageData } from '@/lib/data/visits'
 import { deleteVisit, setPhotoKind } from '@/lib/actions/visits'
 import { formatDate } from '@/lib/dates'
 import { photoKind, type PhotoKind } from '@/lib/visit-status'
-import { BillSection } from './BillTools'
+import { BillSection, type Save } from './BillTools'
 import { NextVisit } from './NextVisit'
 import { PaymentCard } from './PaymentCard'
-import { PhotoGallery } from './PhotoGallery'
+import { PhotoGallery, type UploadCounts } from './PhotoGallery'
 import { SendWhatsApp } from './SendWhatsApp'
 import { VisitNotes, type NotesHandle } from './VisitNotes'
 import { MedicalAlert } from './ui'
@@ -24,7 +25,7 @@ export function VisitFlow({
   focus,
 }: {
   doctorId: string
-  visit: VisitDetail
+  visit: VisitPageData
   bill: VisitBill
   // "payment": opened from a Collect link, so scroll to the payment card
   focus: 'payment' | null
@@ -35,6 +36,27 @@ export function VisitFlow({
     await notesRef.current?.flush()
   }, [])
 
+  // Saves still on their way (a charge, a payment, the next visit, a photo's kind). Send on WhatsApp
+  // waits for them, so the message always includes what was tapped just before.
+  const pendingSaves = useRef(new Set<Promise<unknown>>())
+  const save: Save = useCallback(<T,>(action: () => Promise<T>) => {
+    const run = (async () => {
+      await notesRef.current?.flush()
+      return action()
+    })()
+    const saves = pendingSaves.current
+    saves.add(run)
+    run.then(() => saves.delete(run), () => saves.delete(run))
+    return run
+  }, [])
+  const whenSaved = useCallback(async () => {
+    await notesRef.current?.flush()
+    while (pendingSaves.current.size > 0) await Promise.allSettled([...pendingSaves.current])
+  }, [])
+
+  // Photos still uploading or failed: Send waits for them
+  const [uploads, setUploads] = useState<UploadCounts>({ uploading: 0, failed: 0 })
+
   // A photo's kind shows at once; the server catches up
   const [kinds, setKinds] = useState<Record<string, PhotoKind>>({})
   const [kindError, setKindError] = useState<string | null>(null)
@@ -43,9 +65,8 @@ export function VisitFlow({
     const before = kinds[photo.id]
     setKindError(null)
     setKinds((k) => ({ ...k, [photo.id]: kind }))
-    void beforeAction()
     try {
-      const result = await setPhotoKind(photo.id, kind)
+      const result = await save(() => setPhotoKind(photo.id, kind))
       if (result.error) throw new Error(result.error)
     } catch {
       setKinds((k) => {
@@ -70,7 +91,7 @@ export function VisitFlow({
     <div className="space-y-7 pb-4">
       <div className="space-y-3">
         <div>
-          <Link href={`/app/patients/${visit.patient.id}`} className="flex items-center gap-1 text-2xl font-bold tracking-tight text-gray-900">
+          <Link href={`/app/patients/${visit.patient.id}`} className="flex min-h-12 items-center gap-1 text-2xl font-bold tracking-tight text-gray-900">
             <h1 className="truncate">{visit.patient.name}</h1>
             <ChevronRight className="h-6 w-6 shrink-0 text-gray-400" aria-hidden="true" />
           </Link>
@@ -83,7 +104,7 @@ export function VisitFlow({
         listed={visit.photos.length > 0 || bill.charges.length > 0 || bill.payments.length > 0} />
 
       <div className="space-y-2">
-        <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} onKind={markKind} />
+        <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} onKind={markKind} onUploads={setUploads} />
         {kindError && (
           <p role="alert" className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {kindError}
@@ -91,7 +112,7 @@ export function VisitFlow({
         )}
       </div>
 
-      <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} beforeAction={beforeAction} />
+      <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} beforeAction={beforeAction} save={save} />
 
       {hasBill && (
         <PaymentCard
@@ -100,12 +121,14 @@ export function VisitFlow({
           patientName={visit.patient.name}
           bill={bill}
           beforeAction={beforeAction}
+          save={save}
         />
       )}
 
-      <NextVisit visitId={visit.id} patientName={visit.patient.name} upcoming={visit.next_appointment?.starts_at ?? null} beforeAction={beforeAction} />
+      <NextVisit visitId={visit.id} patientName={visit.patient.name} upcoming={visit.next_appointment?.starts_at ?? null}
+        bookedHere={visit.next_booked_here} save={save} />
 
-      <SendWhatsApp visit={visit} bill={bill} kindOf={kindOf} beforeAction={beforeAction} />
+      <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} />
 
       <DeleteVisit visitId={visit.id} />
     </div>

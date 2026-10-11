@@ -1,36 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, Check, Loader2, MessageCircle } from 'lucide-react'
 import type { VisitDetail, VisitPhoto } from '@/lib/data/types'
-import type { VisitBill } from '@/lib/data/billing'
-import { markWhatsappSent } from '@/lib/actions/visits'
-import { visitMessage } from '@/lib/billing'
+import { markWhatsappSent, type MessageData } from '@/lib/actions/visits'
+import { MAX_PHOTOS_TO_SEND, visitMessage } from '@/lib/billing'
 import type { PhotoKind } from '@/lib/visit-status'
 import { whatsappLink } from '@/lib/whatsapp'
+import type { UploadCounts } from './PhotoGallery'
 
 // WhatsApp opens by itself only within this time of the tap: Android keeps a tap's "opened by the
 // user" for about 5 seconds, so WhatsApp itself opens. Slower than this, a big button is shown instead.
 const TAP_WAIT_MS = 2000
 
 const labelOf = (kind: PhotoKind | null) => (kind === 'Prescription' || kind === 'X-ray' ? kind : 'Photo')
+const photos = (n: number) => (n === 1 ? '1 photo' : `${n} photos`)
 
 type Sending = { state: 'idle' } | { state: 'waiting' } | { state: 'ready'; link: string } | { state: 'failed'; message: string }
 
 // One message to the patient: bill, payments, balance, next appointment and a 30-day link to each
-// ticked photo. The photo links are made on the server at the tap (only then, only for ticked photos);
-// without photos the message is ready on the phone. WhatsApp shows the text before it is sent.
+// ticked photo. At the tap it first waits for anything still saving (a next visit, charge or payment
+// tapped just before), then the server reads the bill and the next appointment fresh and makes the
+// photo links, and the message is built from that reply. WhatsApp shows the text before it is sent.
 export function SendWhatsApp({
   visit,
-  bill,
   kindOf,
-  beforeAction,
+  uploads,
+  whenSaved,
 }: {
   visit: VisitDetail
-  bill: VisitBill
   kindOf: (photo: VisitPhoto) => PhotoKind | null
-  beforeAction: () => Promise<void>
+  // Photos not on the visit yet: Send waits for them (or for him to remove them)
+  uploads: UploadCounts
+  // Resolves once every save tapped before Send has reached the server
+  whenSaved: () => Promise<void>
 }) {
   // Prescriptions are ticked by default; the doctor can tick any other photo
   const [ticks, setTicks] = useState<Record<string, boolean>>({})
@@ -41,48 +45,58 @@ export function SendWhatsApp({
   const sent = sentNow || !!visit.closed_at
   const phone = visit.patient.phone
 
-  const linkWith = (photoLinks: Record<string, string>) =>
+  // Back from WhatsApp: the next Send builds a fresh message (he may change something first)
+  const ready = sending.state === 'ready'
+  useEffect(() => {
+    if (!ready) return
+    const onShow = () => {
+      if (document.visibilityState === 'visible') setSending({ state: 'idle' })
+    }
+    document.addEventListener('visibilitychange', onShow)
+    return () => document.removeEventListener('visibilitychange', onShow)
+  }, [ready])
+
+  // Why Send can't go yet, said above the button
+  const hold =
+    uploads.uploading > 0
+      ? `${photos(uploads.uploading)} still uploading…`
+      : uploads.failed > 0
+        ? `${photos(uploads.failed)} failed to upload and ${uploads.failed === 1 ? 'is' : 'are'} being tried again. Remove ${uploads.failed === 1 ? 'it' : 'them'} to send without.`
+        : tickedPhotos.length > MAX_PHOTOS_TO_SEND
+          ? `You can send up to ${MAX_PHOTOS_TO_SEND} photos at a time.`
+          : null
+
+  const linkWith = (data: Omit<MessageData, 'links'>, photoLinks: Record<string, string>) =>
     whatsappLink(
       phone!,
       visitMessage({
         patientName: visit.patient.name,
         visitDate: visit.visit_date,
-        lines: bill.charges,
-        payments: bill.payments,
-        summary: bill.summary,
-        nextAppointment: visit.next_appointment ?? null,
+        lines: data.charges,
+        payments: data.payments,
+        summary: data.summary,
+        nextAppointment: data.nextAppointment,
         photos: tickedPhotos.flatMap((p) => (photoLinks[p.id] ? [{ label: labelOf(kindOf(p)), url: photoLinks[p.id] }] : [])),
       }),
     )
 
   async function send(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault()
-    if (!phone || sending.state === 'waiting') return
-    void beforeAction()
+    if (!phone || hold || sending.state === 'waiting') return
     // Set once the tap's window has passed: WhatsApp must then be opened by a second tap
     let tooSlow = false
     const timer = setTimeout(() => { tooSlow = true }, TAP_WAIT_MS)
-    const ids = tickedPhotos.map((p) => p.id)
-
-    // No photos: the message is ready, so WhatsApp opens from the tap; "sent" is recorded meanwhile
-    if (ids.length === 0) {
-      clearTimeout(timer)
-      setSentNow(true)
-      await Promise.race([markWhatsappSent(visit.id, []).catch(() => {}), new Promise((resolve) => setTimeout(resolve, TAP_WAIT_MS))])
-      window.location.assign(linkWith({}))
-      return
-    }
-
     setSending({ state: 'waiting' })
     try {
-      const result = await markWhatsappSent(visit.id, ids)
+      await whenSaved()
+      const result = await markWhatsappSent(visit.id, tickedPhotos.map((p) => p.id))
       clearTimeout(timer)
-      if (result.error || !result.links) {
-        setSending({ state: 'failed', message: result.error ?? 'Could not prepare the photo links. Please try again.' })
+      if (result.error || !result.message) {
+        setSending({ state: 'failed', message: result.error ?? 'Could not prepare the message. Please try again.' })
         return
       }
       setSentNow(true)
-      const link = linkWith(result.links)
+      const link = linkWith(result.message, result.message.links)
       // Quick enough: open WhatsApp now, still counted as the doctor's tap. Otherwise wait for his tap.
       if (!tooSlow) {
         setSending({ state: 'idle' })
@@ -127,20 +141,29 @@ export function SendWhatsApp({
         </p>
       )}
 
+      {phone && hold && sending.state !== 'ready' && (
+        <p role="status" className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+          {uploads.uploading > 0 ? <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+          {hold}
+        </p>
+      )}
+
       {!phone ? (
         <p className="rounded-2xl bg-amber-50 p-4 text-base text-amber-900 ring-1 ring-amber-200">
           No WhatsApp number for this patient.{' '}
           <Link href={`/app/patients/${visit.patient.id}/edit`} className="font-semibold underline">Add it</Link> to send the bill.
         </p>
       ) : sending.state === 'ready' ? (
-        // The links took a while: a real link, opened by the doctor's own tap
-        <a href={sending.link} onClick={() => setSending({ state: 'idle' })}
+        // The server took a while: a real link, opened by the doctor's own tap. It stays (no state change on
+        // the tap, which would swap the link before the browser follows it), so coming back he can tap again.
+        <a key="open" href={sending.link}
           className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700">
           <MessageCircle className="h-6 w-6" /> Open WhatsApp
         </a>
       ) : (
-        <a href={linkWith({})} onClick={send} aria-disabled={sending.state === 'waiting'}
-          className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700 aria-disabled:opacity-70">
+        // The message is only ever built from the server's reply, so this link has no address of its own
+        <a key="send" href="#" onClick={send} aria-disabled={sending.state === 'waiting' || !!hold}
+          className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700 aria-disabled:opacity-60">
           {sending.state === 'waiting' ? <Loader2 className="h-6 w-6 animate-spin" /> : <MessageCircle className="h-6 w-6" />}
           {sending.state === 'waiting' ? 'Preparing…' : 'Send on WhatsApp'}
         </a>

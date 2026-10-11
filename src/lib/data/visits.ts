@@ -64,7 +64,9 @@ export async function getVisitsOn(date: string): Promise<TodayVisit[]> {
   })
 }
 
-export async function getVisit(id: string): Promise<VisitDetail> {
+export type VisitPageData = VisitDetail & { next_booked_here: boolean }
+
+export async function getVisit(id: string): Promise<VisitPageData> {
   await getDoctor()
   if (!UUID.test(id)) notFound()
   const supabase = await createClient()
@@ -81,22 +83,7 @@ export async function getVisit(id: string): Promise<VisitDetail> {
   const patientRow = Array.isArray(patient) ? patient[0] : patient
   const photos = [...(visit_photos ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
-  // The appointment this visit came from, and the patient's next future appointment (if any)
-  const [linked, upcoming] = await Promise.all([
-    supabase.from('appointments').select('id, starts_at, status').eq('visit_id', id).maybeSingle(),
-    supabase
-      .from('appointments')
-      .select('id, starts_at, status')
-      .eq('patient_id', patientRow.id)
-      .eq('status', 'booked')
-      .gt('starts_at', new Date().toISOString())
-      .order('starts_at', { ascending: true })
-      .limit(2),
-  ])
-  if (linked.error) throw linked.error
-  if (upcoming.error) throw upcoming.error
-  const linkedAppointment = linked.data ?? null
-  const nextAppointment = upcoming.data.find((a) => a.id !== linkedAppointment?.id) ?? null
+  const { linked: linkedAppointment, next } = await appointmentsOfVisit(id, patientRow.id)
 
   // The bucket is private, so photos are shown through short-lived signed links
   let urls: Record<string, string> = {}
@@ -115,8 +102,32 @@ export async function getVisit(id: string): Promise<VisitDetail> {
     patient: patientRow,
     photos: photos.map((p) => ({ id: p.id, caption: p.caption ?? '', url: urls[p.storage_path] ?? null })),
     linked_appointment: linkedAppointment,
-    next_appointment: nextAppointment,
+    next_appointment: next && { id: next.id, starts_at: next.starts_at, status: next.status },
+    // The next visit was booked from this visit, so it can be changed from here
+    next_booked_here: next?.from_visit_id === id,
   }
+}
+
+// The appointment a visit came from, and the patient's next future appointment (if any).
+// Used by the visit page and, read fresh at the tap, by the WhatsApp message.
+export async function appointmentsOfVisit(visitId: string, patientId: string) {
+  await getDoctor()
+  const supabase = await createClient()
+  const [linked, upcoming] = await Promise.all([
+    supabase.from('appointments').select('id, starts_at, status').eq('visit_id', visitId).maybeSingle(),
+    supabase
+      .from('appointments')
+      .select('id, starts_at, status, from_visit_id')
+      .eq('patient_id', patientId)
+      .eq('status', 'booked')
+      .gt('starts_at', new Date().toISOString())
+      .order('starts_at', { ascending: true })
+      .limit(2),
+  ])
+  if (linked.error) throw linked.error
+  if (upcoming.error) throw upcoming.error
+  const linkedAppointment = linked.data ?? null
+  return { linked: linkedAppointment, next: upcoming.data.find((a) => a.id !== linkedAppointment?.id) ?? null }
 }
 
 // Today's visit for a patient: the latest one already started today, else a new one.
@@ -129,6 +140,7 @@ export async function findOrCreateTodaysVisit(
   if (!UUID.test(patientId)) return null
   const supabase = await createClient()
   const today = todayInIndia()
+  const appointmentId = options.appointmentId && UUID.test(options.appointmentId) ? options.appointmentId : null
 
   const { data: existing, error: findError } = await supabase
     .from('visits')
@@ -139,16 +151,29 @@ export async function findOrCreateTodaysVisit(
     .limit(1)
     .maybeSingle()
   if (findError) return null
-  if (existing) return existing.id
+  if (existing) {
+    // Started from an appointment: link it to today's visit, unless the visit already has one
+    if (appointmentId) await linkAppointment(existing.id, patientId, appointmentId)
+    return existing.id
+  }
 
-  const visitId = options.visitId && UUID.test(options.visitId) ? options.visitId : crypto.randomUUID()
+  let visitId = options.visitId && UUID.test(options.visitId) ? options.visitId : crypto.randomUUID()
   const { error } = await supabase.from('visits').insert({ id: visitId, patient_id: patientId, visit_date: today })
-  // The same id again means an earlier tap already created it
-  if (error && error.code !== '23505') return null
+  if (error) {
+    if (error.code !== '23505') return null
+    // The same id again: an earlier tap made it. Reuse it only if it is this patient's visit today,
+    // so a screen left open overnight never reopens yesterday's visit.
+    const { data: same } = await supabase.from('visits').select('patient_id, visit_date').eq('id', visitId).maybeSingle()
+    if (!same || same.patient_id !== patientId || same.visit_date !== today) {
+      visitId = crypto.randomUUID()
+      const { error: retryError } = await supabase.from('visits').insert({ id: visitId, patient_id: patientId, visit_date: today })
+      if (retryError) return null
+    }
+  }
 
   // Link today's appointment: the one tapped, else the patient's first booked one today
-  if (options.appointmentId && UUID.test(options.appointmentId)) {
-    await supabase.from('appointments').update({ visit_id: visitId }).eq('id', options.appointmentId).eq('patient_id', patientId)
+  if (appointmentId) {
+    await linkAppointment(visitId, patientId, appointmentId)
   } else {
     const { data: appointment } = await supabase
       .from('appointments')
@@ -164,4 +189,12 @@ export async function findOrCreateTodaysVisit(
     if (appointment) await supabase.from('appointments').update({ visit_id: visitId }).eq('id', appointment.id)
   }
   return visitId
+}
+
+// One appointment per visit: links the patient's appointment to the visit if none is linked yet
+async function linkAppointment(visitId: string, patientId: string, appointmentId: string) {
+  const supabase = await createClient()
+  const { data: linked, error } = await supabase.from('appointments').select('id').eq('visit_id', visitId).limit(1)
+  if (error || linked.length > 0) return
+  await supabase.from('appointments').update({ visit_id: visitId }).eq('id', appointmentId).eq('patient_id', patientId).is('visit_id', null)
 }

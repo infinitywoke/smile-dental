@@ -52,6 +52,9 @@ test('saving New patient opens the Visit page, and Back goes to Today, not the f
   visitUrl = page.url()
   visitId = visitUrl.split('/').pop()!
   await expect(visible(page.getByRole('heading', { name: patientName }))).toBeVisible()
+  // The name links to the patient page, with a 48 dp target
+  const nameLink = visible(page.getByRole('link', { name: patientName }))
+  expect((await nameLink.boundingBox())!.height).toBeGreaterThanOrEqual(48)
   await expect(visible(page.locator('p', { hasText: 'Medical alert:' }))).toContainText('Penicillin allergy')
   await expect(visible(page.getByLabel('Notes', { exact: true }))).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Visit steps' })).toHaveCount(0)
@@ -132,23 +135,22 @@ test('cash part payment leaves ₹200 due; UPI opens a full-screen QR that Back 
   await expect(page).toHaveURL(visitUrl)
 })
 
-test('next visit is "None" and nothing is booked until the suggestion is tapped', async () => {
+async function bookedCount() {
   const { supabase } = await testDb()
   const patientId = await patientIdOf(patientName)
-  const booked = async () => (await supabase.from('appointments').select('id').eq('patient_id', patientId)).data?.length
+  return (await supabase.from('appointments').select('id').eq('patient_id', patientId).eq('status', 'booked')).data?.length
+}
 
+test('next visit is "None" and nothing is booked until the suggestion is tapped', async () => {
   await expect(visible(page.getByText('None', { exact: true }))).toBeVisible()
-  const suggestion = visible(page.getByRole('button', { name: /^Book / }))
-  await expect(suggestion).toBeVisible()
-  expect(await booked()).toBe(0)
-
-  await suggestion.click()
-  await expect(visible(page.getByText(/Booked: /))).toBeVisible()
-  expect(await booked()).toBe(1)
+  await expect(visible(page.getByRole('button', { name: /^Book / }))).toBeVisible()
+  expect(await bookedCount()).toBe(0)
 })
 
-test('Send on WhatsApp opens the chat with the bill, the balance and the prescription link', async () => {
+test('Send tapped straight after booking the next visit: the message has the bill, the next visit and the prescription link', async () => {
   const whatsapp = await captureWhatsapp(page)
+  // No waiting between the two taps: Send waits for the booking itself
+  await visible(page.getByRole('button', { name: /^Book / })).click()
   await visible(page.getByRole('link', { name: 'Send on WhatsApp' })).click()
   // The 30-day photo link is made at the tap. Within 2 seconds WhatsApp opens by itself; slower than
   // that (a cold test server), a big "Open WhatsApp" button appears for a second tap.
@@ -175,10 +177,31 @@ test('Send on WhatsApp opens the chat with the bill, the balance and the prescri
   const days = (exp * 1000 - Date.now()) / 86_400_000
   expect(days).toBeGreaterThan(29)
   expect(days).toBeLessThan(31)
+  expect(await bookedCount()).toBe(1)
 
-  // Coming back, the visit says the message went
+  // Coming back, the visit says the message went, and shows the booking
   await page.goto(visitUrl)
   await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toBeVisible()
+  await expect(visible(page.getByText(/Booked: /))).toBeVisible()
+})
+
+test('a next visit booked from the visit can be changed; it moves, never doubles', async () => {
+  const booked = visible(page.getByText(/Booked: /))
+  const before = await booked.textContent()
+  await visible(page.getByRole('button', { name: 'Change' })).click()
+  const picker = page.getByRole('dialog', { name: 'Next visit' })
+  await expect(picker).toBeVisible()
+
+  // Back closes it without leaving the visit
+  await page.goBack()
+  await expect(picker).toHaveCount(0)
+  await expect(page).toHaveURL(visitUrl)
+
+  await visible(page.getByRole('button', { name: 'Change' })).click()
+  await picker.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)/ }).first().click()
+  await expect(picker).toHaveCount(0)
+  await expect(booked).not.toHaveText(before!)
+  expect(await bookedCount()).toBe(1)
 })
 
 test('Today lists the visit with its money; Collect lands on the payment card and settles it', async () => {

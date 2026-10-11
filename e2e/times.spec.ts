@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { formatBlock, formatDay } from '../src/lib/schedule'
+import { addDays, formatBlock, formatDay } from '../src/lib/schedule'
 import { NO_TEST_LOGIN, testLogin } from './env'
 import {
   captureWhatsapp, cleanRun, createAppointment, createPatient, makeRequest, newPhone, newRunId, openDay, signIn,
@@ -99,19 +99,29 @@ test('cancels the coming visit from the patient page, then books the next one fo
   await expect(page).toHaveURL(/\/app\/book\?patient=/)
   await expect(visible(page.getByRole('heading', { name: `Book ${patientName}` }))).toBeVisible()
 
-  // Pick a time (late in the day there may be none left today: go to the next day); the patient is
-  // already chosen, so there is only the reason and Book
+  // Times are there straight away (late in the day, when today has none left, the page opens the next
+  // open day by itself); the patient is already chosen, so there is only the reason and Book
   const times = visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ }))
-  for (let i = 0; i < 4 && (await times.count()) === 0; i++) {
-    await visible(page.getByRole('link', { name: 'Next day' })).click()
-    await page.waitForLoadState('networkidle')
-  }
+  await expect(times.first()).toBeVisible()
   await times.first().click()
   await expect(visible(page.getByText(patientName, { exact: true })).first()).toBeVisible()
   await expect(visible(page.getByRole('button', { name: 'New patient' }))).toHaveCount(0)
   await visible(page.getByRole('button', { name: 'Book appointment' })).click()
   await expect(visible(page.getByRole('heading', { name: 'Booked' }))).toBeVisible()
   await expect(visible(page.getByRole('link', { name: /Send confirmation on WhatsApp/ }))).toBeVisible()
+})
+
+test('booking page is never blank: a closed day says so, with a big Next day button', async () => {
+  let friday = openDay(1)
+  while (new Date(`${friday}T00:00:00Z`).getUTCDay() !== 5) friday = addDays(friday, 1)
+  await page.goto(`/app/book?d=${friday}`)
+  await expect(visible(page.getByText('The clinic is closed on Fridays.'))).toBeVisible()
+  const nextDay = visible(page.getByRole('link', { name: 'Next day' }))
+  await expect(nextDay).toHaveCount(1)
+  expect((await nextDay.boundingBox())!.height).toBeGreaterThanOrEqual(48)
+  await nextDay.click()
+  await expect(page).toHaveURL(new RegExp(`d=${addDays(friday, 1)}`))
+  await expect(visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ })).first()).toBeVisible()
 })
 
 test('Move: the current time is marked; a new time sends "has been moved to"', async () => {

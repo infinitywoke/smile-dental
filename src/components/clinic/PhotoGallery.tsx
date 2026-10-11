@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { AlertCircle, Camera, Images, Loader2, Trash2, X } from 'lucide-react'
 import { addVisitPhoto, deleteVisitPhoto } from '@/lib/actions/visits'
 import type { VisitPhoto } from '@/lib/data/types'
@@ -10,8 +10,13 @@ import { PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
 import { useBackToClose } from './FullScreen'
 
 const PHOTO_BUCKET = 'visit-photos'
+// A photo that failed to upload is tried again this often (and as soon as the phone is back online)
+const RETRY_MS = 10_000
 
 type Uploading = { key: string; file: File; preview: string; failed: boolean }
+
+// Photos not on the visit yet: still uploading, or failed (and being tried again)
+export type UploadCounts = { uploading: number; failed: number }
 
 // Photos upload the moment they are taken or picked, and appear on the visit.
 // Under each one, a tap marks it Prescription, X-ray or Other.
@@ -21,12 +26,15 @@ export function PhotoGallery({
   photos,
   kindOf,
   onKind,
+  onUploads,
 }: {
   visitId: string
   doctorId: string
   photos: VisitPhoto[]
   kindOf: (photo: VisitPhoto) => PhotoKind | null
   onKind: (photo: VisitPhoto, kind: PhotoKind) => void
+  // Told whenever the photos still on their way change, so Send on WhatsApp can wait for them
+  onUploads: (counts: UploadCounts) => void
 }) {
   const [uploading, setUploading] = useState<Uploading[]>([])
   const [, startTransition] = useTransition()
@@ -49,7 +57,7 @@ export function PhotoGallery({
   }, [uploading])
   useEffect(() => () => uploadingRef.current.forEach((u) => URL.revokeObjectURL(u.preview)), [])
 
-  const upload = async (item: Uploading) => {
+  const upload = useCallback(async (item: Uploading) => {
     setUploading((list) => list.map((u) => (u.key === item.key ? { ...u, failed: false } : u)))
     try {
       const blob = await resizeImage(item.file)
@@ -68,7 +76,26 @@ export function PhotoGallery({
     } catch {
       setUploading((list) => list.map((u) => (u.key === item.key ? { ...u, failed: true } : u)))
     }
-  }
+  }, [doctorId, visitId])
+
+  // A failed photo is tried again by itself, as the notes are, until it uploads or is removed
+  const hasFailed = uploading.some((u) => u.failed)
+  useEffect(() => {
+    if (!hasFailed) return
+    const retry = () => uploadingRef.current.filter((u) => u.failed).forEach((u) => void upload(u))
+    const timer = setInterval(retry, RETRY_MS)
+    window.addEventListener('online', retry)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('online', retry)
+    }
+  }, [hasFailed, upload])
+
+  const uploadingCount = uploading.filter((u) => !u.failed).length
+  const failedCount = uploading.length - uploadingCount
+  useEffect(() => {
+    onUploads({ uploading: uploadingCount, failed: failedCount })
+  }, [onUploads, uploadingCount, failedCount])
 
   const addFiles = (input: HTMLInputElement) => {
     const files = Array.from(input.files ?? [])
@@ -127,7 +154,7 @@ export function PhotoGallery({
           {item.failed ? (
             <div className="min-w-0 flex-1 space-y-2">
               <p className="flex items-center gap-1.5 text-sm font-medium text-red-700">
-                <AlertCircle className="h-4 w-4 shrink-0" /> Couldn&apos;t upload. Check the internet.
+                <AlertCircle className="h-4 w-4 shrink-0" /> Couldn&apos;t upload. Trying again by itself.
               </p>
               <div className="flex gap-2">
                 <button type="button" onClick={() => void upload(item)}
