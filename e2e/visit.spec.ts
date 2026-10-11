@@ -1,22 +1,24 @@
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
-import { captureWhatsapp, cleanRun, newPhone, newRunId, signIn, visible, whatsappText } from './helpers'
+import { captureWhatsapp, cleanRun, createPatient, newPhone, newRunId, signIn, testDb, visible, whatsappText } from './helpers'
 
-// A walk-in's first visit, end to end: new patient, notes and a photo, bill, payment, next visit,
-// one WhatsApp message, then the money still owed is collected.
+// A walk-in's visit on ONE page that saves by itself: new patient, notes, a photo marked Prescription,
+// one-tap charges, part payment, UPI QR, next visit, one WhatsApp message, then Collect from Today.
 const runId = newRunId()
 const patientName = `${runId} Patient`
 const phone = newPhone()
 const notes = `${runId}: pain in lower right. Tooth 46 tender on percussion.`
-const caption = `${runId} x-ray`
 const fixturePhoto = path.join(__dirname, 'fixtures', 'tooth.png')
+const scaling = 'Scaling / Teeth Cleaning / Prophylaxis – Moderate case'
+const otherCharge = `${runId} lab`
 
 test.describe.configure({ mode: 'serial' })
 test.skip(!testLogin, NO_TEST_LOGIN)
 
 let page: Page
-let patientId = ''
+let visitUrl = ''
+let visitId = ''
 
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage()
@@ -28,7 +30,13 @@ test.afterAll(async () => {
   await cleanRun(runId)
 })
 
-test('adds a new patient and starts a visit', async () => {
+async function patientIdOf(name: string) {
+  const { supabase } = await testDb()
+  const { data } = await supabase.from('patients').select('id').eq('name', name).single()
+  return data!.id as string
+}
+
+test('saving New patient opens the Visit page, and Back goes to Today, not the form', async () => {
   await page.getByRole('button', { name: 'Add' }).click()
   await page.getByRole('link', { name: /New patient/ }).click()
   await expect(page).toHaveURL(/\/app\/patients\/new$/)
@@ -36,109 +44,174 @@ test('adds a new patient and starts a visit', async () => {
   await visible(page.getByLabel('Name', { exact: true })).fill(patientName)
   await visible(page.getByLabel('WhatsApp number')).fill(phone)
   await visible(page.getByRole('radio', { name: 'Male', exact: true })).click()
-  await visible(page.getByLabel('Date of birth')).fill('1990-05-15')
   await visible(page.getByLabel('Medical alerts')).fill('Penicillin allergy')
-  await page.getByRole('button', { name: 'Save and start visit' }).click()
+  await visible(page.getByRole('button', { name: /start visit/i })).click()
 
-  await expect(page).toHaveURL(/\/app\/patients\/[^/]+\/visits\/new$/)
-  patientId = page.url().match(/\/app\/patients\/([^/]+)\/visits/)![1]
-  await expect(page.getByRole('heading', { name: 'New visit' })).toBeVisible()
+  // One page, straight away: no "New visit" page, no tabs
+  await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+  visitUrl = page.url()
+  visitId = visitUrl.split('/').pop()!
+  await expect(visible(page.getByRole('heading', { name: patientName }))).toBeVisible()
   await expect(visible(page.locator('p', { hasText: 'Medical alert:' }))).toContainText('Penicillin allergy')
+  await expect(visible(page.getByLabel('Notes', { exact: true }))).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Visit steps' })).toHaveCount(0)
+
+  // The form was replaced in the history
+  await page.goBack()
+  await expect(page).toHaveURL(/\/app$/)
+  await expect(visible(page.getByRole('heading', { name: 'New patient' }))).toHaveCount(0)
+  await page.goto(visitUrl)
 })
 
-test('saves a visit with notes and a captioned photo, and lands on the bill', async () => {
+test('notes save by themselves', async () => {
   await visible(page.getByLabel('Notes', { exact: true })).fill(notes)
-  // Tap Gallery like a person would; this picks the visible screen's file input
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Gallery' }).click()])
-  await chooser.setFiles(fixturePhoto)
-  await visible(page.getByPlaceholder('What is this?')).fill(caption)
-  await page.getByRole('button', { name: 'Next: Bill' }).click()
+  await expect(visible(page.getByText('Saved', { exact: true }))).toBeVisible({ timeout: 15_000 })
 
-  // A failed upload keeps the editor open, so landing on the bill means everything saved
-  await expect(page).toHaveURL(/\/app\/visits\/[^/?]+\?step=bill$/, { timeout: 30_000 })
-  await expect(page.getByRole('heading', { name: patientName })).toBeVisible()
-  await expect(visible(page.getByText('No charges yet'))).toBeVisible()
-
-  // Back on Notes: the words and the photo are there
-  await page.getByRole('navigation', { name: 'Visit steps' }).getByRole('button', { name: 'Notes' }).click()
+  await page.reload()
   await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(notes)
-  await expect(page.getByRole('img', { name: caption })).toHaveCount(1)
-  await expect(visible(page.getByText(caption, { exact: true }))).toBeVisible()
 })
 
-test('walks the visit: bill, cash payment, next visit, one WhatsApp message, done', async () => {
-  // Notes -> Next: Bill (nothing new to save, so it just moves on)
-  await visible(page.getByRole('button', { name: 'Next: Bill' })).click()
+test('a photo uploads by itself and is marked Prescription with one tap', async () => {
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), visible(page.getByRole('button', { name: 'Gallery' })).click()])
+  await chooser.setFiles(fixturePhoto)
+  await expect(visible(page.getByRole('img', { name: /^Photo 1/ }))).toBeVisible({ timeout: 30_000 })
+  await expect(visible(page.getByText('Uploading…'))).toHaveCount(0)
 
-  // Add charge is collapsed until tapped
-  await expect(visible(page.getByLabel('What for'))).toHaveCount(0)
+  await visible(page.getByRole('button', { name: 'Prescription', exact: true })).click()
+  await expect(visible(page.getByRole('button', { name: 'Prescription', exact: true }))).toHaveAttribute('aria-pressed', 'true')
+  // Ticked to send by default
+  await expect(visible(page.getByRole('checkbox', { name: 'Prescription 1' }))).toBeChecked()
+
+  const { supabase } = await testDb()
+  await expect
+    .poll(async () => (await supabase.from('visit_photos').select('caption').eq('visit_id', visitId)).data?.map((p) => p.caption))
+    .toEqual(['Prescription'])
+})
+
+test('one tap on the price list adds a charge; Other charge asks what for and how much', async () => {
   await visible(page.getByRole('button', { name: 'Add charge' })).click()
-  await visible(page.getByLabel('What for')).fill(`${runId} scaling`)
-  await visible(page.locator('#charge-amount')).fill('1200')
-  await visible(page.getByRole('button', { name: 'Add to bill' })).click()
-  await expect(visible(page.getByText(`${runId} scaling`))).toBeVisible()
+  const sheet = page.getByRole('dialog', { name: 'Add charge' })
+  await expect(sheet).toBeVisible()
+  await sheet.getByLabel('Filter the price list').fill('moderate')
+  await sheet.getByRole('button', { name: /Scaling .*Moderate case/ }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(visible(page.getByText(scaling, { exact: true }))).toBeVisible()
 
-  // The QR stays hidden until asked for, then matches the amount typed
-  await expect(visible(page.getByRole('img', { name: /UPI QR/ }))).toHaveCount(0)
-  await visible(page.locator('#payment-amount')).fill('1000')
-  await visible(page.getByRole('button', { name: /Show UPI QR/ })).click()
-  await expect(visible(page.getByRole('img', { name: /UPI QR for ₹1,000/ }))).toBeVisible()
-  await visible(page.getByRole('button', { name: /Collected cash/ })).click()
+  // Back closes the list without leaving the visit
+  await visible(page.getByRole('button', { name: 'Add charge' })).click()
+  await expect(sheet).toBeVisible()
+  await page.goBack()
+  await expect(sheet).toHaveCount(0)
+  await expect(page).toHaveURL(visitUrl)
+
+  await visible(page.getByRole('button', { name: 'Add charge' })).click()
+  await sheet.getByRole('button', { name: 'Other charge' }).click()
+  await sheet.getByLabel('What for').fill(otherCharge)
+  await sheet.getByLabel('Amount (₹)').fill('600')
+  await sheet.getByRole('button', { name: 'Add to bill' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(visible(page.getByText(otherCharge, { exact: true }))).toBeVisible()
+  await expect(visible(page.getByText('₹1,200')).first()).toBeVisible()
+})
+
+test('cash part payment leaves ₹200 due; UPI opens a full-screen QR that Back closes', async () => {
+  const amount = visible(page.locator('#payment-amount'))
+  await expect(amount).toHaveValue('1200')
+  await amount.fill('1000')
+  await visible(page.getByRole('button', { name: 'Cash received' })).click()
   await expect(visible(page.getByText('Paid by cash'))).toBeVisible()
-  await expect(visible(page.getByText('Balance this visit'))).toBeVisible()
+  await expect(visible(page.locator('#payment'))).toContainText('Still due₹200')
+  await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
 
-  // Send: a next visit is already suggested, and the photo can be ticked for a link
-  await visible(page.getByRole('button', { name: 'Next: Send' })).click()
-  await expect(visible(page.getByText('Next visit', { exact: true }))).toBeVisible()
-  await expect(visible(page.getByRole('button', { name: 'Change' }))).toBeVisible()
-  await visible(page.getByLabel(caption)).check()
+  await visible(page.getByRole('button', { name: 'UPI', exact: true })).click()
+  const qr = page.getByRole('dialog', { name: 'UPI ₹200' })
+  await expect(qr.getByRole('img', { name: 'UPI QR for ₹200' })).toBeVisible()
+  await expect(qr.getByRole('button', { name: 'Payment received' })).toBeVisible()
+  await page.goBack()
+  await expect(qr).toHaveCount(0)
+  await expect(page).toHaveURL(visitUrl)
+})
 
+test('next visit is "None" and nothing is booked until the suggestion is tapped', async () => {
+  const { supabase } = await testDb()
+  const patientId = await patientIdOf(patientName)
+  const booked = async () => (await supabase.from('appointments').select('id').eq('patient_id', patientId)).data?.length
+
+  await expect(visible(page.getByText('None', { exact: true }))).toBeVisible()
+  const suggestion = visible(page.getByRole('button', { name: /^Book / }))
+  await expect(suggestion).toBeVisible()
+  expect(await booked()).toBe(0)
+
+  await suggestion.click()
+  await expect(visible(page.getByText(/Booked: /))).toBeVisible()
+  expect(await booked()).toBe(1)
+})
+
+test('Send on WhatsApp opens the chat with the bill, the balance and the prescription link', async () => {
   const whatsapp = await captureWhatsapp(page)
-  await visible(page.getByRole('button', { name: 'Send on WhatsApp' })).click()
+  await visible(page.getByRole('link', { name: 'Send on WhatsApp' })).click()
+  // The 30-day photo link is made at the tap. Within 2 seconds WhatsApp opens by itself; slower than
+  // that (a cold test server), a big "Open WhatsApp" button appears for a second tap.
+  const openButton = visible(page.getByRole('link', { name: 'Open WhatsApp' }))
+  await Promise.race([
+    page.waitForURL(/wa\.me\//, { timeout: 30_000 }),
+    openButton.waitFor({ timeout: 30_000 }).then(() => openButton.click()),
+  ])
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
 
-  // One message to the patient: bill, balance, next visit and a 30-day photo link
   expect(whatsapp.url).toContain(`wa.me/91${phone}`)
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain(`${runId} scaling`)
+  expect(text).toContain(`Hello ${runId},`)
+  expect(text).toContain(`${scaling}: ₹600`)
+  expect(text).toContain(`${otherCharge}: ₹600`)
   expect(text).toContain('Total: ₹1,200')
   expect(text).toContain('Paid: ₹1,000 (cash)')
   expect(text).toContain('Balance: ₹200')
   expect(text).toContain('*Next appointment*')
-  expect(text).toContain('*Prescription*')
-  const link = text.match(/https:\/\/\S+\/storage\/v1\/object\/sign\/visit-photos\/\S+/)?.[0]
+  const link = text.match(/Prescription: (https:\/\/\S+\/storage\/v1\/object\/sign\/visit-photos\/\S+)/)?.[1]
   expect(link).toBeTruthy()
   const token = new URL(link!).searchParams.get('token')!
   const { exp } = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
   const days = (exp * 1000 - Date.now()) / 86_400_000
   expect(days).toBeGreaterThan(29)
   expect(days).toBeLessThan(31)
+
+  // Coming back, the visit says the message went
+  await page.goto(visitUrl)
+  await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toBeVisible()
 })
 
-test('lists the visit on Today as done, with the money', async () => {
-  // The WhatsApp hand-off left the app, so come back in
+test('Today lists the visit with its money; Collect lands on the payment card and settles it', async () => {
   await page.goto('/app')
-  await expect(page).toHaveURL(/\/app$/)
   const visit = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: '1 photo' }))
   await expect(visit).toHaveCount(1)
-  await expect(visit).toContainText(runId)
-  await expect(visit).toContainText('Done')
-  await expect(visit).toContainText('₹1,200 billed')
+  await expect(visit).toContainText('₹200 due')
+  await expect(visit).toContainText('WhatsApp sent')
+
+  await visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' })).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[^/?]+\?step=bill$/)
+  await expect(visible(page.locator('#payment'))).toBeInViewport()
+  await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
+  await visible(page.getByRole('button', { name: 'Cash received' })).click()
+  await expect(visible(page.getByText('Paid in full'))).toBeVisible()
 })
 
-test('Today lists the money owed, and the patient page leads with Collect', async () => {
-  await page.goto('/app')
-  const due = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' }))
-  await expect(due).toHaveCount(1)
-  await expect(due).toContainText('₹200 due')
-
+test('Start visit twice from the patient page opens one visit; an empty visit is listed nowhere', async () => {
+  const name = `${runId} Returning`
+  const patientId = await createPatient(name, newPhone('7'))
   await page.goto(`/app/patients/${patientId}`)
-  await expect(visible(page.getByRole('heading', { name: 'Coming up' }))).toBeVisible()
-  await visible(page.getByRole('link', { name: 'Collect ₹200' })).click()
-  await expect(page).toHaveURL(/\/app\/visits\/[^/?]+\?step=bill$/)
+  await visible(page.getByRole('button', { name: /New visit/ })).dblclick()
+  await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+  await expect(visible(page.getByRole('heading', { name }))).toBeVisible()
 
-  // The amount is already filled in; cash settles it
-  await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
-  await visible(page.getByRole('button', { name: /Collected cash/ })).click()
-  await expect(visible(page.getByText('Paid by cash')).first()).toBeVisible()
+  const { supabase } = await testDb()
+  expect((await supabase.from('visits').select('id').eq('patient_id', patientId)).data).toHaveLength(1)
+
+  // Back returns to the patient page; the visit has nothing in it, so it isn't listed
+  await page.goBack()
+  await expect(page).toHaveURL(new RegExp(`/app/patients/${patientId}$`))
+  await expect(visible(page.getByRole('heading', { name: 'Visits (0)' }))).toBeVisible()
+  await page.goto('/app')
+  await expect(visible(page.getByRole('heading', { name: /^Today/ }))).toBeVisible()
+  await expect(visible(page.getByRole('link').filter({ hasText: name }))).toHaveCount(0)
 })

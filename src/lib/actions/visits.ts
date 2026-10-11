@@ -4,226 +4,73 @@ import { RedirectType, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { PHOTO_BUCKET } from '@/lib/data/visits'
-import { getVisitBill } from '@/lib/data/billing'
+import { PHOTO_BUCKET, SHARE_LINK_SECONDS, findOrCreateTodaysVisit } from '@/lib/data/visits'
+import { getNextVisitSuggestion } from '@/lib/data/next-visit'
 import { todayInIndia } from '@/lib/dates'
 import { BLOCK_MINUTES, clinicBlockOf } from '@/lib/schedule'
-import { visitMessage } from '@/lib/billing'
-import { whatsappLink } from '@/lib/whatsapp'
+import { PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_NOTES = 20_000
 
 type Result = { error?: string }
-type NewPhoto = { path: string; caption: string }
 
 // Saving purges every cached Clinic OS screen, so Back never shows stale data
 function refreshClinicScreens() {
   revalidatePath('/app', 'layout')
 }
 
-// The visit id is generated on the phone, so a retry after a network error
-// can't create a second visit: inserting the same id again counts as success.
-export async function createVisit(
-  visitId: string,
-  patientId: string,
-  notes: string,
-  appointmentId?: string,
-): Promise<Result> {
+// "Start visit": opens today's visit for the patient, creating it only if there is none yet.
+// The id comes from the phone, so pressing twice never makes two visits.
+export async function startVisit(patientId: string, visitId: string, appointmentId?: string): Promise<Result> {
   await getDoctor()
-  const supabase = await createClient()
-  const { error } = await supabase.from('visits').insert({ id: visitId, patient_id: patientId, notes: notes.trim() })
-  if (error && error.code !== '23505') return { error: 'Could not save the visit. Please try again.' }
-
-  if (appointmentId && UUID.test(appointmentId)) {
-    await supabase.from('appointments').update({ visit_id: visitId }).eq('id', appointmentId).eq('patient_id', patientId)
-  } else {
-    // Check if patient has a booked appointment today
-    const today = todayInIndia()
-    const { data: appt } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('patient_id', patientId)
-      .eq('status', 'booked')
-      .gte('starts_at', `${today}T00:00:00+05:30`)
-      .lte('starts_at', `${today}T23:59:59+05:30`)
-      .order('starts_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    if (appt) {
-      await supabase.from('appointments').update({ visit_id: visitId }).eq('id', appt.id)
-    }
-  }
-
+  const id = await findOrCreateTodaysVisit(patientId, { visitId, appointmentId })
+  if (!id) return { error: 'Could not start the visit. Please try again.' }
   refreshClinicScreens()
-  return {}
+  redirect(`/app/visits/${id}`, RedirectType.push)
 }
 
-// Photo links that go to a patient last 30 days; the short links used on screen are never shared
-const SHARE_LINK_SECONDS = 60 * 60 * 24 * 30
-
-// Finishing a visit, in one safe step: book the next visit (if one was chosen), make the prescription
-// links, mark the visit done (and its appointment), and prepare the one WhatsApp message.
-// Nothing is closed if the next visit can't be booked, so the doctor can pick another time.
-export async function completeVisit(
-  visitId: string,
-  options: { nextStartsAt: string | null; photoIds: string[]; send: boolean },
-): Promise<Result & { whatsappUrl?: string }> {
-  await getDoctor()
-  if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
-  if (options.photoIds.length > 10 || options.photoIds.some((id) => !UUID.test(id))) return { error: 'Invalid photo.' }
-
-  const bill = await getVisitBill(visitId)
-  const supabase = await createClient()
-  const patientId = bill.patient.id
-
-  // 1. The next visit
-  let nextStartsAt: string | null = null
-  if (options.nextStartsAt) {
-    const block = clinicBlockOf(options.nextStartsAt)
-    if (!block) return { error: 'Please choose one of the clinic time blocks.' }
-    if (block.date < todayInIndia()) return { error: 'That time has already passed.' }
-
-    const { data: existing } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('from_visit_id', visitId)
-      .eq('status', 'booked')
-      .maybeSingle()
-    const write = existing
-      ? supabase.from('appointments').update({ starts_at: block.iso, duration_min: BLOCK_MINUTES }).eq('id', existing.id)
-      : supabase.from('appointments').insert({
-          patient_id: patientId,
-          starts_at: block.iso,
-          duration_min: BLOCK_MINUTES,
-          reason: 'Follow-up',
-          status: 'booked',
-          from_visit_id: visitId,
-        })
-    const { error } = await write
-    if (error) {
-      return { error: error.code === '23P01' ? 'That time was just taken. Please choose another.' : 'Could not book the next visit. Please try again.' }
-    }
-    nextStartsAt = block.iso
-  } else {
-    // No new booking: if the patient already has one coming up, the message mentions it
-    const { data: upcoming } = await supabase
-      .from('appointments')
-      .select('starts_at')
-      .eq('patient_id', patientId)
-      .eq('status', 'booked')
-      .gt('starts_at', new Date().toISOString())
-      .order('starts_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    nextStartsAt = upcoming?.starts_at ?? null
-  }
-
-  // 2. Photo links (only for the photos of this visit)
-  let photoUrls: string[] = []
-  if (options.send && options.photoIds.length > 0) {
-    const { data: photos, error } = await supabase
-      .from('visit_photos')
-      .select('storage_path, created_at')
-      .eq('visit_id', visitId)
-      .in('id', options.photoIds)
-      .order('created_at')
-    if (error) return { error: 'Could not prepare the prescription link. Please try again.' }
-    if (photos.length > 0) {
-      const { data: signed, error: signError } = await supabase.storage
-        .from(PHOTO_BUCKET)
-        .createSignedUrls(photos.map((p) => p.storage_path), SHARE_LINK_SECONDS)
-      if (signError || !signed) return { error: 'Could not prepare the prescription link. Please try again.' }
-      photoUrls = signed.flatMap((item) => (item.signedUrl ? [item.signedUrl] : []))
-    }
-  }
-
-  // 3. Mark the visit done (keeping the first finish time) and its appointment
-  const { error: closeError } = await supabase
-    .from('visits')
-    .update({ closed_at: new Date().toISOString() })
-    .eq('id', visitId)
-    .is('closed_at', null)
-  if (closeError) return { error: 'Could not finish the visit. Please try again.' }
-  await supabase.from('appointments').update({ status: 'done' }).eq('visit_id', visitId).eq('status', 'booked')
-
-  refreshClinicScreens()
-
-  // 4. The one message
-  if (!options.send || !bill.patient.phone) return {}
-  const text = visitMessage({
-    patientName: bill.patient.name,
-    visitDate: bill.visit.visit_date,
-    lines: bill.charges,
-    payments: bill.payments,
-    summary: bill.summary,
-    nextAppointment: nextStartsAt ? { starts_at: nextStartsAt } : null,
-    prescriptionPhotoUrls: photoUrls,
-  })
-  return { whatsappUrl: whatsappLink(bill.patient.phone, text) }
-}
-
-export async function reopenVisit(visitId: string): Promise<Result> {
+// Notes save by themselves while the doctor types or dictates. Most saves don't refresh any screen
+// (the visit page already shows what was typed); `refresh` is asked for when other screens need the
+// change: the first note on an empty visit (it starts being listed) and when the doctor leaves the page.
+export async function saveVisitNotes(visitId: string, notes: string, options: { refresh?: boolean } = {}): Promise<Result> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
   const supabase = await createClient()
-  const { error } = await supabase.from('visits').update({ closed_at: null }).eq('id', visitId)
-  if (error) return { error: 'Could not reopen the visit. Please try again.' }
-
-  refreshClinicScreens()
+  const { error } = await supabase.from('visits').update({ notes: notes.slice(0, MAX_NOTES) }).eq('id', visitId)
+  if (error) return { error: 'Could not save the notes.' }
+  if (options.refresh) refreshClinicScreens()
   return {}
 }
 
-// Records photos already uploaded to Storage. The path must sit in this doctor's folder for this visit.
-async function insertPhotos(doctorId: string, visitId: string, photos: NewPhoto[]): Promise<Result> {
-  if (photos.length === 0) return {}
-  const prefix = `${doctorId}/${visitId}/`
-  if (photos.some((p) => !p.path.startsWith(prefix))) return { error: 'Invalid photo.' }
-
+// Records a photo the phone has just uploaded. The path must sit in this doctor's folder for this
+// visit; a retry of the same photo is ignored (the path is unique).
+export async function addVisitPhoto(visitId: string, path: string): Promise<Result> {
+  const doctor = await getDoctor()
+  if (!UUID.test(visitId) || !path.startsWith(`${doctor.id}/${visitId}/`)) return { error: 'Invalid photo.' }
   const supabase = await createClient()
-  // A retry may re-send photos that were already recorded: skip those rows, keep the new ones
   const { error } = await supabase
     .from('visit_photos')
-    .upsert(photos.map((p) => ({ visit_id: visitId, storage_path: p.path, caption: p.caption.trim() })), {
-      onConflict: 'storage_path',
-      ignoreDuplicates: true,
-    })
-  if (error) return { error: 'Photos uploaded, but could not be attached to the visit. Please try again.' }
-  return {}
-}
-
-// Used when some photos failed to upload: keeps the ones that worked without
-// refreshing the screen, so the failed photos stay on screen for a retry.
-export async function addVisitPhotos(visitId: string, photos: NewPhoto[]): Promise<Result> {
-  const doctor = await getDoctor()
-  return insertPhotos(doctor.id, visitId, photos)
-}
-
-// Final step of a save: attach photos, update notes (if changed), refresh once.
-export async function saveVisitChanges(visitId: string, notes: string | null, photos: NewPhoto[]): Promise<Result> {
-  const doctor = await getDoctor()
-  const photoResult = await insertPhotos(doctor.id, visitId, photos)
-  if (photoResult.error) return photoResult
-
-  if (notes !== null) {
-    const supabase = await createClient()
-    const { error } = await supabase.from('visits').update({ notes: notes.trim() }).eq('id', visitId)
-    if (error) return { error: 'Could not save the notes. Please try again.' }
-  }
+    .upsert({ visit_id: visitId, storage_path: path, caption: '' }, { onConflict: 'storage_path', ignoreDuplicates: true })
+  if (error) return { error: 'The photo uploaded, but could not be added to the visit.' }
   refreshClinicScreens()
   return {}
 }
 
-export async function updatePhotoCaption(photoId: string, caption: string): Promise<Result> {
+// One tap under a photo: Prescription, X-ray or Other (stored as the caption)
+export async function setPhotoKind(photoId: string, kind: PhotoKind): Promise<Result> {
   await getDoctor()
+  if (!UUID.test(photoId) || !PHOTO_KINDS.includes(kind)) return { error: 'Invalid photo.' }
   const supabase = await createClient()
-  const { error } = await supabase.from('visit_photos').update({ caption: caption.trim() }).eq('id', photoId)
-  if (error) return { error: 'Could not save the caption.' }
+  const { error } = await supabase.from('visit_photos').update({ caption: kind }).eq('id', photoId)
+  if (error) return { error: 'Could not save that. Please try again.' }
   refreshClinicScreens()
   return {}
 }
 
 export async function deleteVisitPhoto(photoId: string): Promise<Result> {
   await getDoctor()
+  if (!UUID.test(photoId)) return { error: 'Invalid photo.' }
   const supabase = await createClient()
   const { data, error } = await supabase.from('visit_photos').delete().eq('id', photoId).select('storage_path').maybeSingle()
   if (error) return { error: 'Could not delete the photo.' }
@@ -232,8 +79,84 @@ export async function deleteVisitPhoto(photoId: string): Promise<Result> {
   return {}
 }
 
+// The suggested next visit, asked for by the visit page only when it shows the choice
+export async function suggestNextVisit(visitId: string): Promise<string | null> {
+  await getDoctor()
+  if (!UUID.test(visitId)) return null
+  return getNextVisitSuggestion(visitId)
+}
+
+// Books the next visit, only when the doctor taps a time. Choosing again moves the same booking.
+export async function bookNextVisit(visitId: string, startsAt: string): Promise<Result> {
+  await getDoctor()
+  if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
+  const block = clinicBlockOf(startsAt)
+  if (!block) return { error: 'Please choose one of the clinic time blocks.' }
+  if (block.date < todayInIndia()) return { error: 'That time has already passed.' }
+
+  const supabase = await createClient()
+  const { data: visit } = await supabase.from('visits').select('patient_id').eq('id', visitId).maybeSingle()
+  if (!visit) return { error: 'That visit was not found.' }
+
+  const { data: existing } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('from_visit_id', visitId)
+    .eq('status', 'booked')
+    .maybeSingle()
+  const write = existing
+    ? supabase.from('appointments').update({ starts_at: block.iso, duration_min: BLOCK_MINUTES }).eq('id', existing.id)
+    : supabase.from('appointments').insert({
+        patient_id: visit.patient_id,
+        starts_at: block.iso,
+        duration_min: BLOCK_MINUTES,
+        reason: 'Follow-up',
+        status: 'booked',
+        from_visit_id: visitId,
+      })
+  const { error } = await write
+  if (error) {
+    return { error: error.code === '23P01' ? 'That time was just taken. Please choose another.' : 'Could not book the next visit. Please try again.' }
+  }
+  refreshClinicScreens()
+  return {}
+}
+
+// The doctor tapped Send on WhatsApp. Makes the 30-day links for the ticked photos (only now, and
+// only photos of this visit), then records the visit as "WhatsApp sent" (closed_at keeps the first
+// time) and today's appointment for it as done. Returns the links for the message, by photo id.
+export async function markWhatsappSent(visitId: string, photoIds: string[] = []): Promise<Result & { links?: Record<string, string> }> {
+  await getDoctor()
+  if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
+  if (photoIds.length > 10 || photoIds.some((id) => !UUID.test(id))) return { error: 'Invalid photo.' }
+  const supabase = await createClient()
+
+  const links: Record<string, string> = {}
+  if (photoIds.length > 0) {
+    const { data: photos, error } = await supabase.from('visit_photos').select('id, storage_path').eq('visit_id', visitId).in('id', photoIds)
+    if (error || photos.length !== new Set(photoIds).size) return { error: 'Could not prepare the photo links. Please try again.' }
+    const { data: signed, error: signError } = await supabase.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrls(photos.map((p) => p.storage_path), SHARE_LINK_SECONDS)
+    if (signError || !signed) return { error: 'Could not prepare the photo links. Please try again.' }
+    const idByPath = new Map(photos.map((p) => [p.storage_path, p.id]))
+    for (const item of signed) {
+      const id = item.path ? idByPath.get(item.path) : undefined
+      if (id && item.signedUrl) links[id] = item.signedUrl
+    }
+    if (Object.keys(links).length !== photos.length) return { error: 'Could not prepare the photo links. Please try again.' }
+  }
+
+  const { error } = await supabase.from('visits').update({ closed_at: new Date().toISOString() }).eq('id', visitId).is('closed_at', null)
+  if (error) return { error: 'Could not record the message.' }
+  await supabase.from('appointments').update({ status: 'done' }).eq('visit_id', visitId).eq('status', 'booked')
+  refreshClinicScreens()
+  return { links }
+}
+
 export async function deleteVisit(visitId: string): Promise<Result> {
   await getDoctor()
+  if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
   const supabase = await createClient()
   // Find the photo files first; if that fails, stop rather than leave orphaned patient images in Storage
   const { data: photos, error: photosError } = await supabase.from('visit_photos').select('storage_path').eq('visit_id', visitId)

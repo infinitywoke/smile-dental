@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sumAmounts } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
-import { visitStatus } from '@/lib/visit-status'
+import { isEmptyVisit, visitStatus } from '@/lib/visit-status'
 import { getPatient } from './patients'
 import type { PatientSituation } from '@/lib/next-action'
 import type { Patient, VisitStatus } from './types'
@@ -60,7 +60,17 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
   if (appointmentRows.error) throw appointmentRows.error
   if (standalonePayments.error) throw standalonePayments.error
 
-  const visits: HubVisit[] = visitRows.data.map((row) => {
+  // A visit with nothing in it (started, then left) is not listed
+  const filled = visitRows.data.filter(
+    (row) =>
+      !isEmptyVisit({
+        notes: row.notes,
+        photos: row.visit_photos?.[0]?.count ?? 0,
+        charges: row.visit_charges?.length ?? 0,
+        payments: row.payments?.length ?? 0,
+      }),
+  )
+  const visits: HubVisit[] = filled.map((row) => {
     const total = sumAmounts((row.visit_charges ?? []).map((c) => ({ amount: Number(c.amount) })))
     const paid = sumAmounts((row.payments ?? []).map((p) => ({ amount: Number(p.amount) })))
     return {

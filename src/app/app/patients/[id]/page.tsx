@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Camera, CalendarClock, ChevronDown, ChevronRight, MessageCircle, Pencil, Phone, Plus } from 'lucide-react'
+import { Camera, CalendarClock, ChevronDown, ChevronRight, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { getPatientHub } from '@/lib/data/patient-hub'
 import { ageOn, formatDate } from '@/lib/dates'
 import { formatPhone } from '@/lib/phone'
@@ -10,6 +10,7 @@ import { blockEnd, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { whatsappLink } from '@/lib/whatsapp'
 import { BackLink, MedicalAlert, ScreenLoading, TestBadge } from '@/components/clinic/ui'
 import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
+import { StartVisitButton } from '@/components/clinic/StartVisitButton'
 import { CancelAppointmentButton } from '@/components/clinic/CalendarActions'
 import { genderLabel } from '@/lib/gender'
 
@@ -64,15 +65,18 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
 
       {/* The one button */}
       <div className="space-y-2">
-        <Link href={action.href}
-          className={`flex items-center justify-center gap-2 rounded-2xl px-5 py-4 text-lg font-semibold text-white shadow-sm ${tone}`}>
-          {action.label}
-        </Link>
-        {showNewVisitLink && (
-          <Link href={`/app/patients/${patient.id}/visits/new`}
-            className="flex items-center justify-center gap-1.5 text-sm font-semibold text-blue-700">
-            <Plus className="h-4 w-4" /> New visit
+        {action.start ? (
+          <StartVisitButton patientId={patient.id} appointmentId={action.start.appointmentId} label={action.label}
+            className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-lg font-semibold text-white shadow-sm disabled:opacity-70 ${tone}`} />
+        ) : (
+          <Link href={action.href}
+            className={`flex items-center justify-center gap-2 rounded-2xl px-5 py-4 text-lg font-semibold text-white shadow-sm ${tone}`}>
+            {action.label}
           </Link>
+        )}
+        {showNewVisitLink && (
+          <StartVisitButton patientId={patient.id} label="+ New visit"
+            className="flex min-h-12 w-full items-center justify-center gap-1.5 text-base font-semibold text-blue-700 disabled:opacity-60" />
         )}
       </div>
 

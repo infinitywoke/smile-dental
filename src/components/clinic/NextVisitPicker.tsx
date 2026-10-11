@@ -13,13 +13,11 @@ export function NextVisitPicker({
   minDate,
   patientName,
   onPick,
-  onCancel,
 }: {
   startDate: string
   minDate: string
   patientName: string
   onPick: (instant: string) => void
-  onCancel: () => void
 }) {
   const [date, setDate] = useState(startDate)
   const [schedule, setSchedule] = useState<DaySchedule | null>(null)
@@ -46,16 +44,16 @@ export function NextVisitPicker({
   const free = schedule && schedule.date === date ? schedule.blocks.filter((b) => b.state === 'free') : []
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <button type="button" onClick={() => setDate(addDays(date, -1))} disabled={date <= minDate} aria-label="Previous day"
-          className="rounded-full p-2 text-blue-700 hover:bg-blue-50 disabled:opacity-30">
-          <ChevronLeft className="h-5 w-5" />
+          className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50 disabled:opacity-30">
+          <ChevronLeft className="h-6 w-6" />
         </button>
-        <p className="text-sm font-bold text-gray-900">{formatDay(date)}</p>
+        <p className="text-base font-bold text-gray-900">{formatDay(date)}</p>
         <button type="button" onClick={() => setDate(addDays(date, 1))} aria-label="Next day"
-          className="rounded-full p-2 text-blue-700 hover:bg-blue-50">
-          <ChevronRight className="h-5 w-5" />
+          className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50">
+          <ChevronRight className="h-6 w-6" />
         </button>
       </div>
 
@@ -70,10 +68,6 @@ export function NextVisitPicker({
           <SlotGrid blocks={free} label={patientName} onPick={onPick} />
         )
       )}
-
-      <button type="button" onClick={onCancel} className="w-full rounded-full py-2 text-sm font-semibold text-gray-500 hover:text-gray-900">
-        Cancel
-      </button>
     </div>
   )
 }

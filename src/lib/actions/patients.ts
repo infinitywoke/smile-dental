@@ -1,11 +1,11 @@
 'use server'
 
-import { redirect } from 'next/navigation'
+import { RedirectType, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { findPatientsByPhone } from '@/lib/data/patients'
-import { PHOTO_BUCKET } from '@/lib/data/visits'
+import { PHOTO_BUCKET, findOrCreateTodaysVisit } from '@/lib/data/visits'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { todayInIndia } from '@/lib/dates'
 import { isPracticeMode } from '@/lib/practice'
@@ -53,8 +53,10 @@ export async function createPatient(_prev: PatientFormState, formData: FormData)
     .single()
   if (error) return { error: 'Could not save the patient. Please try again.' }
 
+  // The visit opens at once and replaces the form in the history, so Back never returns to it
+  const visitId = await findOrCreateTodaysVisit(data.id)
   revalidatePath('/app', 'layout')
-  redirect(`/app/patients/${data.id}/visits/new`)
+  redirect(visitId ? `/app/visits/${visitId}` : `/app/patients/${data.id}`, RedirectType.replace)
 }
 
 export async function updatePatient(id: string, _prev: PatientFormState, formData: FormData): Promise<PatientFormState> {

@@ -27,21 +27,29 @@ export type Visit = {
   patient_id: string
   visit_date: string
   notes: string
-  // Phase 3 columns; optional until every visit query selects them
+  // Phase 3 columns, no longer used (the AI tidy-up was removed); dropped in the clean-up wave
   notes_original?: string | null
-  // Visit summary v1; validate with the Zod schema in src/lib/ai/visit-summary.ts
   summary?: unknown | null
   confirmed_at?: string | null
+  // When the WhatsApp message for this visit was sent (null: not sent)
   closed_at?: string | null
   created_at: string
   updated_at: string
 }
 
-export type VisitStatus = 'in_progress' | 'billed' | 'paid' | 'done'
+// Two plain facts shown wherever a visit is listed (see src/lib/visit-status.ts)
+export type VisitStatus = {
+  money: 'none' | 'paid' | 'due'
+  // Still owed on this visit (0 unless money is 'due')
+  due: number
+  // The WhatsApp message was sent
+  sent: boolean
+}
 
 export type VisitPhoto = {
   id: string
   caption: string
+  // A short-lived signed link to the private photo, for the screen only (never sent to a patient)
   url: string | null
 }
 
