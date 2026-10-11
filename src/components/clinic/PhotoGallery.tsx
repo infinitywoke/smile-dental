@@ -12,6 +12,18 @@ import { useBackToClose } from './FullScreen'
 const PHOTO_BUCKET = 'visit-photos'
 // A photo that failed to upload is tried again this often (and as soon as the phone is back online)
 const RETRY_MS = 10_000
+// One try may take this long; slower than that it counts as failed, so the retry and Remove take over
+const TRY_MS = 45_000
+
+// The upload itself can't be cancelled, so a slow try is left to finish on its own. If it did reach
+// the server, the next try finds the file "already there" and the photo is recorded once.
+function withinTime<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Timed out')), ms)
+  })
+  return Promise.race([work, late]).finally(() => clearTimeout(timer))
+}
 
 type Uploading = { key: string; file: File; preview: string; failed: boolean }
 
@@ -57,18 +69,30 @@ export function PhotoGallery({
   }, [uploading])
   useEffect(() => () => uploadingRef.current.forEach((u) => URL.revokeObjectURL(u.preview)), [])
 
+  // Photos removed by the doctor: a try still on its way must not add them to the visit
+  const removed = useRef(new Set<string>())
+
   const upload = useCallback(async (item: Uploading) => {
     setUploading((list) => list.map((u) => (u.key === item.key ? { ...u, failed: false } : u)))
-    try {
+    const attempt = async () => {
       const blob = await resizeImage(item.file)
       const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
       // A fixed name per photo, so trying again never stores it twice
       const path = `${doctorId}/${visitId}/${item.key}.${extension}`
-      const { error } = await createClient().storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: blob.type || 'image/jpeg' })
-      // "Already exists" means an earlier try uploaded it but the reply was lost
+      const storage = createClient().storage.from(PHOTO_BUCKET)
+      const { error } = await storage.upload(path, blob, { contentType: blob.type || 'image/jpeg' })
+      // "Already exists" means an earlier try uploaded it but the reply was lost (or it timed out here)
       if (error && !/exist/i.test(error.message)) throw error
+      if (removed.current.has(item.key)) {
+        await storage.remove([path]).catch(() => {})
+        return
+      }
+      // The visit keeps one row per file, so recording it again is harmless
       const result = await addVisitPhoto(visitId, path)
       if (result.error) throw new Error(result.error)
+    }
+    try {
+      await withinTime(attempt(), TRY_MS)
       startTransition(() => {
         setUploading((list) => list.filter((u) => u.key !== item.key))
       })
@@ -106,6 +130,7 @@ export function PhotoGallery({
   }
 
   const discard = (item: Uploading) => {
+    removed.current.add(item.key)
     URL.revokeObjectURL(item.preview)
     setUploading((list) => list.filter((u) => u.key !== item.key))
   }
@@ -166,9 +191,15 @@ export function PhotoGallery({
               </div>
             </div>
           ) : (
-            <p className="flex items-center gap-2 text-sm font-medium text-gray-600">
-              <Loader2 className="h-4 w-4 animate-spin" /> Uploading…
-            </p>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <p className="flex flex-1 items-center gap-2 text-sm font-medium text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" /> Uploading…
+              </p>
+              <button type="button" onClick={() => discard(item)} aria-label="Remove this photo"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-gray-500 ring-1 ring-gray-300">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           )}
         </div>
       ))}

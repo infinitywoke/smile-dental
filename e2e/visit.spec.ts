@@ -204,16 +204,17 @@ test('a next visit booked from the visit can be changed; it moves, never doubles
   expect(await bookedCount()).toBe(1)
 })
 
-test('Today lists the visit with its money; Collect lands on the payment card and settles it', async () => {
+test('Today lists the visit with its money once (no Collect in Needs you); the rest is settled on the visit', async () => {
   await page.goto('/app')
   const visit = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: '1 photo' }))
   await expect(visit).toHaveCount(1)
   await expect(visit).toContainText('₹200 due')
   await expect(visit).toContainText('WhatsApp sent')
+  // Owed on today's visit: the row's badge says so, so Needs you doesn't repeat it
+  await expect(visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' }))).toHaveCount(0)
 
-  await visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' })).click()
-  await expect(page).toHaveURL(/\/app\/visits\/[^/?]+\?step=bill$/)
-  await expect(visible(page.locator('#payment'))).toBeInViewport()
+  await visit.click()
+  await expect(page).toHaveURL(visitUrl)
   await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
   await visible(page.getByRole('button', { name: 'Cash received' })).click()
   await expect(visible(page.getByText('Paid in full'))).toBeVisible()

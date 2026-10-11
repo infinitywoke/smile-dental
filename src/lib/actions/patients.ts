@@ -86,6 +86,7 @@ export async function updatePatient(id: string, _prev: PatientFormState, formDat
 
 // Used while typing a phone number, to spot returning patients
 export async function lookupPhone(input: string) {
+  await getDoctor()
   const phone = normalizePhone(input)
   if (!isValidPhone(phone)) return []
   const matches = await findPatientsByPhone(phone!)

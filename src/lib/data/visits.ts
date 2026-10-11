@@ -181,8 +181,8 @@ export async function findOrCreateTodaysVisit(
       .eq('patient_id', patientId)
       .eq('status', 'booked')
       .is('visit_id', null)
-      .gte('starts_at', `${today}T00:00:00+05:30`)
-      .lte('starts_at', `${today}T23:59:59+05:30`)
+      .gte('starts_at', indiaDayBounds(today).start)
+      .lte('starts_at', indiaDayBounds(today).end)
       .order('starts_at', { ascending: true })
       .limit(1)
       .maybeSingle()
@@ -191,10 +191,25 @@ export async function findOrCreateTodaysVisit(
   return visitId
 }
 
-// One appointment per visit: links the patient's appointment to the visit if none is linked yet
+// One appointment per visit: links the patient's appointment to the visit if none is linked yet.
+// Only an appointment starting today (India time), so a Today page left open overnight never
+// links yesterday's booking to today's visit.
 async function linkAppointment(visitId: string, patientId: string, appointmentId: string) {
   const supabase = await createClient()
   const { data: linked, error } = await supabase.from('appointments').select('id').eq('visit_id', visitId).limit(1)
   if (error || linked.length > 0) return
-  await supabase.from('appointments').update({ visit_id: visitId }).eq('id', appointmentId).eq('patient_id', patientId).is('visit_id', null)
+  const { start, end } = indiaDayBounds(todayInIndia())
+  await supabase
+    .from('appointments')
+    .update({ visit_id: visitId })
+    .eq('id', appointmentId)
+    .eq('patient_id', patientId)
+    .is('visit_id', null)
+    .gte('starts_at', start)
+    .lte('starts_at', end)
+}
+
+// The first and last instant of a day in India, for comparing with appointment times
+export function indiaDayBounds(date: string) {
+  return { start: `${date}T00:00:00+05:30`, end: `${date}T23:59:59.999+05:30` }
 }

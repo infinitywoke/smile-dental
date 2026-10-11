@@ -2,7 +2,7 @@
 
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, UserCheck } from 'lucide-react'
+import { AlertCircle, RotateCcw, UserCheck } from 'lucide-react'
 import { lookupPhone, type PatientFormState } from '@/lib/actions/patients'
 import { formatPhone, normalizePhone } from '@/lib/phone'
 import type { Patient } from '@/lib/data/types'
@@ -20,6 +20,8 @@ type Props = {
 
 // A half-typed form is kept while the screen is hidden (Android Back, another tab), so the doctor
 // never loses typing. Once the patient is saved the form is emptied, ready for the next one.
+// On New patient, "Start fresh" empties it by hand, and a form that comes back with typing in it
+// says whose it is, so one person's phone or medical alert never slips onto the next walk-in.
 export function PatientForm(props: Props) {
   const saving = useRef(false)
   const [resetKey, setResetKey] = useState(0)
@@ -36,8 +38,12 @@ export function PatientForm(props: Props) {
   )
 
   const setSaving = useCallback((value: boolean) => { saving.current = value }, [])
+  const startFresh = useCallback(() => {
+    saving.current = false
+    setResetKey((k) => k + 1)
+  }, [])
 
-  return <PatientFields key={resetKey} {...props} setSaving={setSaving} />
+  return <PatientFields key={resetKey} {...props} setSaving={setSaving} startFresh={startFresh} />
 }
 
 const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Instagram', 'Doctor referral']
@@ -46,7 +52,14 @@ const inputClass =
   'block min-h-12 w-full rounded-xl border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
 const labelClass = 'text-sm font-semibold text-gray-700'
 
-function PatientFields({ action, patient, age, submitLabel, setSaving }: Props & { setSaving: (value: boolean) => void }) {
+function PatientFields({
+  action,
+  patient,
+  age,
+  submitLabel,
+  setSaving,
+  startFresh,
+}: Props & { setSaving: (value: boolean) => void; startFresh: () => void }) {
   const [state, formAction, pending] = useActionState(action, {})
   const [phone, setPhone] = useState(patient?.phone ? formatPhone(patient.phone) : '')
   const [name, setName] = useState(patient?.name ?? '')
@@ -56,6 +69,21 @@ function PatientFields({ action, patient, age, submitLabel, setSaving }: Props &
   const [alerts, setAlerts] = useState(patient?.medical_alerts ?? '')
   const [heardFrom, setHeardFrom] = useState(patient?.heard_from ?? '')
   const [lookup, setLookup] = useState<{ phone: string; matches: { id: string; name: string; age: number | null }[] }>({ phone: '', matches: [] })
+
+  // New patient only: anything typed at all (Start fresh shows once there is)
+  const typed = !patient && [phone, name, ageText, gender, address, alerts, heardFrom].some((value) => value.trim() !== '')
+  // Left with typing in it (Back, another screen): when it shows again, the top line says whose it is
+  const typedRef = useRef(typed)
+  useEffect(() => {
+    typedRef.current = typed
+  }, [typed])
+  const [continuing, setContinuing] = useState(false)
+  useEffect(
+    () => () => {
+      if (typedRef.current) setContinuing(true)
+    },
+    [],
+  )
 
   // A failed save means the form stays, so it must not be emptied when hidden
   useEffect(() => {
@@ -86,6 +114,17 @@ function PatientFields({ action, patient, age, submitLabel, setSaving }: Props &
 
   return (
     <form action={formAction} onSubmit={() => setSaving(true)} className="space-y-5">
+      {typed && (
+        <div className="flex items-center gap-3">
+          <p className="min-w-0 flex-1 text-base font-medium text-gray-700" role="status">
+            {continuing && (name.trim() ? <>Continuing <span className="font-semibold text-gray-900">{name.trim()}</span></> : 'Continuing a half-typed patient')}
+          </p>
+          <button type="button" onClick={startFresh}
+            className="flex min-h-12 shrink-0 items-center gap-1.5 rounded-full px-4 text-base font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-50">
+            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Start fresh
+          </button>
+        </div>
+      )}
       <div className="space-y-1.5">
         <label htmlFor="phone" className={labelClass}>WhatsApp number</label>
         <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="off" placeholder="98450 21763"

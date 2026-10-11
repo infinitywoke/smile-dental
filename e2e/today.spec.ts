@@ -1,16 +1,20 @@
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
-import { cleanRun, createAppointment, createPatient, newPhone, newRunId, openDay, signIn, testDb, visible } from './helpers'
-import { inIndia } from '../src/lib/schedule'
+import { cleanRun, createAppointment, createPatient, createVisit, newPhone, newRunId, openDay, signIn, testDb, visible } from './helpers'
+import { addDays, inIndia } from '../src/lib/schedule'
 
-// Today (one list, Start buttons), finding patients, the New patient form (age, Back, errors),
-// the patient page, and Sign out.
+// Today (one list, Start buttons, seen rows, money owed), finding patients (and a failed search),
+// the New patient form (age, Back, Start fresh, errors), the patient page, and Sign out.
 const runId = newRunId()
 const patientName = `${runId} Known`
 const phone = newPhone()
 const bookedName = `${runId} Booked`
 const bookedPhone = newPhone('8')
 const today = inIndia(new Date()).date
+// Seen today with money still owed, and someone who owes from an earlier visit. Large amounts, so
+// they are among the few dues Today lists whatever else the test account holds.
+const seenName = `${runId} Seen Venkataramana Shetty Kodavoor`
+const owesName = `${runId} Owes`
 
 test.describe.configure({ mode: 'serial' })
 test.skip(!testLogin, NO_TEST_LOGIN)
@@ -24,6 +28,8 @@ test.beforeAll(async ({ browser }) => {
   // Booked today (when the clinic is open) and again in two days
   if (openDay(0) === today) await createAppointment(bookedId, today, '19:00')
   await createAppointment(bookedId, openDay(2), '12:30')
+  await createVisit(await createPatient(seenName, newPhone('7')), today, 80_000, 20_000)
+  await createVisit(await createPatient(owesName, newPhone('6')), addDays(today, -1), 90_000)
   page = await browser.newPage()
   await signIn(page)
 })
@@ -40,6 +46,31 @@ test('Today is one list with no search box, no menu and no practice banner', asy
   await expect(page.getByPlaceholder('Search name or phone')).toHaveCount(0)
   await expect(page.getByText(/Practice mode|TEST/)).toHaveCount(0)
   await expect(page.getByText('Back to today')).toHaveCount(0)
+})
+
+test('a seen patient shows the whole name, with the time and badges under it, and is not repeated in Needs you', async () => {
+  await page.goto('/app')
+  const row = visible(page.getByRole('link').filter({ hasText: seenName }))
+  await expect(row).toHaveCount(1)
+  const name = row.getByText(seenName, { exact: true })
+  await expect(name).toBeVisible()
+  // Nothing cut off: the name fits on its line(s)
+  expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  const time = row.getByText(/^\d{1,2}:\d{2}\s?(am|pm)$/i)
+  const [n, t] = [await name.boundingBox(), await time.boundingBox()]
+  expect(t!.y).toBeGreaterThanOrEqual(n!.y + n!.height - 1)
+  await expect(row).toContainText('₹60,000 due')
+  await expect(row).not.toContainText('billed')
+
+  // The amount owed shows once, on the row; a due from an earlier visit is still in Needs you
+  await expect(visible(page.getByRole('link').filter({ hasText: seenName }).filter({ hasText: 'Collect' }))).toHaveCount(0)
+  await expect(visible(page.getByRole('link').filter({ hasText: owesName }).filter({ hasText: 'Collect' }))).toHaveCount(1)
+
+  // Collect lands on that visit's payment card
+  await visible(page.getByRole('link').filter({ hasText: owesName }).filter({ hasText: 'Collect' })).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[^/?]+\?step=bill$/)
+  await expect(visible(page.locator('#payment'))).toBeInViewport()
+  await expect(visible(page.locator('#payment-amount'))).toHaveValue('90000')
 })
 
 test('a booked patient has a Start button that opens the visit', async () => {
@@ -61,6 +92,24 @@ test('finds the patient by phone while typing, with no Search button', async () 
   await expect(visible(page.getByRole('link').filter({ hasText: patientName }))).toHaveCount(1)
   await visible(page.getByRole('link').filter({ hasText: patientName })).click()
   await expect(page).toHaveURL(/\/app\/patients\/[0-9a-f-]+$/)
+})
+
+test('a search that fails says so and leaves no list on screen', async () => {
+  await page.goto('/app/patients')
+  const box = visible(page.getByPlaceholder('Search name or phone'))
+  await expect(visible(page.getByText('Newest patients'))).toBeVisible()
+  await expect(visible(page.locator('main ul li')).first()).toBeVisible()
+  // The search reaches the server as a POST to this page; make it fail as on a dead connection
+  await page.route('**/app/patients', (route) => (route.request().method() === 'POST' ? route.abort('internetdisconnected') : route.continue()))
+  await box.fill(phone.slice(0, 7))
+  await expect(visible(page.getByText(/Couldn.t search\. Check the internet\./))).toBeVisible()
+  await expect(visible(page.getByText(/results? for/))).toHaveCount(0)
+  await expect(visible(page.locator('main ul li'))).toHaveCount(0)
+
+  // Back online, the next search works again
+  await page.unroute('**/app/patients')
+  await box.fill(phone.slice(0, 8))
+  await expect(visible(page.getByText(/^1 result for/))).toBeVisible()
 })
 
 test('the patient page leads with Start visit, and Move and Cancel sit side by side', async () => {
@@ -93,9 +142,28 @@ test('"+" opens New patient directly, spots a returning number, and keeps typing
   await expect(page.getByPlaceholder('Or type…')).toHaveCount(0)
 
   await visible(page.getByLabel('Name')).fill(`${runId} half typed`)
+  await visible(page.getByLabel('Medical alerts')).fill('Asthma')
   await page.goBack()
   await visible(page.getByRole('link', { name: 'New patient' })).click()
   await expect(visible(page.getByLabel('Name'))).toHaveValue(`${runId} half typed`)
+  // Coming back, the form says whose typing it is
+  await expect(visible(page.getByText(`Continuing ${runId} half typed`))).toBeVisible()
+})
+
+test('Start fresh empties every field and the returning-patient box', async () => {
+  const fresh = visible(page.getByRole('button', { name: 'Start fresh' }))
+  expect((await fresh.boundingBox())!.height).toBeGreaterThanOrEqual(48)
+  await visible(page.getByRole('radio', { name: 'Male', exact: true })).click()
+  await fresh.click()
+  for (const label of ['WhatsApp number', 'Name', 'Medical alerts']) await expect(visible(page.getByLabel(label))).toHaveValue('')
+  await expect(visible(page.getByRole('radio', { name: 'Male', exact: true }))).toHaveAttribute('aria-checked', 'false')
+  await expect(visible(page.getByText('Already a patient with this number'))).toHaveCount(0)
+  await expect(visible(page.getByText(/^Continuing/))).toHaveCount(0)
+  await expect(visible(page.getByRole('button', { name: 'Start fresh' }))).toHaveCount(0)
+
+  // Typing again brings Start fresh back
+  await visible(page.getByLabel('Name')).fill(`${runId} half typed`)
+  await expect(visible(page.getByRole('button', { name: 'Start fresh' }))).toBeVisible()
 })
 
 test('without a gender the message shows just above the button', async () => {
@@ -108,7 +176,6 @@ test('without a gender the message shows just above the button', async () => {
 })
 
 test('saves with a name and gender, stores the age as a birth year and opens the visit', async () => {
-  await visible(page.getByLabel('WhatsApp number')).fill('')
   await visible(page.getByRole('radio', { name: 'Female' })).click()
   await visible(page.getByLabel(/^Age/)).fill('40')
   await visible(page.getByRole('button', { name: 'Start visit' })).click()
@@ -122,6 +189,7 @@ test('saves with a name and gender, stores the age as a birth year and opens the
   await visible(page.getByRole('link', { name: 'Patients', exact: true })).click()
   await visible(page.getByRole('link', { name: 'New patient' })).click()
   await expect(visible(page.getByLabel('Name'))).toHaveValue('')
+  await expect(visible(page.getByRole('button', { name: 'Start fresh' }))).toHaveCount(0)
 })
 
 test('Sign out is at the bottom of Patients', async () => {

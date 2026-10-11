@@ -41,8 +41,10 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   const strip = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i))
   const poolBlocks = schedule.blocks.filter((b) => b.state === 'free' || b.state === 'blocked' || b.state === 'request')
 
-  // Money owed is a today thing: other days show only who is coming
-  const showDues = isToday ? dues : []
+  // Money owed is a today thing: other days show only who is coming. A due whose visit is already
+  // a row below shows its badge there, so it isn't listed twice.
+  const listed = new Set(visits.map((v) => v.id))
+  const showDues = isToday ? dues.filter((due) => !listed.has(due.visitId)) : []
 
   // One list in time order. A booked patient who already has a visit that day shows once, as the visit.
   const seen = new Set(visits.map((v) => v.patient.id))
@@ -158,21 +160,17 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
             </div>
           ) : (
             <Link key={`v-${row.visit.id}`} href={`/app/visits/${row.visit.id}`} className="block min-h-14 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 hover:ring-blue-400">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-base font-semibold text-gray-900">{row.visit.patient.name}</span>
-                {row.visit.patient.medical_alerts && <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
-                <span className="ml-auto flex shrink-0 items-center gap-2">
-                  <VisitStatusBadge status={row.visit.status} />
-                  <span className="text-xs text-gray-500">
-                    {new Date(row.visit.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
-                  </span>
+              {/* The whole name on its own line; the time and the badges under it */}
+              <p className="flex items-start gap-2">
+                <span className="min-w-0 text-base font-semibold break-words text-gray-900">{row.visit.patient.name}</span>
+                {row.visit.patient.medical_alerts && <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
+              </p>
+              <p className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold tabular-nums text-gray-900">
+                  {new Date(row.visit.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
                 </span>
-              </div>
-              {row.visit.total > 0 && (
-                <p className="mt-1 text-xs font-medium text-gray-700">
-                  {formatRupees(row.visit.total)} billed{row.visit.paid > 0 ? ` · ${formatRupees(row.visit.paid)} paid` : ''}{row.visit.balance > 0 ? ` · ${formatRupees(row.visit.balance)} due` : ''}
-                </p>
-              )}
+                <VisitStatusBadge status={row.visit.status} />
+              </p>
               {row.visit.notes && <p className="mt-1 line-clamp-2 text-sm text-gray-600">{row.visit.notes}</p>}
               {row.visit.photo_count > 0 && (
                 <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500">

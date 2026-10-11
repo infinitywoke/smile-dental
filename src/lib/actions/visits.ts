@@ -4,7 +4,7 @@ import { RedirectType, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { PHOTO_BUCKET, SHARE_LINK_SECONDS, appointmentsOfVisit, findOrCreateTodaysVisit } from '@/lib/data/visits'
+import { PHOTO_BUCKET, SHARE_LINK_SECONDS, appointmentsOfVisit, findOrCreateTodaysVisit, indiaDayBounds } from '@/lib/data/visits'
 import { getVisitBill, type VisitBill } from '@/lib/data/billing'
 import { getNextVisitSuggestion } from '@/lib/data/next-visit'
 import { MAX_PHOTOS_TO_SEND } from '@/lib/billing'
@@ -138,6 +138,8 @@ export type MessageData = {
 // run one after another, so a booking, charge or payment tapped just before is already saved), makes
 // the 30-day links for the ticked photos (only now, and only photos of this visit), then records the
 // visit as "WhatsApp sent" (closed_at keeps the first time) and today's appointment for it as done.
+// A visit dated today also marks the patient's other bookings today as done, so a second booking
+// on the same day never stays "booked" for ever.
 export async function markWhatsappSent(visitId: string, photoIds: string[] = []): Promise<Result & { message?: MessageData }> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
@@ -146,8 +148,10 @@ export async function markWhatsappSent(visitId: string, photoIds: string[] = [])
   const supabase = await createClient()
 
   let fresh: Omit<MessageData, 'links'>
+  let visitInfo: { patientId: string; date: string }
   try {
     const bill = await getVisitBill(visitId)
+    visitInfo = { patientId: bill.patient.id, date: bill.visit.visit_date }
     const { next } = await appointmentsOfVisit(visitId, bill.patient.id)
     fresh = {
       charges: bill.charges,
@@ -178,6 +182,19 @@ export async function markWhatsappSent(visitId: string, photoIds: string[] = [])
   const { error } = await supabase.from('visits').update({ closed_at: new Date().toISOString() }).eq('id', visitId).is('closed_at', null)
   if (error) return { error: 'Could not record the message.' }
   await supabase.from('appointments').update({ status: 'done' }).eq('visit_id', visitId).eq('status', 'booked')
+  const today = todayInIndia()
+  if (visitInfo.date === today) {
+    const { start, end } = indiaDayBounds(today)
+    await supabase
+      .from('appointments')
+      .update({ status: 'done' })
+      .eq('patient_id', visitInfo.patientId)
+      .eq('status', 'booked')
+      // A next visit booked from this visit for later today is still to come
+      .or(`from_visit_id.is.null,from_visit_id.neq.${visitId}`)
+      .gte('starts_at', start)
+      .lte('starts_at', end)
+  }
   refreshClinicScreens()
   return { message: { ...fresh, links } }
 }
