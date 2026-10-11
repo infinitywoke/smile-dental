@@ -94,8 +94,8 @@ test('cancels the coming visit from the patient page, then books the next one fo
   await visible(page.getByRole('button', { name: 'Cancel appointment' })).click()
   await expect(visible(page.getByRole('heading', { name: 'Coming up' }))).toHaveCount(0)
 
-  // Nothing owed and nothing coming: the page leads with booking
-  await visible(page.getByRole('link', { name: 'Book next visit' })).click()
+  // Book appointment sits under Start visit on the patient page
+  await visible(page.getByRole('link', { name: 'Book appointment' })).click()
   await expect(page).toHaveURL(/\/app\/book\?patient=/)
   await expect(visible(page.getByRole('heading', { name: `Book ${patientName}` }))).toBeVisible()
 

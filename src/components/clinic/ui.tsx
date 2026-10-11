@@ -34,8 +34,3 @@ export function ScreenLoading() {
     </div>
   )
 }
-
-// Marks a test booking request from the website (the patient screens no longer show it)
-export function TestBadge() {
-  return <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-800">TEST</span>
-}

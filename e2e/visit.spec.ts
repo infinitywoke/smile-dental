@@ -37,8 +37,8 @@ async function patientIdOf(name: string) {
 }
 
 test('saving New patient opens the Visit page, and Back goes to Today, not the form', async () => {
-  await page.getByRole('button', { name: 'Add' }).click()
-  await page.getByRole('link', { name: /New patient/ }).click()
+  // "+" in the bottom bar opens New patient straight away
+  await visible(page.getByRole('link', { name: 'New patient' })).click()
   await expect(page).toHaveURL(/\/app\/patients\/new$/)
 
   await visible(page.getByLabel('Name', { exact: true })).fill(patientName)
@@ -223,7 +223,7 @@ test('Start visit twice from the patient page opens one visit; an empty visit is
   const name = `${runId} Returning`
   const patientId = await createPatient(name, newPhone('7'))
   await page.goto(`/app/patients/${patientId}`)
-  await visible(page.getByRole('button', { name: /New visit/ })).dblclick()
+  await visible(page.getByRole('button', { name: 'Start visit' })).dblclick()
   await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
   await expect(visible(page.getByRole('heading', { name }))).toBeVisible()
 

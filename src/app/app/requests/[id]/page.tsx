@@ -4,10 +4,11 @@ import { Phone } from 'lucide-react'
 import { getBookingRequest } from '@/lib/data/appointments'
 import { getDaySchedule } from '@/lib/data/appointments'
 import { findPatientsByPhone } from '@/lib/data/patients'
-import { ageOn, formatDate, todayInIndia } from '@/lib/dates'
+import { todayInIndia } from '@/lib/dates'
+import { patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
-import { BackLink, Card, MedicalAlert, ScreenLoading, TestBadge } from '@/components/clinic/ui'
+import { BackLink, Card, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 import { SlotScheduler } from '@/components/clinic/SlotScheduler'
 import { genderLabel } from '@/lib/gender'
 
@@ -29,7 +30,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
             This request was {request.status === 'booked' ? 'booked' : request.status === 'declined' ? 'declined' : 'handled'} already.
           </p>
           {request.patient_id && (
-            <Link href={`/app/patients/${request.patient_id}`} className="inline-block text-sm font-semibold text-blue-700">Open patient</Link>
+            <Link href={`/app/patients/${request.patient_id}`} className="inline-flex min-h-12 items-center text-base font-semibold text-blue-700">Open patient</Link>
           )}
         </Card>
       </div>
@@ -41,6 +42,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
   const [schedule, matches] = await Promise.all([getDaySchedule(wanted), findPatientsByPhone(request.phone)])
 
   const address = request.address || [request.area, request.city].filter(Boolean).join(', ')
+  const age = patientAge(request)
 
   return (
     <div className="space-y-5">
@@ -49,13 +51,9 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
       <Card className="space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900">
-              <span className="truncate">{request.name}</span>
-              {request.is_test && <TestBadge />}
-            </h1>
+            <h1 className="truncate text-xl font-bold text-gray-900">{request.name}</h1>
             <p className="text-sm text-gray-500">
-              {[request.date_of_birth && `${ageOn(request.date_of_birth)} yrs (born ${formatDate(request.date_of_birth)})`, genderLabel(request.gender), formatPhone(request.phone)]
-                .filter(Boolean).join(' · ')}
+              {[age !== null && `${age} yrs`, genderLabel(request.gender), formatPhone(request.phone)].filter(Boolean).join(' · ')}
             </p>
           </div>
           <a href={`tel:+91${request.phone}`} aria-label="Call patient"
@@ -85,7 +83,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
         dayOff={schedule.dayOff}
         originalInstant={request.requested_start}
         basePath={`/app/requests/${request.id}`}
-        matches={matches.map((m) => ({ id: m.id, name: m.name, age: m.date_of_birth ? ageOn(m.date_of_birth) : null }))}
+        matches={matches.map((m) => ({ id: m.id, name: m.name, age: patientAge(m) }))}
       />
     </div>
   )

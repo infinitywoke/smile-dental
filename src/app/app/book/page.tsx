@@ -5,7 +5,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getPatient, searchPatients } from '@/lib/data/patients'
 import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
-import { ageOn, todayInIndia } from '@/lib/dates'
+import { todayInIndia } from '@/lib/dates'
+import { patientAge } from '@/lib/patient-fields'
 import { ALL_BLOCKS, addDays, blockEnd, formatBlock, formatDay, inIndia, isClosedDay } from '@/lib/schedule'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { BookAppointment } from '@/components/clinic/BookAppointment'
@@ -71,7 +72,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
           backLabel={known ? known.name : 'Today'}
           only={known ? { id: known.id, name: known.name } : undefined}
           notice={notice}
-          patients={patients.map((p) => ({ id: p.id, name: p.name, phone: p.phone, isTest: p.is_test, age: p.date_of_birth ? ageOn(p.date_of_birth) : null }))}
+          patients={patients.map((p) => ({ id: p.id, name: p.name, phone: p.phone, age: patientAge(p) }))}
         />
 
         {!known && !notice && <BlockThisTimeButton startsAt={start.toISOString()} backTo={backTo} />}
