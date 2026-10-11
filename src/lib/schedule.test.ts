@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ALL_BLOCKS, addDays, blockEnd, blockInstant, blocksFor, confirmationPromise, formatBlock, inIndia,
-  isClosedDay, isOnlineBookable,
+  isClosedDay, isOnlineBookable, sameInstant,
 } from './schedule'
 
 // Wednesday 14 Oct 2026; Friday is the 16th
@@ -101,5 +101,29 @@ describe('confirmation promise', () => {
     expect(confirmationPromise(at(WED, '20:59'))).toMatch(/under 15 minutes/)
     expect(confirmationPromise(at(WED, '21:00'))).toMatch(/after 6 AM/)
     expect(confirmationPromise(at(WED, '03:00'))).toMatch(/after 6 AM/)
+  })
+})
+
+describe('sameInstant', () => {
+  it('treats the database and app spellings of one moment as equal', () => {
+    expect(sameInstant('2026-10-14T05:00:00+00:00', '2026-10-14T05:00:00.000Z')).toBe(true)
+    expect(sameInstant('2026-10-14T10:30:00+05:30', blockInstant('2026-10-14', '10:30'))).toBe(true)
+  })
+  it('tells different moments, empty values and junk apart', () => {
+    expect(sameInstant('2026-10-14T05:00:00.000Z', '2026-10-14T05:40:00.000Z')).toBe(false)
+    expect(sameInstant(null, '2026-10-14T05:00:00.000Z')).toBe(false)
+    expect(sameInstant('nonsense', 'nonsense')).toBe(false)
+  })
+})
+
+describe('sameInstant', () => {
+  it('treats the database and app spellings of one moment as equal', () => {
+    expect(sameInstant('2026-10-14T05:00:00+00:00', '2026-10-14T05:00:00.000Z')).toBe(true)
+    expect(sameInstant('2026-10-14T10:30:00+05:30', blockInstant('2026-10-14', '10:30'))).toBe(true)
+  })
+  it('tells different moments, empty values and junk apart', () => {
+    expect(sameInstant('2026-10-14T05:00:00.000Z', '2026-10-14T05:40:00.000Z')).toBe(false)
+    expect(sameInstant(null, '2026-10-14T05:00:00.000Z')).toBe(false)
+    expect(sameInstant('nonsense', 'nonsense')).toBe(false)
   })
 })

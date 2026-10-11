@@ -30,7 +30,7 @@ export function CancelAppointmentButton({ appointmentId, backTo }: { appointment
           if (!window.confirm('Cancel this appointment? The time becomes free again.')) return
           run(() => cancelAppointment(appointmentId), () => router.replace(backTo))
         }}
-        className="w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60">
+        className="min-h-12 w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60">
         {pending ? 'Cancelling…' : 'Cancel appointment'}
       </button>
       {error && <p className="text-center text-sm text-red-700" role="alert">{error}</p>}
@@ -45,7 +45,7 @@ export function DayOffButton({ date, dayOff }: { date: string; dayOff: boolean }
     <div className="space-y-1">
       <button type="button" disabled={pending}
         onClick={() => run(() => (dayOff ? unblockTime(blockInstant(date, '12:00')) : blockDay(date)))}
-        className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
+        className="min-h-12 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
         {dayOff ? 'Reopen this day' : 'Close this day'}
       </button>
       {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
@@ -58,7 +58,7 @@ export function UnblockButton({ instant }: { instant: string }) {
   return (
     <>
       <button type="button" disabled={pending} onClick={() => run(() => unblockTime(instant))}
-        className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-gray-300 disabled:opacity-60">
+        className="min-h-12 shrink-0 rounded-full bg-white px-4 py-1 text-sm font-semibold text-blue-700 ring-1 ring-gray-300 disabled:opacity-60">
         {pending ? '…' : 'Reopen'}
       </button>
       {error && <span className="sr-only" role="alert">{error}</span>}
@@ -74,7 +74,7 @@ export function BlockThisTimeButton({ startsAt, backTo }: { startsAt: string; ba
     <div className="space-y-2">
       <button type="button" disabled={pending}
         onClick={() => run(() => blockTime(startsAt, end, 'Blocked'), () => router.replace(backTo))}
-        className="w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
+        className="min-h-12 w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
         {pending ? 'Blocking…' : 'Block this time instead'}
       </button>
       {error && <p className="text-center text-sm text-red-700" role="alert">{error}</p>}

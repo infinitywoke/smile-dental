@@ -48,6 +48,20 @@ export function confirmationMessage(args: { name: string; startsAt: string }): s
   ].join('\n')
 }
 
+// Clinic -> patient, after an appointment is moved
+export function movedMessage(args: { name: string; startsAt: string }): string {
+  const first = args.name.trim().split(/\s+/)[0]
+  return [
+    `Hello ${first}, your appointment at ${siteConfig.name}, Katapadi has been moved to ${when(args.startsAt)} ✅`,
+    '',
+    `📍 ${siteConfig.address}`,
+    `Directions: ${siteConfig.googleReviewsLink}`,
+    '',
+    `Please arrive 5 minutes early. To change or cancel, call or WhatsApp ${siteConfig.phone}.`,
+    `– ${siteConfig.dentist.name}`,
+  ].join('\n')
+}
+
 // Clinic -> patient, when the requested time can't be given
 export function declineMessage(args: { name: string }): string {
   const first = args.name.trim().split(/\s+/)[0]

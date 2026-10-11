@@ -1,12 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { formatBlock } from '@/lib/schedule'
+import { formatBlock, sameInstant } from '@/lib/schedule'
 import type { DayBlock } from '@/lib/data/appointments'
 
 type Props = {
   blocks: DayBlock[]
-  // Select mode: tapping a free pill picks it (the pill's `data-slot` also lets a dragged name land on it)
+  // Select mode: tapping a free pill picks it
   selected?: string | null
   over?: string | null
   label?: string
@@ -47,8 +47,8 @@ function Group({ title, blocks, selected, over, label, onPick, hrefs, ownId }: P
       <div className="grid grid-cols-3 gap-2">
         {blocks.map((block) => {
           const placeable = isPlaceable(block, ownId)
-          const isSelected = selected === block.instant
-          const isOver = over === block.instant
+          const isSelected = sameInstant(selected, block.instant)
+          const isOver = sameInstant(over, block.instant)
           const href = hrefs?.[block.instant] ?? null
 
           let tone = 'bg-white text-gray-900 ring-gray-300'
@@ -77,7 +77,7 @@ function Group({ title, blocks, selected, over, label, onPick, hrefs, ownId }: P
               {sub && <span className="block max-w-full truncate text-[11px] font-medium opacity-80">{sub}</span>}
             </>
           )
-          const className = `flex min-h-[3.25rem] flex-col items-center justify-center rounded-xl px-1 py-2 text-center ring-1 ring-inset transition active:scale-95 ${tone}`
+          const className = `flex min-h-12 flex-col items-center justify-center rounded-xl px-1 py-2 text-center ring-1 ring-inset transition active:scale-95 ${tone}`
 
           if (href) {
             return (
@@ -88,7 +88,7 @@ function Group({ title, blocks, selected, over, label, onPick, hrefs, ownId }: P
           }
           return (
             <button key={block.instant} type="button" data-slot={block.instant}
-              disabled={!onPick || !placeable} onClick={() => onPick?.(block.instant)}
+              aria-pressed={isSelected} disabled={!onPick || !placeable} onClick={() => onPick?.(block.instant)}
               className={`${className} disabled:cursor-default`}>
               {content}
             </button>

@@ -24,6 +24,14 @@ export function blockInstant(date: string, hhmm: string): string {
   return new Date(`${date}T${hhmm}:00${IST_OFFSET}`).toISOString()
 }
 
+// Do two spellings of a moment ("...+00:00" from the database, "....000Z" from the app) mean the same instant?
+export function sameInstant(a: string | Date | null | undefined, b: string | Date | null | undefined): boolean {
+  if (a == null || b == null) return false
+  const x = new Date(a).getTime()
+  const y = new Date(b).getTime()
+  return !Number.isNaN(x) && x === y
+}
+
 // The India calendar date and clock time of a moment
 export function inIndia(moment: Date | string): { date: string; time: string } {
   const parts = new Intl.DateTimeFormat('en-GB', {

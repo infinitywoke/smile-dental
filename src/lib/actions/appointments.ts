@@ -5,9 +5,11 @@ import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { BLOCK_MINUTES, blockInstant, clinicBlockOf } from '@/lib/schedule'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
-import { confirmationMessage, declineMessage, whatsappLink } from '@/lib/whatsapp'
+import { confirmationMessage, declineMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
+import { parseGender } from '@/lib/gender'
+import { ageOn } from '@/lib/dates'
 import { isPracticeMode } from '@/lib/practice'
-import { findPatientsByPhone } from '@/lib/data/patients'
+import { findPatientsByPhone, searchPatients } from '@/lib/data/patients'
 import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
 
 type Result = { error?: string }
@@ -123,19 +125,21 @@ export async function bookAppointment(
 }
 
 // Phone booking for someone not in the app yet: just a name and number
-export async function bookNewPatient(input: { name: string; phone: string; reason: string }, startsAt: string): Promise<WithWhatsapp> {
+export async function bookNewPatient(input: { name: string; phone: string; gender?: string; reason: string }, startsAt: string): Promise<WithWhatsapp> {
   await getDoctor()
   const name = input.name.trim()
   const phone = normalizePhone(input.phone)
   if (!name) return { error: 'Please enter the patient’s name.' }
   if (phone && !isValidPhone(phone)) return { error: 'Please enter a 10-digit mobile number.' }
+  const gender = parseGender(input.gender)
+  if (!gender) return { error: 'Please choose the patient’s gender.' }
   const block = parseBlock(startsAt)
   if (!block) return { error: 'Please choose one of the clinic time blocks.' }
 
   const supabase = await createClient()
   const { data: patient, error } = await supabase
     .from('patients')
-    .insert({ name, phone, is_test: await isPracticeMode() })
+    .insert({ name, phone, gender, is_test: await isPracticeMode() })
     .select('id')
     .single()
   if (error) return { error: 'Could not save the patient. Please try again.' }
@@ -180,8 +184,17 @@ export async function moveAppointment(appointmentId: string, startsAt: string): 
   refresh()
   return {
     appointmentId,
-    whatsappUrl: patient.phone ? whatsappLink(patient.phone, confirmationMessage({ name: patient.name, startsAt: block.iso })) : undefined,
+    whatsappUrl: patient.phone ? whatsappLink(patient.phone, movedMessage({ name: patient.name, startsAt: block.iso })) : undefined,
   }
+}
+
+// Search as you type on the booking page: name or phone
+export async function findPatientsToBook(query: string) {
+  await getDoctor()
+  const patients = await searchPatients(String(query).slice(0, 60))
+  return patients.slice(0, 8).map((p) => ({
+    id: p.id, name: p.name, phone: p.phone, isTest: p.is_test, age: p.date_of_birth ? ageOn(p.date_of_birth) : null,
+  }))
 }
 
 // Block time off: one block, or a whole day (holiday). Hidden from the website.
