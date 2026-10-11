@@ -4,7 +4,7 @@ import { RedirectType, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { PHOTO_BUCKET, findOrCreateTodaysVisit } from '@/lib/data/visits'
+import { PHOTO_BUCKET, SHARE_LINK_SECONDS, findOrCreateTodaysVisit } from '@/lib/data/visits'
 import { getNextVisitSuggestion } from '@/lib/data/next-visit'
 import { todayInIndia } from '@/lib/dates'
 import { BLOCK_MINUTES, clinicBlockOf } from '@/lib/schedule'
@@ -30,14 +30,16 @@ export async function startVisit(patientId: string, visitId: string, appointment
   redirect(`/app/visits/${id}`, RedirectType.push)
 }
 
-// Notes save by themselves while the doctor types or dictates
-export async function saveVisitNotes(visitId: string, notes: string): Promise<Result> {
+// Notes save by themselves while the doctor types or dictates. Most saves don't refresh any screen
+// (the visit page already shows what was typed); `refresh` is asked for when other screens need the
+// change: the first note on an empty visit (it starts being listed) and when the doctor leaves the page.
+export async function saveVisitNotes(visitId: string, notes: string, options: { refresh?: boolean } = {}): Promise<Result> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
   const supabase = await createClient()
   const { error } = await supabase.from('visits').update({ notes: notes.slice(0, MAX_NOTES) }).eq('id', visitId)
   if (error) return { error: 'Could not save the notes.' }
-  refreshClinicScreens()
+  if (options.refresh) refreshClinicScreens()
   return {}
 }
 
@@ -120,17 +122,36 @@ export async function bookNextVisit(visitId: string, startsAt: string): Promise<
   return {}
 }
 
-// Called as WhatsApp opens with the visit message: the visit now shows "WhatsApp sent"
-// (closed_at keeps the first time), and today's appointment for it counts as done.
-export async function markWhatsappSent(visitId: string): Promise<Result> {
+// The doctor tapped Send on WhatsApp. Makes the 30-day links for the ticked photos (only now, and
+// only photos of this visit), then records the visit as "WhatsApp sent" (closed_at keeps the first
+// time) and today's appointment for it as done. Returns the links for the message, by photo id.
+export async function markWhatsappSent(visitId: string, photoIds: string[] = []): Promise<Result & { links?: Record<string, string> }> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
+  if (photoIds.length > 10 || photoIds.some((id) => !UUID.test(id))) return { error: 'Invalid photo.' }
   const supabase = await createClient()
+
+  const links: Record<string, string> = {}
+  if (photoIds.length > 0) {
+    const { data: photos, error } = await supabase.from('visit_photos').select('id, storage_path').eq('visit_id', visitId).in('id', photoIds)
+    if (error || photos.length !== new Set(photoIds).size) return { error: 'Could not prepare the photo links. Please try again.' }
+    const { data: signed, error: signError } = await supabase.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrls(photos.map((p) => p.storage_path), SHARE_LINK_SECONDS)
+    if (signError || !signed) return { error: 'Could not prepare the photo links. Please try again.' }
+    const idByPath = new Map(photos.map((p) => [p.storage_path, p.id]))
+    for (const item of signed) {
+      const id = item.path ? idByPath.get(item.path) : undefined
+      if (id && item.signedUrl) links[id] = item.signedUrl
+    }
+    if (Object.keys(links).length !== photos.length) return { error: 'Could not prepare the photo links. Please try again.' }
+  }
+
   const { error } = await supabase.from('visits').update({ closed_at: new Date().toISOString() }).eq('id', visitId).is('closed_at', null)
   if (error) return { error: 'Could not record the message.' }
   await supabase.from('appointments').update({ status: 'done' }).eq('visit_id', visitId).eq('status', 'booked')
   refreshClinicScreens()
-  return {}
+  return { links }
 }
 
 export async function deleteVisit(visitId: string): Promise<Result> {

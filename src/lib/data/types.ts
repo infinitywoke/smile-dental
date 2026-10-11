@@ -49,7 +49,7 @@ export type VisitStatus = {
 export type VisitPhoto = {
   id: string
   caption: string
-  // A signed link to the private photo, valid 30 days (the same link goes in the WhatsApp message)
+  // A short-lived signed link to the private photo, for the screen only (never sent to a patient)
   url: string | null
 }
 

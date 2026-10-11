@@ -79,7 +79,8 @@ export function VisitFlow({
         <MedicalAlert alerts={visit.patient.medical_alerts} />
       </div>
 
-      <VisitNotes handle={notesRef} visitId={visit.id} initialNotes={visit.notes} />
+      <VisitNotes handle={notesRef} visitId={visit.id} initialNotes={visit.notes}
+        listed={visit.photos.length > 0 || bill.charges.length > 0 || bill.payments.length > 0} />
 
       <div className="space-y-2">
         <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} onKind={markKind} />

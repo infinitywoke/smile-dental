@@ -36,41 +36,56 @@ function writeDraft(key: string, value: string | null) {
 
 // Saves the notes in the background: shortly after typing stops, at once when asked (flush),
 // one save at a time, and again after a failure. The on-phone draft is cleared once saved.
-function createNotesSaver(visitId: string, initial: string, report: (state: SaveState) => void) {
+// Saves don't refresh other screens, except the first note on an empty visit (so it starts being
+// listed) and the save when the doctor leaves the page or switches app (so Today shows the latest).
+function createNotesSaver(visitId: string, initial: string, listed: boolean, report: (state: SaveState) => void) {
   const draftKey = `visit-draft:${visitId}`
   let latest = initial // what is in the box now
   let saved = initial // what the server has
   let timer: ReturnType<typeof setTimeout> | null = null
   let inflight: Promise<void> | null = null
+  let needsListing = !listed && !initial.trim()
+  let unrefreshed = false // saved, but other screens don't know yet
+  let wantRefresh = false // leaving: refresh other screens with the next save
 
   const later = (ms: number) => {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => void flush(), ms)
   }
 
-  async function flush(): Promise<void> {
+  async function flush(options: { leaving?: boolean } = {}): Promise<void> {
+    if (options.leaving) wantRefresh = true
     if (timer) {
       clearTimeout(timer)
       timer = null
     }
     while (inflight) await inflight
     const text = latest
-    if (text === saved) return
+    const changed = text !== saved
+    if (!changed && !(wantRefresh && unrefreshed)) return
+    const refresh = wantRefresh || (needsListing && !!text.trim())
 
     inflight = (async () => {
-      report('saving')
+      if (changed) report('saving')
       try {
         if (navigator.onLine === false) throw new Error('offline')
-        const result = await saveVisitNotes(visitId, text)
+        const result = await saveVisitNotes(visitId, text, { refresh })
         if (result.error) throw new Error(result.error)
         saved = text
-        if (latest === text) {
+        if (refresh) {
+          unrefreshed = false
+          wantRefresh = false
+          if (text.trim()) needsListing = false
+        } else {
+          unrefreshed = true
+        }
+        if (changed && latest === text) {
           writeDraft(draftKey, null)
           report('saved')
         }
       } catch {
         // Kept on the phone; tried again shortly
-        report('offline')
+        if (changed) report('offline')
         later(RETRY_MS)
       }
     })()
@@ -102,14 +117,25 @@ function createNotesSaver(visitId: string, initial: string, report: (state: Save
   }
 }
 
-export function VisitNotes({ visitId, initialNotes, handle }: { visitId: string; initialNotes: string; handle?: Ref<NotesHandle> }) {
+export function VisitNotes({
+  visitId,
+  initialNotes,
+  listed,
+  handle,
+}: {
+  visitId: string
+  initialNotes: string
+  // The visit already has photos, charges or payments, so it is listed on Today and the patient page
+  listed: boolean
+  handle?: Ref<NotesHandle>
+}) {
   const [notes, setNotes] = useState(initialNotes)
   const [state, setState] = useState<SaveState>('idle')
   const [hearing, setHearing] = useState('')
   const [listening, setListening] = useState(false)
-  const [saver] = useState(() => createNotesSaver(visitId, initialNotes, setState))
+  const [saver] = useState(() => createNotesSaver(visitId, initialNotes, listed, setState))
 
-  useImperativeHandle(handle, () => ({ flush: saver.flush }), [saver])
+  useImperativeHandle(handle, () => ({ flush: () => saver.flush() }), [saver])
 
   const change = (next: string) => {
     setNotes(next)
@@ -128,7 +154,7 @@ export function VisitNotes({ visitId, initialNotes, handle }: { visitId: string;
   // and as soon as the connection comes back
   useEffect(() => {
     const onHide = () => {
-      if (document.visibilityState === 'hidden') void saver.flush()
+      if (document.visibilityState === 'hidden') void saver.flush({ leaving: true })
     }
     const onOnline = () => void saver.flush()
     document.addEventListener('visibilitychange', onHide)
@@ -136,7 +162,7 @@ export function VisitNotes({ visitId, initialNotes, handle }: { visitId: string;
     return () => {
       document.removeEventListener('visibilitychange', onHide)
       window.removeEventListener('online', onOnline)
-      void saver.flush()
+      void saver.flush({ leaving: true })
     }
   }, [saver])
 

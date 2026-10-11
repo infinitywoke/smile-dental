@@ -8,8 +8,10 @@ import { isEmptyVisit, visitStatus } from '@/lib/visit-status'
 import type { Patient, Visit, VisitDetail, VisitStatus } from './types'
 
 export const PHOTO_BUCKET = 'visit-photos'
-// Photo links last 30 days: the same link is shown on screen and sent to the patient
-export const PHOTO_LINK_SECONDS = 60 * 60 * 24 * 30
+// Photos are shown on screen through short-lived links; links that go to a patient (30 days)
+// are made only when the doctor taps Send, only for the photos he ticked
+const DISPLAY_LINK_SECONDS = 60 * 60
+export const SHARE_LINK_SECONDS = 60 * 60 * 24 * 30
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at, updated_at, closed_at'
 
@@ -96,13 +98,12 @@ export async function getVisit(id: string): Promise<VisitDetail> {
   const linkedAppointment = linked.data ?? null
   const nextAppointment = upcoming.data.find((a) => a.id !== linkedAppointment?.id) ?? null
 
-  // The bucket is private, so photos are shown through signed links. One 30-day link per photo
-  // serves both the screen and the WhatsApp message, which is built on the phone at the tap.
+  // The bucket is private, so photos are shown through short-lived signed links
   let urls: Record<string, string> = {}
   if (photos.length > 0) {
     const { data: signed, error: signError } = await supabase.storage
       .from(PHOTO_BUCKET)
-      .createSignedUrls(photos.map((p) => p.storage_path), PHOTO_LINK_SECONDS)
+      .createSignedUrls(photos.map((p) => p.storage_path), DISPLAY_LINK_SECONDS)
     // On failure the photos show as "Unavailable" rather than hiding the whole visit
     if (!signError && signed) {
       urls = Object.fromEntries(signed.flatMap((s) => (s.path && s.signedUrl ? [[s.path, s.signedUrl]] : [])))

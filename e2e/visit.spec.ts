@@ -150,6 +150,13 @@ test('next visit is "None" and nothing is booked until the suggestion is tapped'
 test('Send on WhatsApp opens the chat with the bill, the balance and the prescription link', async () => {
   const whatsapp = await captureWhatsapp(page)
   await visible(page.getByRole('link', { name: 'Send on WhatsApp' })).click()
+  // The 30-day photo link is made at the tap. Within 2 seconds WhatsApp opens by itself; slower than
+  // that (a cold test server), a big "Open WhatsApp" button appears for a second tap.
+  const openButton = visible(page.getByRole('link', { name: 'Open WhatsApp' }))
+  await Promise.race([
+    page.waitForURL(/wa\.me\//, { timeout: 30_000 }),
+    openButton.waitFor({ timeout: 30_000 }).then(() => openButton.click()),
+  ])
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
 
   expect(whatsapp.url).toContain(`wa.me/91${phone}`)
