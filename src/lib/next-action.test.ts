@@ -19,7 +19,7 @@ describe('nextActionFor', () => {
 
   it("starts today's appointment, linking it to the new visit", () => {
     expect(nextActionFor({ ...base, appointmentToday: { id: 'a1' } })).toEqual({
-      label: 'Start visit', href: '/app/patients/p1/visits/new?appointmentId=a1', tone: 'visit',
+      label: 'Start visit', start: { appointmentId: 'a1' }, tone: 'visit',
     })
   })
 
@@ -32,7 +32,7 @@ describe('nextActionFor', () => {
   it('books the next visit when nothing is coming up, else a new visit', () => {
     expect(nextActionFor(base)).toEqual({ label: 'Book next visit', href: '/app/book?patient=p1', tone: 'calm' })
     expect(nextActionFor({ ...base, hasFutureAppointment: true })).toEqual({
-      label: 'New visit', href: '/app/patients/p1/visits/new', tone: 'calm',
+      label: 'New visit', start: {}, tone: 'calm',
     })
   })
 

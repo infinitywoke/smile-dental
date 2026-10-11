@@ -3,12 +3,15 @@ import { notFound } from 'next/navigation'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { sumAmounts } from '@/lib/billing'
-import { visitStatus } from '@/lib/visit-status'
+import { todayInIndia } from '@/lib/dates'
+import { isEmptyVisit, visitStatus } from '@/lib/visit-status'
 import type { Patient, Visit, VisitDetail, VisitStatus } from './types'
 
 export const PHOTO_BUCKET = 'visit-photos'
+// Photo links last 30 days: the same link is shown on screen and sent to the patient
+export const PHOTO_LINK_SECONDS = 60 * 60 * 24 * 30
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, confirmed_at, created_at, updated_at, closed_at'
+const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at, updated_at, closed_at'
 
 export type TodayVisit = Visit & {
   patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'is_test'>
@@ -29,9 +32,20 @@ export async function getVisitsOn(date: string): Promise<TodayVisit[]> {
     .order('created_at', { ascending: false })
   if (error) throw error
 
-  return data.map(({ visit_photos, patient, visit_charges, payments, ...visit }) => {
-    const charges = (visit_charges ?? []) as { amount: number }[]
-    const pmts = (payments ?? []) as { amount: number }[]
+  // A visit with nothing in it (started, then left) is not listed
+  const filled = data.filter(
+    (row) =>
+      !isEmptyVisit({
+        notes: row.notes,
+        photos: row.visit_photos?.[0]?.count ?? 0,
+        charges: row.visit_charges?.length ?? 0,
+        payments: row.payments?.length ?? 0,
+      }),
+  )
+
+  return filled.map(({ visit_photos, patient, visit_charges, payments, ...visit }) => {
+    const charges = ((visit_charges ?? []) as { amount: number }[]).map((c) => ({ amount: Number(c.amount) }))
+    const pmts = ((payments ?? []) as { amount: number }[]).map((p) => ({ amount: Number(p.amount) }))
     const total = sumAmounts(charges)
     const paid = sumAmounts(pmts)
     const balance = Math.round((total - paid) * 100) / 100
@@ -82,13 +96,13 @@ export async function getVisit(id: string): Promise<VisitDetail> {
   const linkedAppointment = linked.data ?? null
   const nextAppointment = upcoming.data.find((a) => a.id !== linkedAppointment?.id) ?? null
 
-  // The bucket is private, so photos are shown through short-lived signed links.
-  // Links that go to a patient (30 days) are only made when the message is sent.
+  // The bucket is private, so photos are shown through signed links. One 30-day link per photo
+  // serves both the screen and the WhatsApp message, which is built on the phone at the tap.
   let urls: Record<string, string> = {}
   if (photos.length > 0) {
     const { data: signed, error: signError } = await supabase.storage
       .from(PHOTO_BUCKET)
-      .createSignedUrls(photos.map((p) => p.storage_path), 60 * 60)
+      .createSignedUrls(photos.map((p) => p.storage_path), PHOTO_LINK_SECONDS)
     // On failure the photos show as "Unavailable" rather than hiding the whole visit
     if (!signError && signed) {
       urls = Object.fromEntries(signed.flatMap((s) => (s.path && s.signedUrl ? [[s.path, s.signedUrl]] : [])))
@@ -102,4 +116,51 @@ export async function getVisit(id: string): Promise<VisitDetail> {
     linked_appointment: linkedAppointment,
     next_appointment: nextAppointment,
   }
+}
+
+// Today's visit for a patient: the latest one already started today, else a new one.
+// The new visit's id can come from the phone, so a retry or a second tap never makes a second visit.
+export async function findOrCreateTodaysVisit(
+  patientId: string,
+  options: { visitId?: string; appointmentId?: string } = {},
+): Promise<string | null> {
+  await getDoctor()
+  if (!UUID.test(patientId)) return null
+  const supabase = await createClient()
+  const today = todayInIndia()
+
+  const { data: existing, error: findError } = await supabase
+    .from('visits')
+    .select('id')
+    .eq('patient_id', patientId)
+    .eq('visit_date', today)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (findError) return null
+  if (existing) return existing.id
+
+  const visitId = options.visitId && UUID.test(options.visitId) ? options.visitId : crypto.randomUUID()
+  const { error } = await supabase.from('visits').insert({ id: visitId, patient_id: patientId, visit_date: today })
+  // The same id again means an earlier tap already created it
+  if (error && error.code !== '23505') return null
+
+  // Link today's appointment: the one tapped, else the patient's first booked one today
+  if (options.appointmentId && UUID.test(options.appointmentId)) {
+    await supabase.from('appointments').update({ visit_id: visitId }).eq('id', options.appointmentId).eq('patient_id', patientId)
+  } else {
+    const { data: appointment } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('patient_id', patientId)
+      .eq('status', 'booked')
+      .is('visit_id', null)
+      .gte('starts_at', `${today}T00:00:00+05:30`)
+      .lte('starts_at', `${today}T23:59:59+05:30`)
+      .order('starts_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (appointment) await supabase.from('appointments').update({ visit_id: visitId }).eq('id', appointment.id)
+  }
+  return visitId
 }

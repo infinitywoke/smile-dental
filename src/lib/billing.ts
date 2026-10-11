@@ -41,7 +41,8 @@ export function summarise(args: {
   return { total, paid, balance, earlier: args.earlier, due }
 }
 
-// Combined WhatsApp message for R2: bill, payments, next appointment, and signed prescription photo link(s)
+// The one WhatsApp message after a visit: bill, payments, balance, next appointment and a link to
+// each photo sent, named by its kind ("Prescription: <link>"). First name only; never gender.
 export function visitMessage(args: {
   patientName: string
   visitDate: string
@@ -49,7 +50,7 @@ export function visitMessage(args: {
   payments?: { amount: number; method: 'upi' | 'cash' }[]
   summary?: BillSummary | null
   nextAppointment?: { starts_at: string } | null
-  prescriptionPhotoUrls?: string[]
+  photos?: { label: string; url: string }[]
 }): string {
   const first = args.patientName.trim().split(/\s+/)[0]
   const out = [
@@ -77,11 +78,16 @@ export function visitMessage(args: {
     out.push('', `*Next appointment*`, `📅 ${formatDay(date)}, ${formatBlock(time)}`)
   }
 
-  if (args.prescriptionPhotoUrls && args.prescriptionPhotoUrls.length > 0) {
-    out.push('', `*Prescription*`)
-    args.prescriptionPhotoUrls.forEach((url, i) => {
-      out.push(args.prescriptionPhotoUrls!.length > 1 ? `Prescription photo ${i + 1}: ${url}` : `Prescription photo: ${url}`)
-    })
+  if (args.photos && args.photos.length > 0) {
+    out.push('', '*Photos* (links work for 30 days)')
+    const counts = new Map<string, number>()
+    for (const photo of args.photos) counts.set(photo.label, (counts.get(photo.label) ?? 0) + 1)
+    const seen = new Map<string, number>()
+    for (const photo of args.photos) {
+      const n = (seen.get(photo.label) ?? 0) + 1
+      seen.set(photo.label, n)
+      out.push(`${photo.label}${counts.get(photo.label)! > 1 ? ` ${n}` : ''}: ${photo.url}`)
+    }
   }
 
   out.push('', `Thank you!`, `– ${siteConfig.dentist.name}`)

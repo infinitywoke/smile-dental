@@ -1,11 +1,11 @@
 import { formatRupees } from '@/lib/pricing'
 
+// A link to follow, or (to start a visit) a button: a link can't create a visit, as Next prefetches links
 export type NextAction = {
   label: string
-  href: string
   // How the button should look: a visit to carry on, money to collect, or a calm default
   tone: 'visit' | 'money' | 'calm'
-}
+} & ({ href: string; start?: undefined } | { start: { appointmentId?: string }; href?: undefined })
 
 export type PatientSituation = {
   patientId: string
@@ -31,7 +31,7 @@ export function nextActionFor(s: PatientSituation): NextAction {
   if (s.appointmentToday) {
     return {
       label: 'Start visit',
-      href: `/app/patients/${s.patientId}/visits/new?appointmentId=${s.appointmentToday.id}`,
+      start: { appointmentId: s.appointmentToday.id },
       tone: 'visit',
     }
   }
@@ -41,5 +41,5 @@ export function nextActionFor(s: PatientSituation): NextAction {
   if (!s.hasFutureAppointment) {
     return { label: 'Book next visit', href: `/app/book?patient=${s.patientId}`, tone: 'calm' }
   }
-  return { label: 'New visit', href: `/app/patients/${s.patientId}/visits/new`, tone: 'calm' }
+  return { label: 'New visit', start: {}, tone: 'calm' }
 }

@@ -36,7 +36,7 @@ function getRecognitionClass(): (new () => Recognition) | null {
 type Props = {
   onText: (text: string) => void                    // each finished phrase
   onInterim?: (text: string) => void                // words being heard right now ('' when none)
-  onListeningChange?: (listening: boolean) => void  // so the screen can hold Save while dictating
+  onListeningChange?: (listening: boolean) => void  // so the screen can show what is being heard
   disabled?: boolean
 }
 
@@ -181,7 +181,7 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
   }
 
   // Stop listening but stay "on" until the browser delivers the final phrase (onend),
-  // so Save can't capture the notes before the last words arrive
+  // so the last words still reach the notes
   const stop = () => {
     const recognition = recognitionRef.current
     if (!recognition) return finish()
@@ -201,7 +201,7 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
         onClick={listening ? stop : start}
         disabled={disabled && !listening}
         aria-pressed={listening}
-        className={`relative isolate inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+        className={`relative isolate inline-flex min-h-12 items-center gap-2 rounded-full px-5 text-base font-semibold transition-colors ${
           listening ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
         }`}
       >

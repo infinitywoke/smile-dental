@@ -68,7 +68,7 @@ describe('visitMessage', () => {
       payments: [{ amount: 3500, method: 'upi' }],
       summary,
       nextAppointment: { starts_at: '2026-10-22T05:00:00.000Z' }, // 10:30 AM IST
-      prescriptionPhotoUrls: ['https://example.com/prescription.jpg'],
+      photos: [{ label: 'Prescription', url: 'https://example.com/prescription.jpg' }],
     })
 
     expect(text).toContain('Hello Prakash')
@@ -77,8 +77,7 @@ describe('visitMessage', () => {
     expect(text).toContain('Paid: ₹3,500 (UPI)')
     expect(text).toContain('*Next appointment*')
     expect(text).toContain('10:30 AM')
-    expect(text).toContain('*Prescription*')
-    expect(text).toContain('https://example.com/prescription.jpg')
+    expect(text).toContain('Prescription: https://example.com/prescription.jpg')
     expect(text).toContain('– Dr. Rahil Yusuf')
   })
 
@@ -91,5 +90,32 @@ describe('visitMessage', () => {
     expect(text).toContain('Hello Prakash')
     expect(text).not.toContain('*Bill*')
     expect(text).toContain('*Next appointment*')
+  })
+})
+
+describe('visitMessage photos', () => {
+  const base = { patientName: 'Asha Rao', visitDate: '2026-10-15' }
+
+  it('names each photo by its kind and numbers repeats', () => {
+    const text = visitMessage({
+      ...base,
+      photos: [
+        { label: 'Prescription', url: 'https://x/1' },
+        { label: 'X-ray', url: 'https://x/2' },
+        { label: 'X-ray', url: 'https://x/3' },
+      ],
+    })
+    expect(text).toContain('*Photos*')
+    expect(text).toContain('Prescription: https://x/1')
+    expect(text).toContain('X-ray 1: https://x/2')
+    expect(text).toContain('X-ray 2: https://x/3')
+  })
+
+  it('uses the first name only, never gender, and leaves out photos when none are sent', () => {
+    const text = visitMessage({ ...base, photos: [] })
+    expect(text).toContain('Hello Asha,')
+    expect(text).not.toContain('Rao')
+    expect(text).not.toMatch(/(Mr|Mrs|Ms|male|female)/i)
+    expect(text).not.toContain('*Photos*')
   })
 })

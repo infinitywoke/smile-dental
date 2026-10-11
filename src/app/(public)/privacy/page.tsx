@@ -67,18 +67,11 @@ export default function PrivacyPage() {
           </List>
         </Section>
 
-        <Section title="3. Help from AI">
+        <Section title="3. AI">
           <p>
-            To save time on paperwork, the dentist may use Google&apos;s Gemini AI service to tidy up
-            visit notes he has dictated or typed. Your name, address and phone number are removed from
-            the note before it is sent, so the AI only sees the clinical details, your age and your gender.
-            When he dictates by voice, the speech recognition built into the phone&apos;s browser turns
-            his words into text.
-          </p>
-          <p>
-            While the clinic uses Google&apos;s free service, Google may use this content to improve its
-            products. The AI only assists: the dentist reviews and confirms everything before it is saved
-            to your record, and all decisions about your care are made by the dentist.
+            We do not use AI on your visit notes or any other part of your record. The dentist writes
+            every note himself. When he dictates by voice, the speech recognition built into the
+            phone&apos;s browser turns his words into text.
           </p>
         </Section>
 
