@@ -138,7 +138,6 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
           <ChevronDown className="h-5 w-5 text-gray-400 transition group-open:rotate-180" />
         </summary>
         <div className="mt-3 space-y-2 text-sm">
-          <p className="text-gray-700"><span className="text-gray-500">Born:</span> {patient.date_of_birth ? formatDate(patient.date_of_birth) : '—'}</p>
           <p className="text-gray-700"><span className="text-gray-500">Address:</span> {patient.address || '—'}</p>
           <p className="text-gray-700"><span className="text-gray-500">Heard from:</span> {patient.heard_from || '—'}</p>
           <p className="text-gray-700">

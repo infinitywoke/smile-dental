@@ -17,6 +17,8 @@ export function PatientSearch({ initial }: { initial: PatientRow[] }) {
 
   useEffect(() => {
     const ticket = ++latest.current
+    // The newest patients came with the page; look again only after typing (or on coming back)
+    if (ticket === 1 && !query) return
     const timer = setTimeout(
       () => {
         setSearching(true)
