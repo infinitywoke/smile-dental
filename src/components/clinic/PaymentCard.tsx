@@ -8,7 +8,7 @@ import { recordPayment, removePayment } from '@/lib/actions/billing'
 import { parseAmount } from '@/lib/billing'
 import { formatRupees } from '@/lib/pricing'
 import { upiLink } from '@/lib/upi'
-import { RemoveButton } from './BillTools'
+import { RemoveButton, useSaveId, type Save } from './BillTools'
 import { FullScreen, useBackToClose } from './FullScreen'
 
 const time = (iso: string) =>
@@ -21,11 +21,13 @@ export function PaymentCard({
   patientName,
   bill,
   beforeAction,
+  save,
 }: {
   visitId: string
   patientName: string
   bill: VisitBill
   beforeAction: () => Promise<void>
+  save: Save
 }) {
   const { payments, summary } = bill
   const due = Math.max(summary.balance, 0)
@@ -33,6 +35,7 @@ export function PaymentCard({
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const qr = useBackToClose()
+  const saveId = useSaveId()
 
   const parsed = parseAmount(amount)
   const valid = parsed !== null && parsed > 0
@@ -44,13 +47,16 @@ export function PaymentCard({
     }
     setError(null)
     setPending(true)
+    // The same amount tapped again after a lost reply keeps its id, so the money is recorded once
+    // (also when he then taps the other method)
+    const paymentId = saveId.idFor(String(parsed))
     try {
-      await beforeAction()
-      const result = await recordPayment(visitId, parsed!, method)
+      const result = await save(() => recordPayment(visitId, parsed!, method, paymentId))
       if (result.error) {
         setError(result.error)
         return false
       }
+      saveId.done()
       return true
     } catch {
       setError("Couldn't reach the server. Check the internet and try again.")
@@ -94,7 +100,7 @@ export function PaymentCard({
           </div>
           {summary.earlier > 0 && (
             <div className="space-y-1 pt-1 text-sm text-gray-600">
-              <Row label="Earlier balance" value={formatRupees(summary.earlier)} />
+              <Row label="Other visits" value={formatRupees(summary.earlier)} />
               <Row label="Total due" value={formatRupees(summary.due)} strong />
             </div>
           )}

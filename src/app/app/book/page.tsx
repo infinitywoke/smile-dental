@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getPatient, searchPatients } from '@/lib/data/patients'
-import { getDaySchedule } from '@/lib/data/appointments'
+import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
 import { ageOn, todayInIndia } from '@/lib/dates'
 import { ALL_BLOCKS, addDays, blockEnd, formatBlock, formatDay, inIndia, isClosedDay } from '@/lib/schedule'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
@@ -14,6 +14,10 @@ import { SlotGrid } from '@/components/clinic/SlotGrid'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// How far ahead the page looks for a day with a free time when today has none
+const MAX_DAYS_AHEAD = 14
+
+const hasFreeTime = (schedule: DaySchedule) => !schedule.closed && !schedule.dayOff && schedule.blocks.some((b) => b.state === 'free')
 
 // Book by phone. Step 1: pick a free time. Step 2: type to find the patient (or add a new one), then Book.
 async function BookContent({ searchParams }: PageProps<'/app/book'>) {
@@ -77,8 +81,18 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
 
   // ---- Step 1: pick a time ----
   const today = todayInIndia()
-  const date = typeof d === 'string' && DATE.test(d) && d >= today ? d : today
-  const schedule = await getDaySchedule(date)
+  const chosen = typeof d === 'string' && DATE.test(d) && d >= today ? d : null
+  let date = chosen ?? today
+  let schedule = await getDaySchedule(date)
+  // No day chosen and nothing left to book today (late, full or closed): open the next day with a free time
+  const skippedToday = !chosen && !hasFreeTime(schedule)
+  for (let i = 0; i < MAX_DAYS_AHEAD && !chosen && !hasFreeTime(schedule); i++) {
+    date = addDays(date, 1)
+    schedule = await getDaySchedule(date)
+  }
+  // A day he moved to himself that has nothing left: say so, with a big way on
+  const nothingLeft = !schedule.closed && !schedule.blocks.some((b) => b.state === 'free' || b.state === 'blocked')
+  const nextDayHref = `/app/book?d=${addDays(date, 1)}${withPatient}`
 
   return (
     <div className="space-y-5">
@@ -92,13 +106,27 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
           </Link>
         ) : <span className="w-12" />}
         <p className="text-base font-bold text-gray-900">{date === today ? `Today, ${formatDay(date)}` : formatDay(date)}</p>
-        <Link href={`/app/book?d=${addDays(date, 1)}${withPatient}`} className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Next day">
-          <ChevronRight className="h-6 w-6" />
-        </Link>
+        {schedule.closed || nothingLeft ? <span className="w-12" /> : (
+          <Link href={nextDayHref} className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Next day">
+            <ChevronRight className="h-6 w-6" />
+          </Link>
+        )}
       </div>
 
-      {schedule.closed ? (
-        <p className="rounded-xl bg-gray-100 p-4 text-center text-sm font-medium text-gray-600">The clinic is closed on Fridays. Try another day.</p>
+      {skippedToday && date !== today && (
+        <p className="rounded-xl bg-blue-50 p-3 text-center text-sm font-medium text-blue-900">No times left today.</p>
+      )}
+
+      {schedule.closed || nothingLeft ? (
+        <div className="space-y-3 rounded-xl bg-gray-100 p-4 text-center">
+          <p className="text-base font-medium text-gray-700">
+            {schedule.closed ? 'The clinic is closed on Fridays.' : date === today ? 'No times left today.' : 'No times left on this day.'}
+          </p>
+          <Link href={nextDayHref}
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-blue-700">
+            Next day <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          </Link>
+        </div>
       ) : (
         <SlotGrid
           blocks={schedule.blocks.filter((b) => b.state !== 'past')}

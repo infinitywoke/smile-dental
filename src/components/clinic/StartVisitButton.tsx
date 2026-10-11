@@ -1,10 +1,10 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { startVisit } from '@/lib/actions/visits'
 
 // Opens today's visit for the patient (creating it if needed). A button, not a link: Next prefetches
-// links, and a prefetch must never create a visit. One id per button, so a double tap makes one visit.
+// links, and a prefetch must never create a visit. One id per start, so a double tap makes one visit.
 export function StartVisitButton({
   patientId,
   appointmentId,
@@ -19,6 +19,11 @@ export function StartVisitButton({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const visitIdRef = useRef<string | null>(null)
+
+  // One id per start: kept while it opens (so a double tap makes one visit), fresh for the next start
+  useEffect(() => {
+    if (!pending) visitIdRef.current = null
+  }, [pending])
 
   function start() {
     visitIdRef.current ??= crypto.randomUUID()

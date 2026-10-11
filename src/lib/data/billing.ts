@@ -15,7 +15,8 @@ export type VisitBill = {
   summary: BillSummary
 }
 
-// Everything the bill screen needs: this visit's charges and payments, plus what the patient owed before it
+// Everything the bill screen needs: this visit's charges and payments, plus what the patient owes
+// from their other visits (shown as "Other visits"; earlier or later, so the total due is always right)
 export async function getVisitBill(visitId: string): Promise<VisitBill> {
   await getDoctor()
   if (!UUID.test(visitId)) notFound()

@@ -29,7 +29,7 @@ describe('parseAmount', () => {
 })
 
 describe('summarise', () => {
-  it('works out what is still due, with earlier balance', () => {
+  it('works out what is still due, with what other visits owe', () => {
     const s = summarise({ charges: [{ amount: 1200 }, { amount: 300 }], payments: [{ amount: 1000 }], earlier: 500 })
     expect(s).toEqual({ total: 1500, paid: 1000, balance: 500, earlier: 500, due: 1000 })
   })
@@ -90,6 +90,21 @@ describe('visitMessage', () => {
     expect(text).toContain('Hello Prakash')
     expect(text).not.toContain('*Bill*')
     expect(text).toContain('*Next appointment*')
+  })
+
+  it('names money owed from other visits as such, with the total due', () => {
+    const summary = summarise({ charges: [{ amount: 1000 }], payments: [{ amount: 800 }], earlier: 500 })
+    const text = visitMessage({
+      patientName: 'Prakash Shetty',
+      visitDate: '2026-10-15',
+      lines: [{ description: 'Filling', amount: 1000 }],
+      payments: [{ amount: 800, method: 'cash' }],
+      summary,
+    })
+    expect(text).toContain('Balance: ₹200')
+    expect(text).toContain('Due from other visits: ₹500')
+    expect(text).toContain('*Total due: ₹700*')
+    expect(text).not.toContain('Earlier balance')
   })
 })
 

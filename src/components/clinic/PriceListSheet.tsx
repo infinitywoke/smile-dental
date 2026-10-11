@@ -5,6 +5,7 @@ import { AlertCircle, Loader2, Plus, Search } from 'lucide-react'
 import { addCharge } from '@/lib/actions/billing'
 import { parseAmount } from '@/lib/billing'
 import { formatPrice, formatRupees, priceListOptions, type PriceListOption } from '@/lib/pricing'
+import type { Save, SaveId } from './BillTools'
 import { FullScreen } from './FullScreen'
 
 const inputClass =
@@ -16,7 +17,19 @@ const nameOf = (o: PriceListOption) => (o.detail ? `${o.treatment} – ${o.detai
 
 // The clinic price list, full screen. A fixed price is added with one tap; a range or a formula
 // asks for the agreed amount; "Other charge" asks what for and how much.
-export function PriceListSheet({ visitId, onAdded, onClose }: { visitId: string; onAdded: () => void; onClose: () => void }) {
+export function PriceListSheet({
+  visitId,
+  save,
+  saveId,
+  onAdded,
+  onClose,
+}: {
+  visitId: string
+  save: Save
+  saveId: SaveId
+  onAdded: () => void
+  onClose: () => void
+}) {
   const options = useMemo(() => priceListOptions(), [])
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -32,10 +45,15 @@ export function PriceListSheet({ visitId, onAdded, onClose }: { visitId: string;
     if (busy) return
     setError(null)
     setBusy(key)
+    // The same charge tapped again after a lost reply keeps its id, so it is saved once
+    const chargeId = saveId.idFor(`${input.treatmentSlug}|${input.description}|${input.amount}`)
     try {
-      const result = await addCharge(visitId, input)
+      const result = await save(() => addCharge(visitId, input, chargeId))
       if (result.error) setError(result.error)
-      else onAdded()
+      else {
+        saveId.done()
+        onAdded()
+      }
     } catch {
       setError("Couldn't reach the server. Check the internet and try again.")
     } finally {

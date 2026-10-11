@@ -27,12 +27,18 @@ async function patientOfVisit(visitId: string): Promise<string | null> {
   return data?.patient_id ?? null
 }
 
+// A charge or payment carries an id made on the phone, one per intended charge or payment. If the
+// row was saved but the reply was lost, trying again finds that id already there: success, not a second row.
+const ALREADY_SAVED = '23505'
+
 export async function addCharge(
   visitId: string,
   input: { description: string; amount: number; treatmentSlug: string | null },
+  chargeId?: string,
 ): Promise<Result> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Something went wrong. Please reopen the visit.' }
+  if (chargeId !== undefined && !UUID.test(chargeId)) return { error: 'Something went wrong. Please reopen the visit.' }
   const description = input.description.trim().slice(0, 200)
   if (!description) return { error: 'Please say what the charge is for.' }
   if (!validAmount(input.amount, true)) return { error: 'Please enter a valid amount.' }
@@ -42,6 +48,7 @@ export async function addCharge(
 
   const supabase = await createClient()
   const { error } = await supabase.from('visit_charges').insert({
+    ...(chargeId ? { id: chargeId } : {}),
     visit_id: visitId,
     patient_id: patientId,
     description,
@@ -49,7 +56,7 @@ export async function addCharge(
     kind: input.treatmentSlug ? 'item' : 'extra',
     treatment_slug: input.treatmentSlug,
   })
-  if (error) return { error: 'Could not add the charge. Please try again.' }
+  if (error && !(chargeId && error.code === ALREADY_SAVED)) return { error: 'Could not add the charge. Please try again.' }
   refresh()
   return {}
 }
@@ -65,9 +72,10 @@ export async function removeCharge(chargeId: string): Promise<Result> {
 }
 
 // Money received. Confirmed by the doctor himself: tapped after the UPI alert or counting the cash.
-export async function recordPayment(visitId: string, amount: number, method: 'upi' | 'cash'): Promise<Result> {
+export async function recordPayment(visitId: string, amount: number, method: 'upi' | 'cash', paymentId?: string): Promise<Result> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Something went wrong. Please reopen the visit.' }
+  if (paymentId !== undefined && !UUID.test(paymentId)) return { error: 'Something went wrong. Please reopen the visit.' }
   if (method !== 'upi' && method !== 'cash') return { error: 'Please choose UPI or cash.' }
   if (!validAmount(amount, false)) return { error: 'Please enter the amount received.' }
 
@@ -76,13 +84,14 @@ export async function recordPayment(visitId: string, amount: number, method: 'up
 
   const supabase = await createClient()
   const { error } = await supabase.from('payments').insert({
+    ...(paymentId ? { id: paymentId } : {}),
     patient_id: patientId,
     visit_id: visitId,
     amount,
     method,
     kind: 'payment',
   })
-  if (error) return { error: 'Could not record the payment. Please try again.' }
+  if (error && !(paymentId && error.code === ALREADY_SAVED)) return { error: 'Could not record the payment. Please try again.' }
   refresh()
   return {}
 }
