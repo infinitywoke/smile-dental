@@ -6,6 +6,7 @@ import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { isOnlineBookable, inIndia } from '@/lib/schedule'
 import type { SubmitBookingRequestArgs } from '@/lib/data/types'
 import { parseGender } from '@/lib/gender'
+import { birthYearFromAge, parseAge, titleCaseName } from '@/lib/patient-fields'
 
 // Public: free appointment times for the website's booking page. Start times only, no names.
 export async function getOpenSlots(): Promise<string[]> {
@@ -42,9 +43,9 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
 
   let birthYear: number | null = null
   if (input.age.trim()) {
-    const age = Number(input.age.trim())
-    if (!Number.isInteger(age) || age < 0 || age > 120) return { ok: false, error: 'Please check the age.' }
-    birthYear = Number(inIndia(new Date()).date.slice(0, 4)) - age
+    const age = parseAge(input.age)
+    if (age === null) return { ok: false, error: 'Please check the age.' }
+    birthYear = birthYearFromAge(age, inIndia(new Date()).date)
   }
 
   const start = new Date(input.requestedStart)
@@ -59,7 +60,7 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
   const supabase = createPublicClient(forwarded)
 
   const args: SubmitBookingRequestArgs = {
-    p_name: input.name.trim(),
+    p_name: titleCaseName(input.name),
     p_phone: phone!,
     p_date_of_birth: null,
     p_birth_year: birthYear,
