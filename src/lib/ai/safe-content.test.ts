@@ -99,8 +99,8 @@ describe('the only route to the AI', () => {
   const rel = (f: string) => path.relative(root, f).replaceAll('\\', '/')
   const source = (f: string) => readFileSync(f, 'utf8')
 
-  it('keeps the AI SDKs inside the AI folder, the token action and the dictation client', () => {
-    const allowed = new Set(['lib/actions/transcribe.ts', 'lib/live-transcribe.ts'])
+  it('keeps the AI SDKs inside the AI folder', () => {
+    const allowed = new Set<string>()
     const offenders = files.filter(
       (f) => /from '@google\/genai'|from '@anthropic-ai\/sdk/.test(source(f)) && !rel(f).startsWith('lib/ai/') && !allowed.has(rel(f)),
     )

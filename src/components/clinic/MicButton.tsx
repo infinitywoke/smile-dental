@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Mic, Square } from 'lucide-react'
-import { LiveStartError, startLiveTranscription, type LiveTranscriber } from '@/lib/live-transcribe'
-import { createTranscribeToken } from '@/lib/actions/transcribe'
 
 // Minimal typing for the browser Web Speech API (Chrome exposes it as webkitSpeechRecognition)
 type Recognition = {
@@ -42,13 +40,12 @@ type Props = {
   disabled?: boolean
 }
 
-// Stop on its own after this long without hearing anything (a forgotten mic)
-const SILENCE_LIMIT_MS = 60_000
+// Dictation stays on until Stop is tapped. Only a forgotten mic is switched off, after this long
+// without a single word (a doctor may pause for a long procedure or a phone call).
+const SILENCE_LIMIT_MS = 15 * 60_000
 
 // Tap to start dictating; stays on until Stop is tapped.
-// The microphone is streamed live to Gemini's transcription model. If that can't start (no key,
-// no network to it), the browser's own speech recognition is used instead; browsers end that after
-// each pause, so it restarts itself until stopped.
+// Browsers end recognition after each pause, so it restarts itself until stopped.
 export function MicButton({ onText, onInterim, onListeningChange, disabled = false }: Props) {
   const [supported, setSupported] = useState(false)
   const [listening, setListening] = useState(false)
@@ -56,8 +53,6 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
   const recognitionRef = useRef<Recognition | null>(null)
   const wantListeningRef = useRef(false)
   const wakeLockRef = useRef<WakeLock | null>(null)
-  const liveRef = useRef<LiveTranscriber | null>(null)
-  const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastHeardRef = useRef(0)
   const callbacksRef = useRef({ onText, onInterim, onListeningChange })
 
@@ -71,12 +66,10 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- browser support is only known after mount
-    setSupported(getRecognitionClass() !== null || !!navigator.mediaDevices?.getUserMedia)
+    setSupported(getRecognitionClass() !== null)
     return () => {
       wantListeningRef.current = false
       recognitionRef.current?.abort()
-      void liveRef.current?.stop()
-      if (silenceTimerRef.current) clearInterval(silenceTimerRef.current)
       wakeLockRef.current?.release().catch(() => {})
     }
   }, [])
@@ -87,17 +80,12 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
     const onHide = () => {
       if (document.visibilityState !== 'hidden') return
       const recognition = recognitionRef.current
-      const live = liveRef.current
       wantListeningRef.current = false
       recognitionRef.current = null
-      liveRef.current = null
-      if (silenceTimerRef.current) clearInterval(silenceTimerRef.current)
       wakeLockRef.current?.release().catch(() => {})
       wakeLockRef.current = null
       callbacksRef.current.onInterim?.('')
-      // The live stream hands over its last words before the screen lets go of the microphone
-      void live?.stop().then(() => setListening(false))
-      if (!live) setListening(false)
+      setListening(false)
       recognition?.stop()
     }
     document.addEventListener('visibilitychange', onHide)
@@ -114,9 +102,6 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
   const finish = (message: string | null = null) => {
     wantListeningRef.current = false
     recognitionRef.current = null
-    liveRef.current = null
-    if (silenceTimerRef.current) clearInterval(silenceTimerRef.current)
-    silenceTimerRef.current = null
     releaseWakeLock()
     callbacksRef.current.onInterim?.('')
     setListening(false)
@@ -159,7 +144,7 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
       }
       if (wantListeningRef.current && recognitionRef.current === recognition) {
         if (Date.now() - lastHeardRef.current > SILENCE_LIMIT_MS) {
-          finish('Dictation paused after a minute of silence. Tap Dictate to continue.')
+          finish('Dictation switched off after 15 minutes of silence. Tap Dictate to continue.')
           return
         }
         // Keep going until the doctor taps Stop
@@ -175,48 +160,13 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
     recognition.start()
   }
 
-  // Streams the microphone to Gemini. Returns false when it can't start, so the browser's own
-  // dictation takes over; a blocked microphone is reported and counts as handled.
-  const startLive = async (): Promise<boolean> => {
-    try {
-      const live = await startLiveTranscription({
-        getToken: createTranscribeToken,
-        onFinal: (text) => {
-          lastHeardRef.current = Date.now()
-          callbacksRef.current.onText(text)
-        },
-        onInterim: (text) => {
-          if (text) lastHeardRef.current = Date.now()
-          callbacksRef.current.onInterim?.(text)
-        },
-        onError: (message) => finish(message),
-      })
-      if (!wantListeningRef.current) {
-        // Stop was tapped while the stream was starting
-        void live.stop().then(() => finish())
-        return true
-      }
-      liveRef.current = live
-      // A forgotten mic stops by itself, as the browser dictation does
-      silenceTimerRef.current = setInterval(() => {
-        if (Date.now() - lastHeardRef.current > SILENCE_LIMIT_MS) {
-          const current = liveRef.current
-          liveRef.current = null
-          releaseWakeLock()
-          void current?.stop().then(() => finish('Dictation paused after a minute of silence. Tap Dictate to continue.'))
-        }
-      }, 5000)
-      return true
-    } catch (error) {
-      if (error instanceof LiveStartError && error.kind === 'denied') {
-        finish(error.message)
-        return true
-      }
-      return false
-    }
-  }
-
-  const requestWakeLock = async () => {
+  const start = async () => {
+    setError(null)
+    wantListeningRef.current = true
+    lastHeardRef.current = Date.now()
+    setListening(true)
+    listen()
+    // Keep the screen awake while dictating, so the phone doesn't sleep mid-sentence
     try {
       const wakeLock = (navigator as unknown as { wakeLock?: { request(type: 'screen'): Promise<WakeLock> } }).wakeLock
       if (wakeLock) {
@@ -230,30 +180,9 @@ export function MicButton({ onText, onInterim, onListeningChange, disabled = fal
     }
   }
 
-  const start = async () => {
-    setError(null)
-    wantListeningRef.current = true
-    lastHeardRef.current = Date.now()
-    setListening(true)
-    // Keep the screen awake while dictating, so the phone doesn't sleep mid-sentence
-    void requestWakeLock()
-    if (await startLive()) return
-    // Gemini couldn't start: fall back to the browser's dictation, if it has one
-    if (!getRecognitionClass()) return finish('Dictation could not start. Use the mic on the phone keyboard.')
-    if (wantListeningRef.current) listen()
-  }
-
   // Stop listening but stay "on" until the browser delivers the final phrase (onend),
   // so Save can't capture the notes before the last words arrive
   const stop = () => {
-    const live = liveRef.current
-    if (live) {
-      wantListeningRef.current = false
-      liveRef.current = null
-      releaseWakeLock()
-      void live.stop().then(() => finish())
-      return
-    }
     const recognition = recognitionRef.current
     if (!recognition) return finish()
     wantListeningRef.current = false
