@@ -1,6 +1,6 @@
 # Brief 2A: Today, navigation and patients
 
-**Builder:** Sonnet 5.5, effort medium. **Wave 2**, in parallel with 2B (website form). **End-to-end port:** `E2E_PORT=3101`. Read [README.md](README.md) first (shared rules).
+**Builder:** Sonnet 5.5, effort medium. **Wave 2**, in parallel with 1C (fixes from the Wave 1 review, `1C-visit-fixes.md`); 2B (website form) follows. **End-to-end port:** `E2E_PORT=3102`. Read [README.md](README.md) first (shared rules).
 
 ## Facts from Wave 1 (merged 11 Oct)
 - **Start a visit with** `<StartVisitButton patientId appointmentId? label? className? />` (`src/components/clinic/StartVisitButton.tsx`): it calls `startVisit`, which reuses today's visit for that patient or creates one, and opens `/app/visits/<id>`. Never link to a "start" URL (Next prefetches links).
@@ -28,8 +28,12 @@
 - `src/app/app/patients/page.tsx`, `patients/new/page.tsx`, `patients/[id]/page.tsx`, `patients/[id]/edit/page.tsx`.
 - In `src/components/clinic/`: `BottomNav.tsx`, `HeaderMenu.tsx`, `PatientForm.tsx`, `ui.tsx`, `useResetOnHide.ts`.
 - `src/lib/actions/patients.ts`, `src/lib/actions/practice.ts`, `src/lib/practice.ts`, `src/lib/next-action.ts` (delete if no longer needed); `src/lib/data/patients.ts`, `patient-hub.ts`, `dues.ts`.
-- Only to remove TEST badges and the practice flag: `RequestCard.tsx`, `BookAppointment.tsx`, the visit header component, `bookNewPatient` in `src/lib/actions/appointments.ts`.
-- `e2e/today.spec.ts`, plus `e2e/visit.spec.ts` and `e2e/times.spec.ts` where they go through Today, "+", Patients or the patient page; the unit tests beside your files.
+- Only to remove TEST badges and the practice flag: `RequestCard.tsx`, `BookAppointment.tsx`, `bookNewPatient` in `src/lib/actions/appointments.ts`. (The visit header's TEST badge is removed by 1C: do not edit `VisitFlow.tsx`.)
+- `e2e/today.spec.ts` and the unit tests beside your files. **Do not edit `e2e/visit.spec.ts` or `e2e/times.spec.ts`** (builder 1C owns them now). If your changes break steps in them (for example "+" now opening New patient directly, or the Patients search button going away), list those steps in your report; the orchestrator fixes them when merging.
+
+## Also from the Wave 1 review (`review-wave1.md`)
+- **#15:** "Open today's visit" on the patient page links to `/app/visits/<id>` with no `step` (when you delete or rewrite `next-action.ts`).
+- **#12** (linking today's appointment when the patient already has a visit today) is fixed by 1C in `startVisit`; Today's Start buttons just pass `appointmentId`.
 
 ## Phone check
 Today shows one list of today's patients by time; a booked one has Start. No search box on Today; on Patients, typing "9717" shows matches. "+" opens New patient; type a name, Back, open it again: the name is still there. Age opens the number keypad; "heard from" is chips only; Start visit without a gender shows the message just above the button. Patient page: Start visit first; Collect only when owed; Move and Cancel side by side. No yellow banner, no ⋯ menu; Sign out at the bottom of Patients. Tour: no Clinic OS control below 48 dp; the walk-in takes about 10 taps over 3 screens.

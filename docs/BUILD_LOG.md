@@ -58,8 +58,9 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 ### Wave 1: visit page and time pickers (two builders in parallel)
 - [x] 1A Visit page (Opus, high): C1, C3, C4, C6, C7, C16 + visit parts of C5, C15, C17, C18 (commits 3ca78a8 + 2a32bc5, merged as e493be5)
 - [x] 1B Time pickers and bookings (Sonnet, medium): C2, C14 + parts of C10, C17, C18, C21, C22 (commit 4daa19e, merged as cff4247)
-- [ ] Merged, gates pass, tour re-run, fresh-eyes review, pushed
-- [ ] Owner phone check on the OnePlus 13
+- [x] Merged, gates pass, tour re-run, fresh-eyes review (`docs/build/review-wave1.md`: 1 blocker, 5 should-fix, 9 nice-to-have, security none), pushed
+- [ ] 1C Fixes from the review (Opus, high, `docs/build/1C-visit-fixes.md`, port 3101), in parallel with 2A
+- [ ] Owner phone check on the OnePlus 13 (after 1C)
 
 ### Wave 2: Today, patients and the website form (two builders in parallel)
 - [ ] 2A Today, navigation and patients (Sonnet, medium): C8, C9, C11, C12, C13 + parts of C5, C10, C15, C18, C21
@@ -89,3 +90,4 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 - 2026-10-11 Orchestrator review asked for two fixes: (1) photo links were 30-day on every page view; restored the recorded decision: 1-hour links on screen, 30-day links only for ticked photos at the Send tap (`markWhatsappSent(visitId, photoIds)` returns them; WhatsApp opens within 2 s of the tap or a big "Open WhatsApp" button appears); (2) every autosave refreshed the whole page; now only the first note on an empty visit and the save on leaving refresh other screens. The builder hit the usage limit mid-fix; the orchestrator finished it (lint: Date.now in a handler replaced by a timer flag; e2e handles the "Open WhatsApp" fallback), commit 2a32bc5.
 - 2026-10-11 Merged 1A (e493be5). Gates on `main`: tsc, 141 unit, lint, build, e2e 17/17 (after fixing a time-of-day flake in `times.spec.ts`: late in the day the booking test moves to the next day). Tour updated to the one-page visit. Pushed 0e6b8fe.
 - 2026-10-11 Tour after Wave 1 (production build, OnePlus 13 size): walk-in 13 taps / 8 typed / 1 date picker / 3 screens (baseline 15 / 10 / 1 / 5); Back from the visit goes to Today, price list and UPI QR close on Back (3 Back failures left, all Wave 2 screens); Clinic OS controls under 48 dp 20 (baseline 54; all on Wave 2 screens); notes "Saved" 2.4 s after typing; request asks preselected, move marks the current time. Brief 2A refreshed with these facts. Fresh-eyes reviewer (Opus, high) reviewing Wave 1, writing `docs/build/review-wave1.md`.
+- 2026-10-11 Fresh-eyes review of Wave 1 done: blocker #1 (WhatsApp message built from the page as shown at the tap, so a next visit or payment saved a moment earlier can be missing; seen in the tour), should-fix #2-#6 (blank booking page after the last time, Start visit can reopen an old visit, duplicate charge/payment on a lost reply, failed photo uploads only in memory, an old notes retry can overwrite newer notes). Brief `1C-visit-fixes.md` written; 2A brief adjusted (port 3102; does not edit VisitFlow, visit.spec or times.spec; adds #15). Spawning 1C (Opus, high) and 2A (Sonnet, medium) in parallel; 2B after one finishes.
