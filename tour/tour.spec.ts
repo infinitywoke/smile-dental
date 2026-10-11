@@ -454,12 +454,20 @@ test('evidence tour', async ({ page }) => {
     back.push({ where: 'Header menu open on Today', after: new URL(page.url()).pathname })
   })
   await step('back: half-typed new patient', async () => {
-    await page.goto('/app'); await page.goto('/app/patients/new')
+    // As on the phone: tap "+", type, Back, then "+" again (in-app navigation, not a page reload)
+    await page.goto('/app')
+    const add = async () => {
+      const button = visible(page.getByRole('button', { name: 'Add' }))
+      if (await button.count()) { await button.click(); await visible(page.getByRole('link', { name: /New patient/ })).click() }
+      else await visible(page.getByRole('link', { name: 'New patient' })).click()
+      await page.waitForURL(/\/app\/patients\/new$/)
+    }
+    await add()
     await visible(page.getByLabel('Name', { exact: true })).fill('Half typed')
     await page.goBack(); await page.waitForTimeout(1000)
     const left = new URL(page.url()).pathname
-    await page.goForward(); await page.waitForTimeout(1500)
-    back.push({ where: 'New patient form with a name typed', after: left, nameKeptAfterForward: await visible(page.getByLabel('Name', { exact: true })).inputValue().catch(() => 'n/a') })
+    await add(); await page.waitForTimeout(500)
+    back.push({ where: 'New patient form with a name typed', after: left, nameKeptOnReturn: await visible(page.getByLabel('Name', { exact: true })).inputValue().catch(() => 'n/a') })
   })
   await step('visit menu', async () => {
     if (!visitUrl) return
