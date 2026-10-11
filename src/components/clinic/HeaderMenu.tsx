@@ -6,6 +6,18 @@ import { FlaskConical, LogOut, MoreHorizontal, Trash2 } from 'lucide-react'
 import { setPracticeMode } from '@/lib/actions/practice'
 import { deleteTestPatients } from '@/lib/actions/patients'
 
+// Notes typed but not saved are kept on the phone as a safety net. Signing out removes them, so
+// nothing about a patient is left behind on a phone that is lent or sold.
+function clearDrafts() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('visit-draft:') || key.startsWith('visit-pending:')) localStorage.removeItem(key)
+    }
+  } catch {
+    // Storage can be unavailable; signing out still goes ahead
+  }
+}
+
 // The rare things live here so the screens stay clean
 export function HeaderMenu({ practice }: { practice: boolean }) {
   const router = useRouter()
@@ -81,7 +93,7 @@ export function HeaderMenu({ practice }: { practice: boolean }) {
             <span className="text-sm font-semibold text-gray-900">Delete test data</span>
           </button>
 
-          <form action="/auth/signout" method="post" className="border-t border-gray-100">
+          <form action="/auth/signout" method="post" onSubmit={clearDrafts} className="border-t border-gray-100">
             <button type="submit" role="menuitem" className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50">
               <LogOut className="h-5 w-5 text-gray-500" />
               <span className="text-sm font-semibold text-gray-900">Sign out</span>
