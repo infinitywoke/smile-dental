@@ -18,7 +18,8 @@ export async function getOpenSlots(): Promise<string[]> {
 export type BookingInput = {
   name: string
   phone: string
-  dateOfBirth: string
+  // Optional, in years (the database stores the birth year)
+  age: string
   gender: string
   address: string
   medicalAlerts: string
@@ -39,6 +40,13 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
   const gender = parseGender(input.gender)
   if (!gender) return { ok: false, error: 'Please choose female, male or other.' }
 
+  let birthYear: number | null = null
+  if (input.age.trim()) {
+    const age = Number(input.age.trim())
+    if (!Number.isInteger(age) || age < 0 || age > 120) return { ok: false, error: 'Please check the age.' }
+    birthYear = Number(inIndia(new Date()).date.slice(0, 4)) - age
+  }
+
   const start = new Date(input.requestedStart)
   if (Number.isNaN(start.getTime())) return { ok: false, error: 'Please choose a time.' }
   const { date, time } = inIndia(start)
@@ -53,7 +61,8 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
   const args: SubmitBookingRequestArgs = {
     p_name: input.name.trim(),
     p_phone: phone!,
-    p_date_of_birth: input.dateOfBirth || null,
+    p_date_of_birth: null,
+    p_birth_year: birthYear,
     p_address: input.address.trim() || null,
     p_medical_alerts: input.medicalAlerts.trim() || null,
     p_heard_from: input.heardFrom.trim() || null,
