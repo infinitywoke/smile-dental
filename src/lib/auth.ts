@@ -18,18 +18,21 @@ export const getDoctor = cache(async (): Promise<Doctor> => {
   // Session checks compare token expiry with the current time, so they must run at request time
   await connection()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // The session is checked here with the project's public signing key (ES256), so no call to
+  // Supabase Auth is needed on every screen and tap. An expired session is refreshed first.
+  const { data } = await supabase.auth.getClaims()
+  const claims = data?.claims
 
-  if (!user) {
+  if (!claims?.sub) {
     redirect('/login')
   }
-  if (!isAllowedEmail(user.email)) {
+  if (!isAllowedEmail(claims.email)) {
     redirect('/login?error=not-allowed')
   }
 
   return {
-    id: user.id,
-    email: user.email!,
-    name: (user.user_metadata?.full_name as string | undefined) ?? 'Dr. Rahil',
+    id: claims.sub,
+    email: claims.email!,
+    name: (claims.user_metadata?.full_name as string | undefined) ?? 'Dr. Rahil',
   }
 })

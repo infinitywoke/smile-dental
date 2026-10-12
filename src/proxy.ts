@@ -26,8 +26,9 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const signedIn = !!user && isAllowedEmail(user.email)
+  // Checked with the project's public signing key: no call to Supabase Auth unless the session needs refreshing
+  const { data } = await supabase.auth.getClaims()
+  const signedIn = !!data?.claims?.sub && isAllowedEmail(data.claims.email)
   const { pathname } = request.nextUrl
 
   if (pathname.startsWith('/app') && !signedIn) {
