@@ -10,7 +10,7 @@ import { patientAge } from '@/lib/patient-fields'
 import { ALL_BLOCKS, addDays, blockEnd, formatBlock, formatDay, inIndia, isClosedDay } from '@/lib/schedule'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { BookAppointment } from '@/components/clinic/BookAppointment'
-import { BlockThisTimeButton, UnblockButton } from '@/components/clinic/CalendarActions'
+import { BlockThisTimeButton, DayOffButton, UnblockButton } from '@/components/clinic/CalendarActions'
 import { SlotGrid } from '@/components/clinic/SlotGrid'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -42,11 +42,14 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
 
     // Shown instead of the form while the time is taken. The panel itself stays mounted, so a
     // booking just made here still shows "Booked" after the page refreshes.
+    // Inside a closed day, Reopen reopens the day (reopening one time there would change nothing).
     const notice =
       block && block.state === 'blocked' ? (
-        <div className="flex items-center gap-3 rounded-2xl bg-gray-100 p-4">
-          <p className="min-w-0 flex-1 text-sm text-gray-700">This time is blocked off{block.note ? ` (${block.note})` : ''}.</p>
-          <UnblockButton instant={block.instant} />
+        <div className="space-y-3 rounded-2xl bg-gray-100 p-4">
+          <p className="text-sm text-gray-700">
+            {schedule.dayOff ? 'This whole day is closed.' : `This time is blocked off${block.note ? ` (${block.note})` : ''}.`}
+          </p>
+          {schedule.dayOff ? <DayOffButton date={date} dayOff reopenLabel="Reopen the day" /> : <UnblockButton instant={block.instant} />}
         </div>
       ) : block && (block.state === 'booked' || block.state === 'request') ? (
         <p className="rounded-2xl bg-gray-100 p-4 text-sm text-gray-700">

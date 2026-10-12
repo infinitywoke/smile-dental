@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookingRequestMessage, confirmationMessage, declineMessage, movedMessage } from './whatsapp'
+import { bookingRequestMessage, cancelledMessage, confirmationMessage, declineMessage, movedMessage } from './whatsapp'
 import { visitMessage } from './billing'
 
 // Messages to a patient carry the patient's first name and nothing else that identifies them:
@@ -34,6 +34,21 @@ describe('messages to the patient', () => {
     expect(text).toContain('📅 *Thursday, 15 October*')
     expect(text).toContain('🕗 *6:00 PM*')
     expect(text).toContain('_Please arrive 5 minutes early._')
+    expect(text).not.toContain('confirmed')
+    expect(text).not.toContain('Shetty')
+    expect(text).not.toMatch(FORBIDDEN)
+  })
+
+  it('cancelled names the day and time in bold, says how to book again, first name only', () => {
+    const text = cancelledMessage({ name: 'Prakash Shetty', startsAt: starts })
+    expect(text.startsWith(HEADER)).toBe(true)
+    expect(text.endsWith(SIGN_OFF)).toBe(true)
+    expect(text).toContain('has been *cancelled*:')
+    expect(text).toContain('📅 *Thursday, 15 October*')
+    expect(text).toContain('🕗 *6:00 PM*')
+    expect(text).toContain('To book a new time, call or WhatsApp us on')
+    // Not a booking: no address block, no "arrive early"
+    expect(text).not.toContain('arrive 5 minutes early')
     expect(text).not.toContain('confirmed')
     expect(text).not.toContain('Shetty')
     expect(text).not.toMatch(FORBIDDEN)

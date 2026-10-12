@@ -25,25 +25,30 @@ type Props = {
   query?: string
   // Patients in the app who share the request's phone number
   matches?: { id: string; name: string; age: number | null }[]
+  // The one of them this request most likely is (same name, or the only one): chosen to start with
+  likelyMatch?: string | null
 }
 
 type Done = { whatsappUrl?: string; patientId?: string; when: string }
 
 // Shows a day's blocks. The doctor taps a free block and saves.
-export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, originalInstant, basePath, query, matches = [] }: Props) {
+export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, originalInstant, basePath, query, matches = [], likelyMatch = null }: Props) {
   const [selected, setSelected] = useState<string | null>(() => {
     if (!originalInstant) return null
     const own = blocks.find((b) => sameInstant(b.instant, originalInstant))
     return own && isPlaceable(own, id) ? own.instant : null
   })
-  const [linkPatient, setLinkPatient] = useState<string | null>(null)
+  // A patient id, null for a new patient, or undefined until the doctor says who it is (when the
+  // number is known but it can't be told whose it is)
+  const [linkPatient, setLinkPatient] = useState<string | null | undefined>(likelyMatch ?? (matches.length > 0 ? undefined : null))
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<Done | null>(null)
   const [pending, startTransition] = useTransition()
   const dayHref = (d: string) => `${basePath}?${query ? `${query}&` : ''}d=${d}`
+  const mustChoose = mode === 'request' && linkPatient === undefined
 
   function save() {
-    if (!selected) return
+    if (!selected || linkPatient === undefined) return
     setError(null)
     startTransition(async () => {
       const result =
@@ -54,7 +59,14 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         setError(result.error)
         return
       }
-      const { date: d, time } = inIndia(selected)
+      if (result.declined) {
+        // Declined already (another tab): nothing was booked, but the message can still go
+        setDone({ whatsappUrl: result.whatsappUrl, when: 'Declined' })
+        if (result.whatsappUrl) window.location.assign(result.whatsappUrl)
+        return
+      }
+      // A retry may find the request booked already, at the time it was booked then
+      const { date: d, time } = inIndia(result.startsAt ?? selected)
       setDone({ whatsappUrl: result.whatsappUrl, patientId: result.patientId, when: `${formatDay(d)}, ${formatBlock(time)}` })
       // Open the patient's chat with the message ready; the big "Open WhatsApp" button below is the fallback
       if (result.whatsappUrl) window.location.assign(result.whatsappUrl)
@@ -121,7 +133,10 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
       {/* Existing patients with this number */}
       {mode === 'request' && matches.length > 0 && (
         <div className="space-y-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
-          <p className="text-sm font-semibold text-amber-900">Already a patient with this number?</p>
+          <p className="text-sm font-semibold text-amber-900">
+            This number belongs to {matches.length === 1 ? matches[0].name : `${matches.length} patients`}.
+          </p>
+          <p className="text-sm text-amber-900">{mustChoose ? 'Tap who this is before you save.' : 'Who is this?'}</p>
           {matches.map((m) => (
             <label key={m.id} className="flex min-h-12 items-center gap-3 rounded-lg bg-white px-3 py-2 text-base ring-1 ring-amber-200">
               <input type="radio" className="h-5 w-5 shrink-0" name="link" checked={linkPatient === m.id} onChange={() => setLinkPatient(m.id)} />
@@ -155,7 +170,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
 
       {/* Sits right on top of the bottom bar (64 px tall, plus the phone's gesture area), solid, so no times show through */}
       <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 space-y-2 border-t border-gray-200 bg-gray-50 px-4 pb-2 pt-2">
-        <button type="button" onClick={save} disabled={!selected || pending || (mode === 'move' && sameInstant(selected, originalInstant))}
+        <button type="button" onClick={save} disabled={!selected || pending || mustChoose || (mode === 'move' && sameInstant(selected, originalInstant))}
           className="min-h-14 w-full rounded-full bg-blue-600 px-5 py-4 text-lg font-semibold text-white shadow-lg hover:bg-blue-700 disabled:opacity-50">
           {pending ? 'Saving…' : mode === 'request' ? 'Save and confirm' : 'Move appointment'}
         </button>
