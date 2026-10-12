@@ -33,6 +33,11 @@ You will collect two values from Supabase: the **Project URL** and the **Publish
 3. Tick **Auto Confirm User**, then **Create user**.
 4. **Lock new sign-ups:** **Authentication → Sign In / Providers** → under **User Signups**, turn **Allow new users to sign up** off → **Save**. Nobody else can now create an account.
 
+## Part B2 — Create the tables
+
+1. In Supabase open **SQL Editor → New query**, paste the whole of `supabase/schema.sql` from this repository, and click **Run**. It builds every table, the booking rules and the photo store, and links the website booking to the account from Part B (it is safe to run again).
+2. If you run it before creating the login in Part B, run it again afterwards.
+
 ---
 
 ## Part C — Try it on this computer

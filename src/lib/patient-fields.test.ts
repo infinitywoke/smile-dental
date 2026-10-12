@@ -17,9 +17,9 @@ describe('age and birth year', () => {
     expect(parseAge('3.5')).toBeNull()
   })
 
-  it('uses the birth year, else the date of birth, else nothing', () => {
-    expect(patientAge({ birth_year: 1990, date_of_birth: '1980-01-01' }, '2026-10-11')).toBe(36)
-    expect(patientAge({ birth_year: null, date_of_birth: '1990-10-10' }, '2026-10-11')).toBe(36)
+  it('uses the birth year, else nothing', () => {
+    expect(patientAge({ birth_year: 1990 }, '2026-10-11')).toBe(36)
+    expect(patientAge({ birth_year: null }, '2026-10-11')).toBeNull()
     expect(patientAge({}, '2026-10-11')).toBeNull()
   })
 })

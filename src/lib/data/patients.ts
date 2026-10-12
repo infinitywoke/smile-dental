@@ -6,7 +6,7 @@ import { normalizePhone } from '@/lib/phone'
 import type { Patient } from './types'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const PATIENT_COLUMNS = 'id, name, phone, date_of_birth, birth_year, gender, address, medical_alerts, heard_from, created_at, updated_at'
+const PATIENT_COLUMNS = 'id, name, phone, birth_year, gender, address, medical_alerts, heard_from, created_at, updated_at'
 
 // Search by name or phone number. Without a query, returns the newest patients.
 export async function searchPatients(query: string): Promise<Patient[]> {

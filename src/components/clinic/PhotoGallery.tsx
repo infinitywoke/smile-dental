@@ -6,10 +6,9 @@ import { addVisitPhoto, deleteVisitPhoto } from '@/lib/actions/visits'
 import type { VisitPhoto } from '@/lib/data/types'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImage } from '@/lib/resize-image'
-import { PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
+import { PHOTO_BUCKET, PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
 import { useBackToClose } from './FullScreen'
 
-const PHOTO_BUCKET = 'visit-photos'
 // A photo that failed to upload is tried again this often (and as soon as the phone is back online)
 const RETRY_MS = 10_000
 // One try may take this long; slower than that it counts as failed, so the retry and Remove take over

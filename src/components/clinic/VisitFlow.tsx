@@ -31,11 +31,6 @@ export function VisitFlow({
   focus: 'payment' | null
 }) {
   const notesRef = useRef<NotesHandle>(null)
-  // Every other button first saves what was typed in the notes
-  const beforeAction = useCallback(async () => {
-    await notesRef.current?.flush()
-  }, [])
-
   // Saves still on their way (a charge, a payment, the next visit, a photo's kind). Send on WhatsApp
   // waits for them, so the message always includes what was tapped just before.
   const pendingSaves = useRef(new Set<Promise<unknown>>())
@@ -112,7 +107,7 @@ export function VisitFlow({
         )}
       </div>
 
-      <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} beforeAction={beforeAction} save={save} />
+      <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} save={save} />
 
       {hasBill && (
         <PaymentCard
@@ -120,7 +115,7 @@ export function VisitFlow({
           visitId={visit.id}
           patientName={visit.patient.name}
           bill={bill}
-          beforeAction={beforeAction}
+         
           save={save}
         />
       )}

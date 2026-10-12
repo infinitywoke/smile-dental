@@ -4,9 +4,9 @@ One Next.js app with two parts:
 - **Public website**: `src/app/(public)/`, components in `src/components/site/`. Clinic details, treatments and the price list live in `src/config/site.ts`, which the Clinic OS also uses.
 - **Clinic OS**: `src/app/app/` (served at `/app`). A simple, phone-first app for one user, Dr. Rahil. Sign-in is email + password through Supabase (Google may be added later). Only the account in `ALLOWED_EMAIL` is allowed in.
 
-**Current work: the simplification build.** Its plan is [docs/SIMPLIFY.md](docs/SIMPLIFY.md) and its progress, with how to resume, is [docs/BUILD_LOG.md](docs/BUILD_LOG.md). Read both before changing anything.
+**The simplification build** (plan: [docs/SIMPLIFY.md](docs/SIMPLIFY.md); log: [docs/BUILD_LOG.md](docs/BUILD_LOG.md)) produced the current app. Read the log before changing anything big.
 
-**Before any Clinic OS feature work, read [docs/PRODUCT.md](docs/PRODUCT.md)** (what we're building and the decisions behind it) **and [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md)** (status, remaining work, data model contract, agent roles and file ownership).
+**Before any Clinic OS feature work, read [docs/PRODUCT.md](docs/PRODUCT.md)** (what the app is, the six screens and the decisions behind them) **and [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md)** (status and what is left). The whole database is `supabase/schema.sql`.
 
 ## Rules
 - **Auth:** call `getDoctor()` from `src/lib/auth.ts` in every Clinic OS page, server action and route handler before touching data. `src/proxy.ts` only refreshes the session and does an early redirect; don't rely on it alone.

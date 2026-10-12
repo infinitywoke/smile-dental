@@ -15,6 +15,9 @@ export function isEmptyVisit(args: { notes: string | null | undefined; photos: n
 }
 
 // The kinds of photo the doctor marks with one tap; stored as the photo's caption
+// The private storage bucket for visit photos (used by the server and by the phone's uploads)
+export const PHOTO_BUCKET = 'visit-photos'
+
 export const PHOTO_KINDS = ['Prescription', 'X-ray', 'Other'] as const
 export type PhotoKind = (typeof PHOTO_KINDS)[number]
 

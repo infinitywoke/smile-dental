@@ -62,7 +62,6 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
   const args: SubmitBookingRequestArgs = {
     p_name: titleCaseName(input.name),
     p_phone: phone!,
-    p_date_of_birth: null,
     p_birth_year: birthYear,
     p_address: input.address.trim() || null,
     p_medical_alerts: input.medicalAlerts.trim() || null,

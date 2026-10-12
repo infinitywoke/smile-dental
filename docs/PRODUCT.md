@@ -20,10 +20,10 @@ The single source of truth for **what** we are building and **why**. Read this b
 ## Design principles
 
 1. **Speak, don't type.** Free-form notes by dictation or keyboard. No clinical forms, dropdowns or tooth charts.
-2. **Confirm, don't fill.** The app (Claude) turns notes and photos into structured data; the doctor checks a one-screen summary and taps **Confirm**.
+2. **Confirm, don't fill.** One tap does the job: Confirm a booking request, tap a price-list item, tap the next-visit suggestion. (No AI reads the notes; it was removed.)
 3. **One tap for everything outgoing.** WhatsApp messages open pre-filled (`wa.me`); he taps Send. No WhatsApp Business API.
-4. **Keep the original.** Raw dictation and photos are never thrown away when the app tidies or extracts.
-5. **Small app.** Home has three things: **Today**, **+ Patient**, **Money**. One screen per patient.
+4. **Keep the original.** What the doctor types and the photos he takes are saved exactly as entered.
+5. **Small app.** Two tabs, **Today** and **Patients**, and a **+** for New patient. One screen per patient.
 6. **English (India).** Dictation and wording use `en-IN`.
 
 ## The patient journey (decided)
@@ -45,7 +45,7 @@ The single source of truth for **what** we are building and **why**. Read this b
 
 **Worked example** (used throughout design): Prakash Shetty, 38, walk-in with lower-right molar pain. Deep caries on 46, symptomatic irreversible pulpitis. Plan: RCT (₹3,500) → post and core (₹1,200) → crown (type undecided, ₹3,499–9,999). Visit 1 bill ₹4,200 (consultation 200 + X-ray 350 + RCT 3,500 + an unlabelled ₹150 extra line), paid by UPI. Visit 2: chose Ivoclar zirconia (₹7,499), paid ₹3,000 advance.
 
-## The doctor's side
+## The doctor's side (ideas for later, not built)
 
 - **Expenses, entered at the end of the day:** form with addable lines (payee, category, amount) **plus** a bill photo **or** dictation ("Paid Dentcare lab 2,800 for Prakash's crown"); the app reads amount, payee, category and linked patient. Fixed monthly costs (rent, salary) are suggested each month for one-tap confirmation.
 - **Daily close:** patients seen, collected by UPI vs cash, cash expenses, **cash expected in the drawer** vs counted, then Close day (summary can be sent to his own WhatsApp with one tap).
@@ -53,7 +53,7 @@ The single source of truth for **what** we are building and **why**. Read this b
 - **Ask in plain English:** "How much did I make from RCTs in October vs September?"
 - **Monday summary** of last week, shown in the app.
 
-## Smart features (the "make it intelligent" list)
+## Smart features (ideas for later; the AI ones were removed)
 
 1. Dictation/typing → Claude turns the note into a **tidy clinical note** (sections, punctuation, dental terms, FDI tooth numbers) + **structured data**, confirmed with one tap.
 2. **Reads photos:** handwritten prescriptions; expense bills.
@@ -64,27 +64,24 @@ The single source of truth for **what** we are building and **why**. Read this b
 7. **Daily close** reconciliation.
 8. **Insights** + plain-English questions.
 
-## Screens and flow (rework, decided 2026-10-11)
+## Screens and flow (as built, October 2026)
 
-The app grew cluttered after online booking and billing, so the structure is simplified. One rule: **every screen has one obvious next action.**
+One rule: **every screen has one obvious next action.** Six screens, one phone, one hand. Words are plain English.
 
-**Navigation:** two tabs, **Today** and **Patients**, plus a **+** button (New patient, Book appointment). A **⋯ menu** in the header holds the rare things: Practice mode, Delete test data, Sign out. Money returns as a tab only when it exists.
+**Navigation:** two tabs, **Today** and **Patients**, and a **+** button for New patient. Sign out is at the bottom of Patients. There is no menu, no Practice mode and no TEST badge.
 
-**Today is the day sheet.** It is also the calendar: a day strip and arrows move between days, and today is the default.
-- **Needs you:** booking requests as cards with **Confirm** (books the time asked for, creates or links the patient, opens the WhatsApp confirmation) and **Other time**; later also unpaid balances and reminders.
-- **Schedule:** the day's appointments in time order, then the free times as a compact grid of pills (tap one to book).
-- **Seen today:** visits, with their state (in progress, billed, paid, done).
+1. **Today** (`/app`) is the day sheet and the calendar: arrows and a day strip move between days. It lists **Needs you** (website booking requests as cards: one tap **Confirm** books the time asked for, creates or links the patient and opens the WhatsApp confirmation; **Other time** opens Pick a time; and, on today only, patients who still owe money), then the day's appointments and visits in time order (each visit shows its money and whether the message was sent), then the free times as pills (tap one to book).
+2. **Patients** (`/app/patients`): a search box (name or phone) with results while typing; newest patients when empty.
+3. **New patient** (`/app/patients/new`): phone first (a returning number is spotted while typing), name, gender, age in years, optional address and medical alerts. Saving opens the visit; Back returns to Today, never to the form.
+4. **Patient** (`/app/patients/[id]`): medical alerts on top, one smart button (*Start visit*, *Collect*, or *Book next visit*), the coming appointment with **Move** and **Cancel**, past visits.
+5. **Visit** (`/app/visits/[id]`) is **one page that saves by itself**: notes (typed or dictated with the phone's keyboard), photos (prescription, X-ray), the bill (one tap on the price list adds a charge; Other charge asks what for and how much), the payment card (Cash received, or UPI with a full-screen QR; the doctor confirms the money arrived), the next visit (nothing is booked until the suggestion is tapped), and **Send on WhatsApp**: one message with the bill, the next visit and a 30-day link to the prescription photo. Delete visit sits at the very bottom.
+6. **Pick a time** (`/app/book`, `/app/requests/[id]`, `/app/appointments/[id]/move`, and inside the visit for the next visit): one compact picker, a day strip and pills, used for phone booking, Other time on a request, moving an appointment and the next visit.
 
-**A visit is one guided flow with three steps: Notes, Bill, Send.**
-1. **Notes:** dictate or type, photos (prescription, X-ray). Later the smart-notes "Tidy up and confirm" lives here.
-2. **Bill:** compact lines; **+ Add charge** opens on tap; payment buttons; the UPI QR shows on tap.
-3. **Send:** **one WhatsApp message** with the bill, the next appointment (a suggested time, adjustable) and a link to the **prescription photo**; then Done.
+**Website booking** (`/book`): the visitor picks a free 40-minute time, then gives phone, name, gender, age and a reason (only phone, name, gender and the reason are required), and sends. The request waits on Today until the doctor confirms it; the visitor is told confirmation takes under 15 minutes. All rules live in the database (`supabase/schema.sql`).
 
-**The patient page is a hub** with one smart primary button: *Start visit* (appointment today), *Bill and finish* (visit in progress), *Collect ₹X* (money owed), or *Book next visit* (all done). It shows the next appointment.
+**Android first** (OnePlus 13, Chrome): every tappable thing at least 48 dp, 16 px text in inputs, the right keyboard, and anything that pops up closes with the system Back gesture.
 
-**One time picker** (compact pills; day strip; tap or slide) is used for Other time, next visit, phone booking and moving an appointment.
-
-**Practice mode** (⋯ menu) marks every new patient and booking as TEST; **Delete test data** clears them. There is no per-patient checkbox.
+**Not built (ideas for later):** expenses, daily close, insights, recalls and reminders, tidy-up of notes with AI. They are described under "The doctor's side" and "Smart features" below and were removed from the app on purpose; see the decision log.
 
 ## Decision log
 
@@ -100,3 +97,4 @@ The app grew cluttered after online booking and billing, so the structure is sim
 - 2026-10-11 **Gender** is asked for every new patient and on the website booking form (female / male / other; required on both, optional in the database for older patients). It is shown beside the age in the clinic app and gives the smart note context. It is **never put in a WhatsApp message**. Likely later uses: analytics by age and gender, pregnancy and paediatric prompts.
 - 2026-10-11 **Gemini is the AI until Claude access is available** (`AI_PROVIDER` switches back to `claude`; Claude Haiku 5.5 stays configured). Live summaries use **gemini-3.8-flash**; dictation uses the **phone browser's own speech recognition**, on until Stop (silence switch-off after 15 minutes). A live Gemini transcription stream (gemini-3.5-transcribe-live) was built and tested, then removed at the owner's request; it is in git history at commit ff67bc4. Owner accepted using Google's **free tier** for the one-week demo and referral onboarding, on these terms: name, address, phone and email are **replaced by placeholders before a note is sent** and put back on return; the worked example in the prompt keeps every answer in the same shape (for analytics); the doctor's original words are saved in `visits.notes_original` before anything is sent; real patient data moves to a paid-tier key before wider use. Dictation audio cannot be anonymised, so the screen tells the doctor he need not say the patient's name.
 - 2026-10-11 **Simplification** (fresh-eyes review, [SIMPLIFY.md](SIMPLIFY.md); build progress in [BUILD_LOG.md](BUILD_LOG.md)). Owner said yes to all five: **one visit page** instead of the Notes / Bill / Send tabs; **"Tidy up with AI" removed** for launch (code kept in git history); **age instead of date of birth**, stored as birth year, in the app and on the website; **Practice mode, "Delete test data" and TEST badges removed** (trial data erased once at go-live); **shorter website booking** (no review page; only phone, name, gender and reason required). Target app: six screens (Today, Patients, New patient, Patient, Visit, Pick a time).
+- 2026-10-12 **Clean-up** (simplification build, Wave 3). Unused tables and columns dropped with `supabase/cleanup-2026-10.sql` (reminders, expenses, daily close, treatment items, the receipts photo store, the old date of birth, the test flag and other leftovers); the whole database is now `supabase/schema.sql`, checked by `supabase/tests/booking.check.mjs`. The AI packages and the unused photos were removed. Expenses, daily close and insights are ideas for later, not promises.

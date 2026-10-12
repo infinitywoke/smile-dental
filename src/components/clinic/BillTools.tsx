@@ -38,13 +38,11 @@ export function BillSection({
   visitId,
   charges,
   total,
-  beforeAction,
   save,
 }: {
   visitId: string
   charges: VisitBill['charges']
   total: number
-  beforeAction: () => Promise<void>
   save: Save
 }) {
   const sheet = useBackToClose()
@@ -61,7 +59,7 @@ export function BillSection({
               <p className="min-w-0 flex-1 text-base text-gray-900">{charge.description}</p>
               <p className="shrink-0 text-base font-semibold tabular-nums text-gray-900">{formatRupees(charge.amount)}</p>
               <RemoveButton label={`Remove ${charge.description}`} confirm={`Remove "${charge.description}" from the bill?`}
-                onRemove={() => removeCharge(charge.id)} />
+                onRemove={() => save(() => removeCharge(charge.id))} />
             </div>
           ))}
           <div className="flex items-center justify-between bg-gray-50 px-4 py-3">
@@ -73,7 +71,7 @@ export function BillSection({
       <button type="button"
         onClick={() => {
           // Typed notes are sent first; server actions run in order, so they save before the charge
-          void beforeAction()
+          void save(async () => {})
           sheet.show()
         }}
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700">

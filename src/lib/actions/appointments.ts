@@ -85,11 +85,9 @@ export async function bookAppointment(
   patientId: string,
   startsAt: string,
   reason: string,
-  fromVisitId?: string,
 ): Promise<WithWhatsapp> {
   await getDoctor()
   if (!UUID.test(patientId)) return { error: 'Something went wrong. Please try again.' }
-  if (fromVisitId && !UUID.test(fromVisitId)) return { error: 'Invalid visit.' }
   const block = parseBlock(startsAt)
   if (!block) return { error: 'Please choose one of the clinic time blocks.' }
 
@@ -109,7 +107,6 @@ export async function bookAppointment(
       duration_min: BLOCK_MINUTES,
       reason: reason.trim(),
       status: 'booked',
-      from_visit_id: fromVisitId || null,
     })
     .select('id')
     .single()

@@ -1,6 +1,6 @@
-// Checks supabase/patch-booking.sql in a throwaway Postgres (PGlite).
+// Checks supabase/schema.sql in a throwaway Postgres (PGlite): the booking rules, the calendar and what the public may touch.
 // Needs @electric-sql/pglite, which is not a project dependency: install it in a scratch folder
-// and run: node booking.check.mjs <path to this repo>
+// and run it from there (copy this file next to node_modules): node booking.check.mjs <path to this repo>
 import { PGlite } from '@electric-sql/pglite'
 import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist'
 import { readFileSync } from 'node:fs'
@@ -46,12 +46,16 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-const files = ['phase2.sql', 'patch-test-flag.sql', 'phase3-5.sql', 'patch-booking.sql']
-for (const f of files) {
-  try { await db.exec(read(f)); ok(`apply ${f}`) } catch (e) { bad(`apply ${f}`, e) }
+for (let i = 1; i <= 2; i++) {
+  try { await db.exec(read('schema.sql')); ok(`apply schema.sql (run ${i}, safe to repeat)`) } catch (e) { bad(`apply schema.sql run ${i}`, e) }
 }
-for (let i = 2; i <= 3; i++) {
-  try { await db.exec(read('patch-booking.sql')); ok(`patch-booking.sql run ${i} (idempotent)`) } catch (e) { bad(`patch-booking.sql run ${i}`, e) }
+
+// The tables and columns the clean-up removed are not in the schema
+{
+  const gone = await db.query(`select table_name, column_name from information_schema.columns where table_schema = 'public'
+    and (table_name in ('reminder_log','expenses','recurring_expenses','day_closes','treatment_items')
+      or column_name in ('date_of_birth','is_test','preferred_times','preferred_date','preferred_time','is_emergency','area','city','reminder_sent_at','treatment_item_id','summary','notes_original','confirmed_at','reference'))`)
+  check('removed tables and columns are not in schema.sql', gone.rows.length === 0, JSON.stringify(gone.rows))
 }
 
 const as = async (role, uid) => {
@@ -69,7 +73,7 @@ const slotsAs = async (role, from = null, days = 28) => {
 const istTime = (iso) => new Date(new Date(iso).getTime() + 330 * 60000).toISOString().slice(11, 16)
 const istDate = (iso) => new Date(new Date(iso).getTime() + 330 * 60000).toISOString().slice(0, 10)
 
-const submit = `select public.submit_booking_request($1, $2, $3::date, $4, $5, $6, $7, $8, $9::timestamptz) as id`
+const submit = `select public.submit_booking_request($1, $2, $3, $4, $5, $6, $7, $8::timestamptz) as id`
 const at = (date, hhmm) => `${date}T${hhmm}:00+05:30`
 // Wednesday 14 Oct 2026; Friday is 16 Oct, Saturday 17, Sunday 18
 const WED = '2026-10-14', THU = '2026-10-15', FRI = '2026-10-16', SAT = '2026-10-17'
@@ -122,33 +126,32 @@ check('Saturday has 14 online blocks', s.length === 14, String(s.length))
 await as('anon')
 const slot1 = at(THU, '09:10')
 let r = await expectOk('anon books Thursday 9:10 AM with full details', submit,
-  ['  Prakash Shetty ', '+91 98450 21763', '1988-04-12', 'Pangala, Udupi', 'Penicillin allergy', 'Google', 'Tooth pain', 'left side', slot1])
+  ['  Prakash Shetty ', '+91 98450 21763', 'Pangala, Udupi', 'Penicillin allergy', 'Google', 'Tooth pain', 'left side', slot1])
 const req1 = r?.rows?.[0]?.id
 check('request id returned', !!req1)
 s = await slotsAs('anon', THU, 1)
 check('booked-pending block disappears from the website', !s.map(istTime).includes('09:10'), JSON.stringify(s.map(istTime)))
 await as('anon')
-await expectErr('same block cannot be requested twice', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, slot1], /no longer available/)
-await expectErr('same phone cannot hold two requests', submit, ['Prakash', '9845021763', null, null, null, null, null, null, at(THU, '09:50')], /already have a request waiting/)
-await expectErr('7:10 PM is phone/app only', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at(THU, '19:10')], /call the clinic/)
-await expectErr('7:20 PM is outside the clinic blocks', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at(THU, '19:20')], /available times/)
-await expectErr('8:00 PM is outside the clinic blocks', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at(THU, '20:00')], /available times/)
-await expectErr('block inside the break', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at(THU, '13:00')], /available times/)
-await expectErr('off-grid time', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at(THU, '09:30')], /available times/)
-await expectErr('Friday block', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at(FRI, '09:10')], /available times/)
-await expectErr('no time chosen', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, null], /available times/)
-await expectErr('block less than 2 h away (11:50 AM at 10:00)', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at(WED, '11:50')], /no longer available/)
-await expectErr('block in the past', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at('2026-10-13', '14:30')], /no longer available/)
-await expectErr('block beyond 28 days', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null, at('2026-11-21', '14:30')], /no longer available/)
+await expectErr('same block cannot be requested twice', submit, ['Asha Rao', '9876543210', null, null, null, null, null, slot1], /no longer available/)
+await expectErr('same phone cannot hold two requests', submit, ['Prakash', '9845021763', null, null, null, null, null, at(THU, '09:50')], /already have a request waiting/)
+await expectErr('7:10 PM is phone/app only', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at(THU, '19:10')], /call the clinic/)
+await expectErr('7:20 PM is outside the clinic blocks', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at(THU, '19:20')], /available times/)
+await expectErr('8:00 PM is outside the clinic blocks', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at(THU, '20:00')], /available times/)
+await expectErr('block inside the break', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at(THU, '13:00')], /available times/)
+await expectErr('off-grid time', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at(THU, '09:30')], /available times/)
+await expectErr('Friday block', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at(FRI, '09:10')], /available times/)
+await expectErr('no time chosen', submit, ['Asha Rao', '9876543210', null, null, null, null, null, null], /available times/)
+await expectErr('block less than 2 h away (11:50 AM at 10:00)', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at(WED, '11:50')], /no longer available/)
+await expectErr('block in the past', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at('2026-10-13', '14:30')], /no longer available/)
+await expectErr('block beyond 28 days', submit, ['Asha Rao', '9876543210', null, null, null, null, null, at('2026-11-21', '14:30')], /no longer available/)
 await expectOk('exactly 2 h away is allowed (12:00 pinned)', 'select 1')
-await expectErr('bad phone', submit, ['Asha', '12345', null, null, null, null, null, null, at(THU, '10:30')], /valid 10-digit/)
-await expectErr('name too short', submit, [' A ', '9876543210', null, null, null, null, null, null, at(THU, '10:30')], /name/)
-await expectErr('date of birth in the future', submit, ['Asha Rao', '9876543210', '2030-01-01', null, null, null, null, null, at(THU, '10:30')], /date of birth/)
-await expectErr('address too long', submit, ['Asha Rao', '9876543210', null, 'x'.repeat(301), null, null, null, null, at(THU, '10:30')], /Address/)
-await expectErr('alerts too long', submit, ['Asha Rao', '9876543210', null, null, 'x'.repeat(1001), null, null, null, at(THU, '10:30')], /Medical alerts/)
-await expectErr('heard-from too long', submit, ['Asha Rao', '9876543210', null, null, null, 'x'.repeat(101), null, null, at(THU, '10:30')], /too long/)
-await expectErr('reason too long', submit, ['Asha Rao', '9876543210', null, null, null, null, 'x'.repeat(201), null, at(THU, '10:30')], /Reason/)
-await expectErr('notes too long', submit, ['Asha Rao', '9876543210', null, null, null, null, null, 'x'.repeat(1001), at(THU, '10:30')], /Notes/)
+await expectErr('bad phone', submit, ['Asha', '12345', null, null, null, null, null, at(THU, '10:30')], /valid 10-digit/)
+await expectErr('name too short', submit, [' A ', '9876543210', null, null, null, null, null, at(THU, '10:30')], /name/)
+await expectErr('address too long', submit, ['Asha Rao', '9876543210', 'x'.repeat(301), null, null, null, null, at(THU, '10:30')], /Address/)
+await expectErr('alerts too long', submit, ['Asha Rao', '9876543210', null, 'x'.repeat(1001), null, null, null, at(THU, '10:30')], /Medical alerts/)
+await expectErr('heard-from too long', submit, ['Asha Rao', '9876543210', null, null, 'x'.repeat(101), null, null, at(THU, '10:30')], /too long/)
+await expectErr('reason too long', submit, ['Asha Rao', '9876543210', null, null, null, 'x'.repeat(201), null, at(THU, '10:30')], /Reason/)
+await expectErr('notes too long', submit, ['Asha Rao', '9876543210', null, null, null, null, 'x'.repeat(1001), at(THU, '10:30')], /Notes/)
 
 // --- What the public can and cannot touch ----------------------------------------------
 await as('anon')
@@ -179,7 +182,7 @@ r = await expectOk('doctor confirms at a different block (3:50 PM)', `select * f
 const patient1 = r?.rows?.[0]?.patient_id
 const appt1 = r?.rows?.[0]?.appointment_id
 r = await db.query('select * from public.patients where id = $1', [patient1])
-check('patient created with the typed details', r.rows[0]?.name === 'Prakash Shetty' && r.rows[0]?.phone === '9845021763' && String(r.rows[0]?.address) === 'Pangala, Udupi' && r.rows[0]?.medical_alerts === 'Penicillin allergy' && r.rows[0]?.heard_from === 'Google' && String(r.rows[0]?.date_of_birth).startsWith('1988-04-12') || r.rows[0]?.date_of_birth?.toISOString?.().startsWith('1988-04-12'), JSON.stringify(r.rows[0]))
+check('patient created with the typed details', r.rows[0]?.name === 'Prakash Shetty' && r.rows[0]?.phone === '9845021763' && String(r.rows[0]?.address) === 'Pangala, Udupi' && r.rows[0]?.medical_alerts === 'Penicillin allergy' && r.rows[0]?.heard_from === 'Google', JSON.stringify(r.rows[0]))
 r = await db.query('select * from public.appointments where id = $1', [appt1])
 check('appointment is a 40-minute booked block at 3:50 PM', r.rows[0]?.duration_min === 40 && r.rows[0]?.status === 'booked' && istTime(r.rows[0]?.starts_at.toISOString()) === '15:50')
 check('appointment reason carries reason and note', r.rows[0]?.reason === 'Tooth pain - left side', r.rows[0]?.reason)
@@ -193,7 +196,7 @@ check('requested 9:10 AM is open again; confirmed 3:50 PM is gone', s.map(istTim
 
 // second request for the same block as an existing booking
 await as('anon')
-r = await expectOk('second visitor requests 9:50 AM', submit, ['Meera Nayak', '9812345678', null, 'Katapadi', null, 'Instagram', null, null, at(THU, '09:50')])
+r = await expectOk('second visitor requests 9:50 AM', submit, ['Meera Nayak', '9812345678', 'Katapadi', null, 'Instagram', null, null, at(THU, '09:50')])
 const req2 = r?.rows?.[0]?.id
 await as('authenticated', A)
 await expectErr('doctor cannot put two people in one block', `select * from public.confirm_booking_request('${req2}'::uuid, '${at(THU, '15:50')}'::timestamptz, null)`, [], /just taken/)
@@ -207,7 +210,7 @@ r = await expectOk('doctor confirms and links an existing patient', `select * fr
 check('existing patient reused', r?.rows?.[0]?.patient_id === patient1)
 
 await as('anon')
-r = await expectOk('visitor requests with a pending block, then doctor links foreign patient fails', submit, ['Lakshmi Bhat', '9701234567', null, null, null, null, null, null, at(THU, '10:30')])
+r = await expectOk('visitor requests with a pending block, then doctor links foreign patient fails', submit, ['Lakshmi Bhat', '9701234567', null, null, null, null, null, at(THU, '10:30')])
 const req3 = r?.rows?.[0]?.id
 await as('authenticated', B)
 await db.query(`insert into public.patients (name, phone) values ('Other doctor patient', '9000000001')`)
@@ -235,7 +238,7 @@ await expectOk('a cancelled appointment no longer blocks the block', `insert int
 
 // a pending request holds its block for 24 h, then lets it go
 await as('anon')
-r = await expectOk('visitor requests 11:10 AM', submit, ['Divya Kamath', '9611122233', null, null, null, null, null, null, at(SAT, '11:10')])
+r = await expectOk('visitor requests 11:10 AM', submit, ['Divya Kamath', '9611122233', null, null, null, null, null, at(SAT, '11:10')])
 s = await slotsAs('anon', SAT, 1)
 check('held block hidden', !s.map(istTime).includes('11:10'))
 await setNow('2026-10-15T11:00:00+05:30')
@@ -243,33 +246,22 @@ s = await slotsAs('anon', SAT, 1)
 check('hold released after 24 hours', s.map(istTime).includes('11:10'), JSON.stringify(s.map(istTime)))
 await setNow(at(WED, '10:00'))
 
-// --- Test data marker ------------------------------------------------------------------------
-await as('anon')
-r = await expectOk('E2E- name is flagged as test data', submit, ['E2E-Booking Check', '9555566666', null, null, null, null, null, null, at(SAT, '09:50')])
-const reqT = r?.rows?.[0]?.id
-await as('authenticated', A)
-r = await db.query('select is_test from public.booking_requests where id = $1', [reqT])
-check('request is_test = true', r.rows[0]?.is_test === true)
-r = await expectOk('confirm the test request', `select * from public.confirm_booking_request('${reqT}'::uuid, '${at(SAT, '09:50')}'::timestamptz, null)`)
-r = await db.query('select is_test from public.patients where id = $1', [r?.rows?.[0]?.patient_id])
-check('patient is_test = true', r.rows[0]?.is_test === true)
-
 // deleting a patient removes their appointments; the request just loses its link
-await expectOk('delete test patient cascades', `delete from public.patients where is_test`)
-r = await db.query('select count(*)::int as n from public.appointments a join public.patients p on p.id = a.patient_id where p.is_test')
-check('no appointments left for test patients', r.rows[0].n === 0)
+await as('authenticated', A)
+r = await expectOk('delete the confirmed patient cascades', `delete from public.patients where id = '${patient1}' returning id`)
+r = await db.query(`select count(*)::int as n from public.appointments where patient_id = '${patient1}'`)
+check('no appointments left for the deleted patient', r.rows[0].n === 0)
+r = await db.query(`select patient_id from public.booking_requests where id = '${req1}'`)
+check('the request just loses its patient link', r.rows[0]?.patient_id === null)
 
-// --- Gender (patch-gender.sql) ---------------------------------------------------------------
+// --- Gender -------------------------------------------------------------------------------------
 await db.exec('reset role')
-for (let i = 1; i <= 2; i++) {
-  try { await db.exec(read('patch-gender.sql')); ok(`patch-gender.sql run ${i} (idempotent)`) } catch (e) { bad(`patch-gender.sql run ${i}`, e) }
-}
 await as('anon')
-const submitG = `select public.submit_booking_request($1, $2, $3::date, $4, $5, $6, $7, $8, $9::timestamptz, $10) as id`
-r = await expectOk('visitor sends a request with gender', submitG, ['Gender Check', '9444455555', null, null, null, null, null, null, at(SAT, '10:30'), 'Female'])
+const submitG = `select public.submit_booking_request($1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9) as id`
+r = await expectOk('visitor sends a request with gender', submitG, ['Gender Check', '9444455555', null, null, null, null, null, at(SAT, '10:30'), 'Female'])
 const reqG = r?.rows?.[0]?.id
-await expectErr('an unknown gender is refused', submitG, ['Gender Two', '9444455556', null, null, null, null, null, null, at(SAT, '11:10'), 'robot'], /female, male or other/)
-r = await expectOk('the old nine-argument call still works (gender optional)', submit, ['No Gender', '9444455557', null, null, null, null, null, null, at(SAT, '11:50')])
+await expectErr('an unknown gender is refused', submitG, ['Gender Two', '9444455556', null, null, null, null, null, at(SAT, '11:10'), 'robot'], /female, male or other/)
+r = await expectOk('the call without gender or age still works', submit, ['No Gender', '9444455557', null, null, null, null, null, at(SAT, '11:50')])
 await as('authenticated', A)
 r = await db.query('select gender from public.booking_requests where id = $1', [reqG])
 check('request stores gender in lower case', r.rows[0]?.gender === 'female', JSON.stringify(r.rows))
@@ -280,18 +272,15 @@ await expectErr('patients refuse a gender outside the three', `update public.pat
 await as('anon')
 await expectErr('only the ten-argument function exists for the website', `select public.submit_booking_request('a','b',null,null,null,null,null,null,null,null,null)`, [], /does not exist|function/)
 
-// --- Age as birth year (patch-age.sql) --------------------------------------------------------
+// --- Age as birth year --------------------------------------------------------------------------
 await db.exec('reset role')
-for (let i = 1; i <= 2; i++) {
-  try { await db.exec(read('patch-age.sql')); ok(`patch-age.sql run ${i} (idempotent)`) } catch (e) { bad(`patch-age.sql run ${i}`, e) }
-}
 await as('anon')
-const submitA = `select public.submit_booking_request($1, $2, $3::date, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11) as id`
-r = await expectOk('visitor sends a request with an age (birth year)', submitA, ['Age Check', '9333344444', null, null, null, null, 'Tooth pain', null, at(SAT, '12:30'), 'male', 1988])
+const submitA = `select public.submit_booking_request($1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9, $10) as id`
+r = await expectOk('visitor sends a request with an age (birth year)', submitA, ['Age Check', '9333344444', null, null, null, 'Tooth pain', null, at(SAT, '12:30'), 'male', 1988])
 const reqA = r?.rows?.[0]?.id
-await expectErr('a birth year before 1900 is refused', submitA, ['Age Two', '9333344445', null, null, null, null, null, null, at(SAT, '15:10'), 'male', 1800], /check the age/)
-await expectErr('a birth year in the future is refused', submitA, ['Age Three', '9333344446', null, null, null, null, null, null, at(SAT, '15:10'), 'male', 2999], /check the age/)
-r = await expectOk('the ten-argument call (gender, no age) still works', submitG, ['No Age', '9333344447', null, null, null, null, null, null, at(SAT, '09:10'), 'female'])
+await expectErr('a birth year before 1900 is refused', submitA, ['Age Two', '9333344445', null, null, null, null, null, at(SAT, '15:10'), 'male', 1800], /check the age/)
+await expectErr('a birth year in the future is refused', submitA, ['Age Three', '9333344446', null, null, null, null, null, at(SAT, '15:10'), 'male', 2999], /check the age/)
+r = await expectOk('the call with gender and no age still works', submitG, ['No Age', '9333344447', null, null, null, null, null, at(SAT, '09:10'), 'female'])
 await as('authenticated', A)
 r = await db.query('select birth_year from public.booking_requests where id = $1', [reqA])
 check('request stores the birth year', r.rows[0]?.birth_year === 1988, JSON.stringify(r.rows))
