@@ -71,12 +71,7 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
     p_requested_start: start.toISOString(),
     p_gender: gender,
   }
-  let { data, error } = await supabase.rpc('submit_booking_request', args)
-  // Until supabase/cleanup-2026-10.sql runs, the database has only the older function, which also
-  // takes a date of birth. Remove this retry once the clean-up is applied.
-  if (error?.code === 'PGRST202') {
-    ;({ data, error } = await supabase.rpc('submit_booking_request', { ...args, p_date_of_birth: null }))
-  }
+  const { data, error } = await supabase.rpc('submit_booking_request', args)
   if (error || !data) {
     // The database writes its messages for visitors; anything else gets a generic line
     const known = error?.code === 'P0001' ? error.message : null
