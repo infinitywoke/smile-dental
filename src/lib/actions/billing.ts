@@ -89,7 +89,6 @@ export async function recordPayment(visitId: string, amount: number, method: 'up
     visit_id: visitId,
     amount,
     method,
-    kind: 'payment',
   })
   if (error && !(paymentId && error.code === ALREADY_SAVED)) return { error: 'Could not record the payment. Please try again.' }
   refresh()

@@ -20,13 +20,11 @@ export function PaymentCard({
   visitId,
   patientName,
   bill,
-  beforeAction,
   save,
 }: {
   visitId: string
   patientName: string
   bill: VisitBill
-  beforeAction: () => Promise<void>
   save: Save
 }) {
   const { payments, summary } = bill
@@ -80,7 +78,7 @@ export function PaymentCard({
               <p className="font-semibold tabular-nums text-green-700">{formatRupees(payment.amount)}</p>
               <RemoveButton label={`Remove payment ${formatRupees(payment.amount)}`}
                 confirm={`Remove this payment (${formatRupees(payment.amount)})? Only do this to fix a mistake.`}
-                onRemove={() => removePayment(payment.id)} />
+                onRemove={() => save(() => removePayment(payment.id))} />
             </div>
           ))}
           <div className="flex items-center justify-between border-t border-gray-100 pt-2">
@@ -122,7 +120,7 @@ export function PaymentCard({
               <button type="button"
                 onClick={() => {
                   setError(null)
-                  void beforeAction()
+                  void save(async () => {})
                   qr.show()
                 }}
                 disabled={pending || !valid}

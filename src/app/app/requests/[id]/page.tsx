@@ -41,7 +41,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
   const wanted = typeof d === 'string' && DATE.test(d) ? d : requested && requested.date >= today ? requested.date : today
   const [schedule, matches] = await Promise.all([getDaySchedule(wanted), findPatientsByPhone(request.phone)])
 
-  const address = request.address || [request.area, request.city].filter(Boolean).join(', ')
+  const address = request.address ?? ''
   const age = patientAge(request)
 
   return (

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { AlertTriangle, Camera, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getVisitsOn } from '@/lib/data/visits'
-import { getDues } from '@/lib/data/dues'
+import { getDues, type Due } from '@/lib/data/dues'
 import { getAppointmentsOn, getBusyCounts, getDaySchedule, getPendingRequests } from '@/lib/data/appointments'
 import { formatDate, todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
@@ -35,7 +35,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     getVisitsOn(date),
     getPendingRequests(),
     getBusyCounts(today, STRIP_DAYS),
-    getDues(),
+    isToday ? getDues() : Promise.resolve([] as Due[]),
   ])
 
   const strip = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i))
@@ -44,7 +44,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   // Money owed is a today thing: other days show only who is coming. A due whose visit is already
   // a row below shows its badge there, so it isn't listed twice.
   const listed = new Set(visits.map((v) => v.id))
-  const showDues = isToday ? dues.filter((due) => !listed.has(due.visitId)) : []
+  const showDues = dues.filter((due) => !listed.has(due.visitId))
 
   // One list in time order. A booked patient who already has a visit that day shows once, as the visit.
   const seen = new Set(visits.map((v) => v.patient.id))
@@ -109,7 +109,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                 otherTimeHref={`/app/requests/${request.id}${wanted ? `?d=${wanted.date >= today ? wanted.date : today}` : ''}`}
                 details={{
                   age: [age !== null && `${age} yrs`, genderLabel(request.gender)].filter(Boolean).join(' · ') || null,
-                  address: request.address || [request.area, request.city].filter(Boolean).join(', ') || null,
+                  address: request.address || null,
                   heardFrom: request.heard_from,
                   notes: request.notes,
                 }}

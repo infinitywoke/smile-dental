@@ -7,7 +7,7 @@ import { LogOut } from 'lucide-react'
 function clearDrafts() {
   try {
     for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('visit-draft:') || key.startsWith('visit-pending:')) localStorage.removeItem(key)
+      if (key.startsWith('visit-draft:')) localStorage.removeItem(key)
     }
   } catch {
     // Storage can be unavailable; signing out still goes ahead

@@ -1,33 +1,79 @@
--- Gender: asked on the website and for every new patient.
+-- Clean-up of unused tables and columns (simplification build, C23, 12 Oct 2026).
 --
--- How to run: Supabase dashboard -> SQL Editor -> New query -> paste this whole file -> Run.
--- Safe to run again.
+-- Run ONCE on the live database, straight after the matching app version is deployed:
+--   npx supabase db query --linked --project-ref pmuecirfwmtsvojxleoq --file supabase/cleanup-2026-10.sql
+-- Take a backup first. It runs in one transaction: if anything fails, nothing changes.
+-- Afterwards the database equals supabase/schema.sql.
 --
--- Gender is kept on the patient record and the booking request. It is used on screen
--- and (without name or address) to give the smart note some clinical context.
--- It is never written into a WhatsApp message.
+-- Steps: keep every age, drop the unused tables, drop the unused columns,
+-- recreate the two booking functions without the dropped columns.
 
+begin;
+
+-- 1. Keep every age: birth year from the date of birth where it is missing.
+update public.patients set birth_year = extract(year from date_of_birth)::smallint
+  where birth_year is null and date_of_birth is not null;
+update public.booking_requests set birth_year = extract(year from date_of_birth)::smallint
+  where birth_year is null and date_of_birth is not null;
+
+-- 2. The booking functions use the columns being dropped: remove them first.
+drop function if exists public.submit_booking_request(text, text, date, text, text, text, text, text, timestamptz, text, integer);
+drop function if exists public.confirm_booking_request(uuid, timestamptz, uuid);
+
+-- 3. Tables nobody uses. (share_links and app_config stay.)
+drop table if exists public.reminder_log;
+drop table if exists public.expenses;
+drop table if exists public.recurring_expenses;
+drop table if exists public.day_closes;
+
+-- visit_charges' policy mentions treatment_items: replace it before the table goes.
+drop policy if exists "Owner full access" on public.visit_charges;
+drop table if exists public.treatment_items cascade;
+alter table public.visit_charges drop column if exists treatment_item_id;
+create policy "Owner full access" on public.visit_charges
+  for all to authenticated
+  using (owner_id = (select auth.uid()))
+  with check (
+    owner_id = (select auth.uid())
+    and exists (select 1 from public.visits v
+                where v.id = visit_charges.visit_id and v.owner_id = (select auth.uid())
+                  and v.patient_id = visit_charges.patient_id)
+  );
+
+-- The receipts photo store and its three policies
+drop policy if exists "Owner reads own expense receipts" on storage.objects;
+drop policy if exists "Owner uploads own expense receipts" on storage.objects;
+drop policy if exists "Owner deletes own expense receipts" on storage.objects;
+delete from storage.objects where bucket_id = 'expense-receipts';
+delete from storage.buckets where id = 'expense-receipts';
+
+-- 4. Columns nobody uses.
+drop index if exists public.patients_owner_test_idx;
+alter table public.visits
+  drop column if exists summary, drop column if exists notes_original, drop column if exists confirmed_at;
 alter table public.patients
-  add column if not exists gender text check (gender in ('female', 'male', 'other'));
-
+  drop column if exists preferred_times, drop column if exists is_test, drop column if exists date_of_birth;
 alter table public.booking_requests
-  add column if not exists gender text check (gender in ('female', 'male', 'other'));
+  drop column if exists date_of_birth, drop column if exists area, drop column if exists city,
+  drop column if exists preferred_date, drop column if exists preferred_time,
+  drop column if exists is_emergency, drop column if exists is_test;
+alter table public.appointments drop column if exists reminder_sent_at;
+alter table public.payments drop column if exists kind, drop column if exists reference;
 
--- The website form's function gains one optional argument (gender), so the old
--- nine-argument version is removed.
-drop function if exists public.submit_booking_request(text, text, date, text, text, text, text, text, timestamptz);
-
+-- 5. The booking functions again, without the dropped columns (same rules, same messages, same grants).
+-- Called from the website with the publishable key. Returns the new request id.
+-- Every failure raises an exception whose message is written to be shown to the visitor.
 create or replace function public.submit_booking_request(
   p_name text,
   p_phone text,
-  p_date_of_birth date,
   p_address text,
   p_medical_alerts text,
   p_heard_from text,
   p_reason text,
   p_notes text,
   p_requested_start timestamptz,
-  p_gender text default null
+  p_gender text default null,
+  p_birth_year integer default null
 )
 returns uuid
 language plpgsql
@@ -64,11 +110,11 @@ begin
   if char_length(v_name) < 2 or char_length(v_name) > 100 then
     raise exception 'Please enter your name (2 to 100 characters).';
   end if;
-  if p_date_of_birth is not null and (p_date_of_birth < date '1900-01-01' or p_date_of_birth > v_today) then
-    raise exception 'Please check the date of birth.';
-  end if;
   if v_gender is not null and v_gender not in ('female', 'male', 'other') then
     raise exception 'Please choose female, male or other.';
+  end if;
+  if p_birth_year is not null and (p_birth_year < 1900 or p_birth_year > extract(year from v_today)::integer) then
+    raise exception 'Please check the age.';
   end if;
   if char_length(v_address) > 300 then
     raise exception 'Address must be 300 characters or fewer.';
@@ -122,16 +168,12 @@ begin
   end if;
 
   insert into public.booking_requests (
-    owner_id, name, phone, gender, address, date_of_birth, medical_alerts, heard_from,
-    reason, notes, requested_start, preferred_date, preferred_time,
-    is_emergency, is_test, client_ip, status, created_at
+    owner_id, name, phone, gender, birth_year, address, medical_alerts, heard_from,
+    reason, notes, requested_start, client_ip, status, created_at
   )
   values (
-    v_owner, v_name, v_phone, v_gender, v_address, p_date_of_birth, v_alerts, v_heard,
-    v_reason, v_notes, p_requested_start,
-    (p_requested_start at time zone 'Asia/Kolkata')::date,
-    to_char(p_requested_start at time zone 'Asia/Kolkata', 'HH12:MI AM'),
-    false, v_name like 'E2E-%', v_ip, 'new', v_now
+    v_owner, v_name, v_phone, v_gender, p_birth_year, v_address, v_alerts, v_heard,
+    v_reason, v_notes, p_requested_start, v_ip, 'new', v_now
   )
   returning id into v_id;
 
@@ -139,12 +181,15 @@ begin
 end;
 $$;
 
-revoke all on function public.submit_booking_request(text, text, date, text, text, text, text, text, timestamptz, text)
+revoke all on function public.submit_booking_request(text, text, text, text, text, text, text, timestamptz, text, integer)
   from public, anon, authenticated;
-grant execute on function public.submit_booking_request(text, text, date, text, text, text, text, text, timestamptz, text)
+grant execute on function public.submit_booking_request(text, text, text, text, text, text, text, timestamptz, text, integer)
   to anon, authenticated;
 
--- Confirming a request copies the gender to the new patient
+-- Confirm a request (signed in) ---------------------------------------------------------
+-- One transaction: create the patient (or link an existing one), book the 40-minute
+-- block, mark the request booked. Runs as the signed-in doctor, so row-level security
+-- applies. Any failure rolls everything back.
 create or replace function public.confirm_booking_request(
   p_request uuid,
   p_starts_at timestamptz,
@@ -194,8 +239,8 @@ begin
       raise exception 'That patient was not found.';
     end if;
   else
-    insert into public.patients (name, phone, gender, date_of_birth, address, medical_alerts, heard_from, is_test)
-    values (r.name, r.phone, r.gender, r.date_of_birth, r.address, r.medical_alerts, r.heard_from, r.is_test)
+    insert into public.patients (name, phone, gender, birth_year, address, medical_alerts, heard_from)
+    values (r.name, r.phone, r.gender, r.birth_year, r.address, r.medical_alerts, r.heard_from)
     returning id into v_patient;
   end if;
 
@@ -221,5 +266,7 @@ $$;
 
 revoke all on function public.confirm_booking_request(uuid, timestamptz, uuid) from public, anon, authenticated;
 grant execute on function public.confirm_booking_request(uuid, timestamptz, uuid) to authenticated;
+
+commit;
 
 notify pgrst, 'reload schema';

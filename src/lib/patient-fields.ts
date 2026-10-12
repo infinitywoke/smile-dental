@@ -1,4 +1,4 @@
-import { ageOn, todayInIndia } from '@/lib/dates'
+import { todayInIndia } from '@/lib/dates'
 
 // The doctor asks for an age in years; the database keeps the birth year (this year minus the age).
 export const MAX_AGE = 120
@@ -19,13 +19,9 @@ export function parseAge(input: unknown): number | null {
   return age <= MAX_AGE ? age : null
 }
 
-// A patient's age in years: from the birth year, or from the date of birth on older records
-export function patientAge(
-  patient: { birth_year?: number | null; date_of_birth?: string | null },
-  today: string = todayInIndia(),
-): number | null {
+// A patient's age in years, from the birth year
+export function patientAge(patient: { birth_year?: number | null }, today: string = todayInIndia()): number | null {
   if (patient.birth_year) return ageFromBirthYear(patient.birth_year, today)
-  if (patient.date_of_birth) return ageOn(patient.date_of_birth, today)
   return null
 }
 

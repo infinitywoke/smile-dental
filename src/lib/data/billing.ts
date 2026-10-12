@@ -9,9 +9,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type VisitBill = {
   visit: { id: string; visit_date: string }
-  patient: { id: string; name: string; phone: string | null; is_test: boolean }
+  patient: { id: string; name: string; phone: string | null }
   charges: Pick<VisitCharge, 'id' | 'description' | 'amount' | 'kind'>[]
-  payments: Pick<Payment, 'id' | 'amount' | 'method' | 'kind' | 'received_at'>[]
+  payments: Pick<Payment, 'id' | 'amount' | 'method' | 'received_at'>[]
   summary: BillSummary
 }
 
@@ -24,7 +24,7 @@ export async function getVisitBill(visitId: string): Promise<VisitBill> {
 
   const { data: visit, error } = await supabase
     .from('visits')
-    .select('id, visit_date, patient:patients!inner (id, name, phone, is_test)')
+    .select('id, visit_date, patient:patients!inner (id, name, phone)')
     .eq('id', visitId)
     .maybeSingle()
   if (error) throw error
@@ -33,7 +33,7 @@ export async function getVisitBill(visitId: string): Promise<VisitBill> {
 
   const [charges, payments, allCharges, allPayments] = await Promise.all([
     supabase.from('visit_charges').select('id, description, amount, kind').eq('visit_id', visitId).order('created_at'),
-    supabase.from('payments').select('id, amount, method, kind, received_at').eq('visit_id', visitId).order('received_at'),
+    supabase.from('payments').select('id, amount, method, received_at').eq('visit_id', visitId).order('received_at'),
     supabase.from('visit_charges').select('amount').eq('patient_id', patient.id),
     supabase.from('payments').select('amount').eq('patient_id', patient.id),
   ])

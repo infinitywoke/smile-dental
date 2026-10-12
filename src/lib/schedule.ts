@@ -1,5 +1,5 @@
 // The clinic's appointment blocks and online-booking rules, all in India time.
-// The database enforces the same rules (supabase/patch-booking.sql); this file is
+// The database enforces the same rules (supabase/schema.sql); this file is
 // what the screens use to lay out the day and to explain things to the patient.
 
 const TIME_ZONE = 'Asia/Kolkata'
@@ -66,7 +66,7 @@ export function isClosedDay(date: string): boolean {
   return weekday(date) === 5
 }
 
-// The blocks of a day: all 16, or none on a Friday
+// The blocks of a day: all 15, or none on a Friday
 export function blocksFor(date: string): string[] {
   return isClosedDay(date) ? [] : ALL_BLOCKS
 }

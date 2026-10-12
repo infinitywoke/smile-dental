@@ -114,7 +114,7 @@ export async function createVisit(patientId: string, day: string, charge: number
   if (paid > 0) {
     const { error: payError } = await supabase
       .from('payments')
-      .insert({ visit_id: visitId, patient_id: patientId, amount: paid, method: 'cash', kind: 'payment' })
+      .insert({ visit_id: visitId, patient_id: patientId, amount: paid, method: 'cash' })
     if (payError) throw new Error(`creating payment: ${payError.message}`)
   }
   return visitId
@@ -130,7 +130,7 @@ export async function makeRequest(runId: string, label: string, hhmm: string, da
   const { data, error } = await supabase.from('booking_requests').insert({
     name: requestName, phone: requestPhone, gender: 'female', birth_year: 1985, address: 'Katapadi',
     medical_alerts: 'Diabetes', heard_from: 'Google', reason: 'Tooth pain', requested_start: blockInstant(day, hhmm),
-    preferred_date: day, preferred_time: hhmm, status: 'new', is_test: true,
+    status: 'new',
   }).select('id').single()
   if (error) throw new Error(`creating request: ${error.message}`)
   return { id: data.id as string, day, requestName, requestPhone }

@@ -4,10 +4,9 @@ import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { sumAmounts } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
-import { isEmptyVisit, visitStatus } from '@/lib/visit-status'
+import { PHOTO_BUCKET, isEmptyVisit, visitStatus } from '@/lib/visit-status'
 import type { Patient, Visit, VisitDetail, VisitStatus } from './types'
 
-export const PHOTO_BUCKET = 'visit-photos'
 // Photos are shown on screen through short-lived links; links that go to a patient (30 days)
 // are made only when the doctor taps Send, only for the photos he ticked
 const DISPLAY_LINK_SECONDS = 60 * 60
@@ -16,7 +15,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at, updated_at, closed_at'
 
 export type TodayVisit = Visit & {
-  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'is_test'>
+  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts'>
   photo_count: number
   status: VisitStatus
   total: number
@@ -29,7 +28,7 @@ export async function getVisitsOn(date: string): Promise<TodayVisit[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('visits')
-    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts, is_test), visit_photos (count), visit_charges (amount), payments (amount)`)
+    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts), visit_photos (count), visit_charges (amount), payments (amount)`)
     .eq('visit_date', date)
     .order('created_at', { ascending: false })
   if (error) throw error
@@ -73,7 +72,7 @@ export async function getVisit(id: string): Promise<VisitPageData> {
 
   const { data, error } = await supabase
     .from('visits')
-    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts, is_test), visit_photos (id, caption, storage_path, created_at)`)
+    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts), visit_photos (id, caption, storage_path, created_at)`)
     .eq('id', id)
     .maybeSingle()
   if (error) throw error

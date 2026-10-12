@@ -18,7 +18,6 @@ export type DayBlock = {
   appointmentId?: string
   patientId?: string
   patientName?: string
-  isTest?: boolean
   reason?: string
   requestId?: string
   requestName?: string
@@ -40,10 +39,10 @@ export type AppointmentRow = {
   duration_min: number
   reason: string
   status: string
-  patient: { id: string; name: string; phone: string | null; is_test: boolean; medical_alerts: string | null }
+  patient: { id: string; name: string; phone: string | null; medical_alerts: string | null }
 }
 
-const APPOINTMENT_SELECT = 'id, patient_id, starts_at, duration_min, reason, status, patient:patients!inner (id, name, phone, is_test, medical_alerts)'
+const APPOINTMENT_SELECT = 'id, patient_id, starts_at, duration_min, reason, status, patient:patients!inner (id, name, phone, medical_alerts)'
 
 function dayRange(date: string) {
   const start = new Date(blockInstant(date, '00:00'))
@@ -97,7 +96,6 @@ export async function getDaySchedule(date: string): Promise<DaySchedule> {
         appointmentId: appt.id,
         patientId: appt.patient_id,
         patientName: appt.patient.name,
-        isTest: appt.patient.is_test,
         reason: appt.reason,
       }
     }

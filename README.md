@@ -1,7 +1,7 @@
 # Smile Dental Clinic: website + Clinic OS
 
 - **Website:** the public site for Smile Dental Clinic, Katapadi.
-- **Clinic OS** (`/app`): a phone-first app where Dr. Rahil records visits, payments and expenses. Sign-in is email + password.
+- **Clinic OS** (`/app`): a phone-first app where Dr. Rahil books patients, records visits, photos, bills and payments, and sends the WhatsApp message. Sign-in is email + password.
 
 ## Getting started
 
