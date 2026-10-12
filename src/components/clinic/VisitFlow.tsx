@@ -115,7 +115,6 @@ export function VisitFlow({
           visitId={visit.id}
           patientName={visit.patient.name}
           bill={bill}
-         
           save={save}
         />
       )}

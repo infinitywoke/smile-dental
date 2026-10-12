@@ -44,8 +44,17 @@ create policy "Owner full access" on public.visit_charges
 drop policy if exists "Owner reads own expense receipts" on storage.objects;
 drop policy if exists "Owner uploads own expense receipts" on storage.objects;
 drop policy if exists "Owner deletes own expense receipts" on storage.objects;
-delete from storage.objects where bucket_id = 'expense-receipts';
+-- Supabase blocks direct deletes in storage (files would be orphaned). The bucket holds no files
+-- (checked 12 Oct 2026); stop here if any appeared since, rather than delete them.
+do $$
+begin
+  if exists (select 1 from storage.objects where bucket_id = 'expense-receipts') then
+    raise exception 'The expense-receipts bucket has files. Empty it in the Supabase dashboard first.';
+  end if;
+end $$;
+set local storage.allow_delete_query = 'true';
 delete from storage.buckets where id = 'expense-receipts';
+set local storage.allow_delete_query = 'false';
 
 -- 4. Columns nobody uses.
 drop index if exists public.patients_owner_test_idx;
