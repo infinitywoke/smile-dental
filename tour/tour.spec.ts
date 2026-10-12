@@ -292,8 +292,9 @@ test('evidence tour', async ({ page }) => {
   await step('today with dues', async () => {
     await page.goto('/app'); await snap(page, 'today-after-visit')
     current.taps = 0; current.typed = 0; current.screens = ['/app']
-    const due = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' }))
-    await tap(due)
+    // A due on today's visit shows on that visit's row (Wave 2); an older due shows under "Needs you" with Collect
+    const collect = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' }))
+    await tap((await collect.count()) ? collect : visible(page.getByRole('link').filter({ hasText: patientName })).first())
     await page.waitForURL(/\/app\/visits\//)
     await visible(page.getByRole('button', { name: 'Cash received' })).waitFor({ timeout: 15_000 })
     await snap(page, 'collect-payment-card')
