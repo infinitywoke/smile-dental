@@ -59,78 +59,128 @@ describe('upiLink', () => {
 })
 
 describe('visitMessage', () => {
-  it('combines bill, payments, next appointment and prescription photo link', () => {
-    const summary = summarise({ charges: [{ amount: 3500 }], payments: [{ amount: 3500 }], earlier: 0 })
+  const nextVisit = { starts_at: '2026-10-15T12:30:00.000Z' } // Thu 15 Oct, 6:00 PM in India
+
+  it('lays out the bill, a part payment, the next visit and a photo link, with headings', () => {
     const text = visitMessage({
       patientName: 'Prakash Shetty',
-      visitDate: '2026-10-15',
-      lines: [{ description: 'RCT', amount: 3500 }],
-      payments: [{ amount: 3500, method: 'upi' }],
-      summary,
-      nextAppointment: { starts_at: '2026-10-22T05:00:00.000Z' }, // 10:30 AM IST
-      photos: [{ label: 'Prescription', url: 'https://example.com/prescription.jpg' }],
+      visitDate: '2026-10-12',
+      lines: [
+        { description: 'Root canal treatment (46)', amount: 3500 },
+        { description: 'X-ray', amount: 200 },
+      ],
+      payments: [{ amount: 2000, method: 'upi' }],
+      summary: summarise({ charges: [{ amount: 3500 }, { amount: 200 }], payments: [{ amount: 2000 }], earlier: 0 }),
+      nextAppointment: nextVisit,
+      photos: [{ label: 'Prescription', url: 'https://example.com/p.jpg' }],
     })
-
-    expect(text).toContain('Hello Prakash')
-    expect(text).toContain('• RCT: ₹3,500')
-    expect(text).toContain('Total: ₹3,500')
-    expect(text).toContain('Paid: ₹3,500 (UPI)')
-    expect(text).toContain('*Next appointment*')
-    expect(text).toContain('10:30 AM')
-    expect(text).toContain('Prescription: https://example.com/prescription.jpg')
-    expect(text).toContain('– Dr. Rahil Yusuf')
+    expect(text).toBe(
+      [
+        '*Smile Dental Clinic*',
+        '_Dr. Rahil Yusuf, BDS_',
+        '',
+        'Dear Prakash,',
+        'Thank you for visiting us on 12 Oct 2026.',
+        '',
+        '*Treatment & charges*',
+        '- Root canal treatment (46): ₹3,500',
+        '- X-ray: ₹200',
+        '*Total: ₹3,700*',
+        '',
+        '*Payment*',
+        'Paid: ₹2,000 (UPI)',
+        '*Balance due: ₹1,700*',
+        '',
+        '*Next appointment*',
+        '📅 *Thursday, 15 October*',
+        '🕗 *6:00 PM*',
+        '📍 1st Floor, YM Zohara Building, Shirva Road, Katapadi',
+        '',
+        '*Your photo* _(the link works for 30 days)_',
+        '- Prescription: https://example.com/p.jpg',
+        '',
+        'For any questions, call or WhatsApp us on +91 6361816711.',
+        '',
+        'Warm regards,',
+        '*Dr. Rahil Yusuf*',
+        'Smile Dental Clinic, Katapadi',
+      ].join('\n'),
+    )
+    expect(text).not.toContain('Shetty')
   })
 
-  it('works gracefully when only bill or only next appointment is present', () => {
-    const text = visitMessage({
-      patientName: 'Prakash Shetty',
-      visitDate: '2026-10-15',
-      nextAppointment: { starts_at: '2026-10-22T05:00:00.000Z' },
-    })
-    expect(text).toContain('Hello Prakash')
-    expect(text).not.toContain('*Bill*')
+  it('leaves out empty sections: only a next appointment still reads well', () => {
+    const text = visitMessage({ patientName: 'Prakash Shetty', visitDate: '2026-10-12', nextAppointment: nextVisit })
+    expect(text).toContain('Dear Prakash,')
     expect(text).toContain('*Next appointment*')
+    expect(text).not.toContain('*Treatment & charges*')
+    expect(text).not.toContain('*Payment*')
+    expect(text).not.toContain('*Your photo')
+    expect(text).toContain('Warm regards,')
+  })
+
+  it('a visit with nothing but a prescription sent as a photo has no sections and no links', () => {
+    const text = visitMessage({ patientName: 'Asha Rao', visitDate: '2026-10-12', lines: [], payments: [], photos: [] })
+    expect(text).not.toMatch(/https?:\/\//)
+    expect(text).not.toContain('*Payment*')
+    expect(text).not.toContain('*Next appointment*')
+    expect(text).toContain('Thank you for visiting us on 12 Oct 2026.')
   })
 
   it('names money owed from other visits as such, with the total due', () => {
     const summary = summarise({ charges: [{ amount: 1000 }], payments: [{ amount: 800 }], earlier: 500 })
     const text = visitMessage({
       patientName: 'Prakash Shetty',
-      visitDate: '2026-10-15',
+      visitDate: '2026-10-12',
       lines: [{ description: 'Filling', amount: 1000 }],
       payments: [{ amount: 800, method: 'cash' }],
       summary,
     })
-    expect(text).toContain('Balance: ₹200')
+    expect(text).toContain('Paid: ₹800 (Cash)')
+    expect(text).toContain('*Balance due: ₹200*')
     expect(text).toContain('Due from other visits: ₹500')
     expect(text).toContain('*Total due: ₹700*')
-    expect(text).not.toContain('Earlier balance')
   })
-})
 
-describe('visitMessage photos', () => {
-  const base = { patientName: 'Asha Rao', visitDate: '2026-10-15' }
+  it('says paid in full, or an advance, in bold', () => {
+    const paid = visitMessage({
+      patientName: 'Asha', visitDate: '2026-10-12', lines: [{ description: 'Scaling', amount: 800 }],
+      payments: [{ amount: 500, method: 'cash' }, { amount: 300, method: 'upi' }],
+      summary: summarise({ charges: [{ amount: 800 }], payments: [{ amount: 800 }], earlier: 0 }),
+    })
+    expect(paid).toContain('Paid: ₹800 (Cash + UPI)')
+    expect(paid).toContain('*Paid in full.* Thank you!')
+    expect(paid).not.toContain('Balance due')
+
+    const advance = visitMessage({
+      patientName: 'Asha', visitDate: '2026-10-12', payments: [{ amount: 2000, method: 'upi' }],
+      summary: summarise({ charges: [], payments: [{ amount: 2000 }], earlier: 0 }),
+    })
+    expect(advance).not.toContain('*Treatment & charges*')
+    expect(advance).toContain('*Advance with us: ₹2,000*')
+  })
 
   it('names each photo by its kind and numbers repeats', () => {
     const text = visitMessage({
-      ...base,
+      patientName: 'Asha Rao',
+      visitDate: '2026-10-12',
       photos: [
         { label: 'Prescription', url: 'https://x/1' },
         { label: 'X-ray', url: 'https://x/2' },
         { label: 'X-ray', url: 'https://x/3' },
       ],
     })
-    expect(text).toContain('*Photos*')
-    expect(text).toContain('Prescription: https://x/1')
-    expect(text).toContain('X-ray 1: https://x/2')
-    expect(text).toContain('X-ray 2: https://x/3')
+    expect(text).toContain('*Your photos* _(the links work for 30 days)_')
+    expect(text).toContain('- Prescription: https://x/1')
+    expect(text).toContain('- X-ray 1: https://x/2')
+    expect(text).toContain('- X-ray 2: https://x/3')
   })
 
-  it('uses the first name only, never gender, and leaves out photos when none are sent', () => {
-    const text = visitMessage({ ...base, photos: [] })
-    expect(text).toContain('Hello Asha,')
+  it('uses the first name only, never anything else about the patient', () => {
+    const text = visitMessage({ patientName: 'Asha Rao', visitDate: '2026-10-12' })
+    expect(text).toContain('Dear Asha,')
     expect(text).not.toContain('Rao')
-    expect(text).not.toMatch(/(Mr|Mrs|Ms|male|female)/i)
-    expect(text).not.toContain('*Photos*')
+    expect(text).not.toMatch(/\b(Mr|Mrs|Ms|male|female)\b/i)
   })
 })
+

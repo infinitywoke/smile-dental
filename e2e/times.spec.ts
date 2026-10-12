@@ -42,8 +42,15 @@ test('Today: one tap confirms a website request and prepares the patient message
 
   expect(whatsapp.url).toContain(`wa.me/91${requestPhone}`)
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain('confirmed')
-  expect(text).toContain(formatBlock('15:10'))
+  expect(text.startsWith('*Smile Dental Clinic*\n_Dr. Rahil Yusuf, BDS_')).toBe(true)
+  // First name only: never the rest of the name or anything else from the request
+  expect(text).toContain(`Dear ${runId},`)
+  expect(text).not.toContain(requestName)
+  expect(text).not.toContain('Diabetes')
+  expect(text).toContain('is *confirmed*')
+  expect(text).toContain(`🕗 *${formatBlock('15:10')}*`)
+  expect(text).toContain('_Please arrive 5 minutes early._')
+  expect(text).toContain('Warm regards,')
 
   // It is now an appointment on that day's sheet
   await page.goto(`/app?d=${day}`)
@@ -146,9 +153,11 @@ test('Move: the current time is marked; a new time sends "has been moved to"', a
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
 
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain('has been moved to')
+  expect(text).toContain(`Dear ${runId},`)
+  expect(text).toContain('has been moved to:')
   expect(text).not.toContain('confirmed')
-  expect(text).toContain(formatBlock('14:30'))
+  expect(text).toContain(`🕗 *${formatBlock('14:30')}*`)
+  expect(text).toContain('_Please arrive 5 minutes early._')
 })
 
 test('phone booking: type part of the phone, tap the patient row, Book, WhatsApp button', async () => {

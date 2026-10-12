@@ -1,4 +1,5 @@
 import { siteConfig } from '@/config/site'
+import { formatDate } from '@/lib/dates'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 
 // WhatsApp links open a chat with the text filled in; the sender taps Send.
@@ -20,7 +21,8 @@ function when(startsAt: string): string {
   return `${formatDay(date)} at ${formatBlock(time)}`
 }
 
-// Patient -> clinic: short, with the private link that opens the request in Clinic OS
+// Patient -> clinic: short and plain (it is for the clinic), with the private link that opens the
+// request in Clinic OS
 export function bookingRequestMessage(args: { name: string; phone: string; startsAt: string; reason: string; link: string }): string {
   return [
     '*Appointment request (website)*',
@@ -33,42 +35,73 @@ export function bookingRequestMessage(args: { name: string; phone: string; start
   ].join('\n')
 }
 
-// Clinic -> patient, after Dr. Rahil saves
-export function confirmationMessage(args: { name: string; startsAt: string }): string {
-  const first = args.name.trim().split(/\s+/)[0]
+// ---- Clinic -> patient: every message has the same look (WhatsApp styling: *bold*, _italic_, "- " lists).
+// The patient's first name is the only thing about them in any message.
+
+export const firstName = (name: string) => name.trim().split(/\s+/)[0]
+
+// "*Smile Dental Clinic*", "_Dr. Rahil Yusuf, BDS_", then "Dear Prakash,"
+export function messageHeader(name: string): string[] {
+  const degree = siteConfig.dentist.qualifications.split(',')[0].trim()
+  return [`*${siteConfig.name}*`, `_${siteConfig.dentist.name}, ${degree}_`, '', `Dear ${firstName(name)},`]
+}
+
+export function messageSignOff(): string[] {
+  return ['', 'Warm regards,', `*${siteConfig.dentist.name}*`, `${siteConfig.name}, Katapadi`]
+}
+
+// "📅 *Thursday, 15 October*" and "🕗 *6:00 PM*"
+export function appointmentLines(startsAt: string): string[] {
+  const { date, time } = inIndia(startsAt)
+  return [`📅 *${formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}*`, `🕗 *${formatBlock(time)}*`]
+}
+
+// The clinic in one short line (the full address goes in confirmations)
+export const SHORT_LOCATION = '📍 1st Floor, YM Zohara Building, Shirva Road, Katapadi'
+
+export const QUESTIONS_LINE = `For any questions, call or WhatsApp us on ${siteConfig.phone}.`
+
+// Day, time, address and directions, for a confirmed or moved appointment
+function appointmentBlock(startsAt: string): string[] {
   return [
-    `Hello ${first}, your appointment at ${siteConfig.name}, Katapadi is confirmed ✅`,
     '',
-    `📅 ${when(args.startsAt)}`,
+    ...appointmentLines(startsAt),
+    '',
     `📍 ${siteConfig.address}`,
     `Directions: ${siteConfig.googleReviewsLink}`,
     '',
-    `Please arrive 5 minutes early. To change or cancel, call or WhatsApp ${siteConfig.phone}.`,
-    `– ${siteConfig.dentist.name}`,
+    '_Please arrive 5 minutes early._',
+    `To change or cancel, call or WhatsApp us on ${siteConfig.phone}.`,
+  ]
+}
+
+// Clinic -> patient, after Dr. Rahil saves
+export function confirmationMessage(args: { name: string; startsAt: string }): string {
+  return [
+    ...messageHeader(args.name),
+    `Your appointment at ${siteConfig.name} is *confirmed*.`,
+    ...appointmentBlock(args.startsAt),
+    ...messageSignOff(),
   ].join('\n')
 }
 
 // Clinic -> patient, after an appointment is moved
 export function movedMessage(args: { name: string; startsAt: string }): string {
-  const first = args.name.trim().split(/\s+/)[0]
   return [
-    `Hello ${first}, your appointment at ${siteConfig.name}, Katapadi has been moved to ${when(args.startsAt)} ✅`,
-    '',
-    `📍 ${siteConfig.address}`,
-    `Directions: ${siteConfig.googleReviewsLink}`,
-    '',
-    `Please arrive 5 minutes early. To change or cancel, call or WhatsApp ${siteConfig.phone}.`,
-    `– ${siteConfig.dentist.name}`,
+    ...messageHeader(args.name),
+    `Your appointment at ${siteConfig.name} has been moved to:`,
+    ...appointmentBlock(args.startsAt),
+    ...messageSignOff(),
   ].join('\n')
 }
 
 // Clinic -> patient, when the requested time can't be given
 export function declineMessage(args: { name: string }): string {
-  const first = args.name.trim().split(/\s+/)[0]
   return [
-    `Hello ${first}, thank you for contacting ${siteConfig.name}.`,
+    ...messageHeader(args.name),
+    `Thank you for contacting ${siteConfig.name}.`,
     '',
-    `We couldn't fit the time you asked for. Please call or WhatsApp us on ${siteConfig.phone} and we'll find a time that suits you.`,
-    `– ${siteConfig.dentist.name}`,
+    `We're sorry, we couldn't fit the time you asked for. Please call or WhatsApp us on ${siteConfig.phone} and we'll find a time that suits you.`,
+    ...messageSignOff(),
   ].join('\n')
 }

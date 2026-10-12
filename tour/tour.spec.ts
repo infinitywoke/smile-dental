@@ -3,7 +3,7 @@ import path from 'node:path'
 import { test, type Locator, type Page } from '@playwright/test'
 import { addDays, inIndia, isClosedDay } from '../src/lib/schedule'
 import { NO_TEST_LOGIN, testLogin } from '../e2e/env'
-import { cleanTestAccount, makeRequest as makeTestRequest } from '../e2e/helpers'
+import { cleanTestAccount, makeRequest as makeTestRequest, stubShareSheet } from '../e2e/helpers'
 
 // Evidence tour for the simplification build (docs/BUILD_LOG.md). Not part of the test suite:
 // run it against a production build (see the log) after each wave that changes screens.
@@ -277,7 +277,10 @@ test('evidence tour', async ({ page }) => {
     if (!page.url().startsWith(visitUrl)) await page.goto(visitUrl)
     current.taps -= 1 // the QR look was for evidence, not part of the job
   })
+  // Like Chrome on Android, the page can share files (the prescription goes as a photo, not a link)
+  const share = await stubShareSheet(page)
   await step('next visit and WhatsApp', async () => {
+    await page.goto(visitUrl)
     await snap(page, 'visit-next-and-send')
     const suggestion = visible(page.getByRole('button', { name: /^Book / }))
     if (await suggestion.count()) { await tap(suggestion); await page.waitForTimeout(2000) }
@@ -285,6 +288,16 @@ test('evidence tour', async ({ page }) => {
     await tap(visible(page.getByRole('link', { name: 'Send on WhatsApp' })))
     await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
     await snap(page, 'whatsapp-handoff')
+  })
+  await step('prescription photo through the share sheet', async () => {
+    await page.goto(visitUrl)
+    const photo = visible(page.getByRole('button', { name: /^Send .*photos?$/ }))
+    await photo.waitFor({ timeout: 30_000 })
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => /^Send .*photos?$/.test(b.textContent ?? '') && !b.disabled), null, { timeout: 30_000 })
+    await snap(page, 'send-prescription-photo')
+    await tap(photo)
+    await page.waitForTimeout(500)
+    current.notes.push(`shared through the share sheet: ${JSON.stringify(await share.shared())}`)
   })
 
   // ---------------------------------------------------------------- job G (owed money)

@@ -1,7 +1,9 @@
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
-import { captureWhatsapp, cleanRun, createPatient, newPhone, newRunId, signIn, testDb, visible, whatsappText } from './helpers'
+import { formatDate } from '../src/lib/dates'
+import { inIndia } from '../src/lib/schedule'
+import { captureWhatsapp, cleanRun, createPatient, newPhone, newRunId, signIn, stubShareSheet, testDb, visible, whatsappText } from './helpers'
 
 // A walk-in's visit on ONE page that saves by itself: new patient, notes, a photo marked Prescription,
 // one-tap charges, part payment, UPI QR, next visit, one WhatsApp message, then Collect from Today.
@@ -147,42 +149,88 @@ test('next visit is "None" and nothing is booked until the suggestion is tapped'
   expect(await bookedCount()).toBe(0)
 })
 
-test('Send tapped straight after booking the next visit: the message has the bill, the next visit and the prescription link', async () => {
-  const whatsapp = await captureWhatsapp(page)
-  // No waiting between the two taps: Send waits for the booking itself
-  await visible(page.getByRole('button', { name: /^Book / })).click()
+// Tap Send on WhatsApp and wait for WhatsApp to open. Within 2 seconds it opens by itself; slower than
+// that (a cold test server), a big "Open WhatsApp" button appears for a second tap.
+async function sendOnWhatsapp() {
   await visible(page.getByRole('link', { name: 'Send on WhatsApp' })).click()
-  // The 30-day photo link is made at the tap. Within 2 seconds WhatsApp opens by itself; slower than
-  // that (a cold test server), a big "Open WhatsApp" button appears for a second tap.
   const openButton = visible(page.getByRole('link', { name: 'Open WhatsApp' }))
   await Promise.race([
     page.waitForURL(/wa\.me\//, { timeout: 30_000 }),
     openButton.waitFor({ timeout: 30_000 }).then(() => openButton.click()),
   ])
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
+}
+
+let share: Awaited<ReturnType<typeof stubShareSheet>>
+
+test('Send tapped straight after booking the next visit: a professional message with no photo link; then the prescription goes as a photo', async () => {
+  // An Android phone: it can share files
+  share = await stubShareSheet(page)
+  await page.reload()
+  const photoButton = visible(page.getByRole('button', { name: 'Send prescription photo' }))
+  // Step 2 only appears once the message has gone
+  await expect(visible(page.getByRole('link', { name: 'Send on WhatsApp' }))).toBeVisible()
+  await expect(photoButton).toHaveCount(0)
+
+  const whatsapp = await captureWhatsapp(page)
+  // No waiting between the two taps: Send waits for the booking itself
+  await visible(page.getByRole('button', { name: /^Book / })).click()
+  await sendOnWhatsapp()
 
   expect(whatsapp.url).toContain(`wa.me/91${phone}`)
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain(`Hello ${runId},`)
-  expect(text).toContain(`${scaling}: ₹600`)
-  expect(text).toContain(`${otherCharge}: ₹600`)
-  expect(text).toContain('Total: ₹1,200')
-  expect(text).toContain('Paid: ₹1,000 (cash)')
-  expect(text).toContain('Balance: ₹200')
-  expect(text).toContain('*Next appointment*')
-  const link = text.match(/Prescription: (https:\/\/\S+\/storage\/v1\/object\/sign\/visit-photos\/\S+)/)?.[1]
+  expect(text.startsWith(`*Smile Dental Clinic*\n_Dr. Rahil Yusuf, BDS_\n\nDear ${runId},\nThank you for visiting us on `)).toBe(true)
+  expect(text).not.toContain(patientName)
+  expect(text).not.toContain('Penicillin')
+  expect(text).toContain(`*Treatment & charges*\n- ${scaling}: ₹600\n- ${otherCharge}: ₹600\n*Total: ₹1,200*`)
+  expect(text).toContain('*Payment*\nPaid: ₹1,000 (Cash)\n*Balance due: ₹200*')
+  expect(text).toMatch(/\*Next appointment\*\n📅 \*\w+day, \d{1,2} \w+\*\n🕗 \*\d{1,2}:\d{2} (AM|PM)\*\n📍 /)
+  expect(text).toContain('Warm regards,\n*Dr. Rahil Yusuf*\nSmile Dental Clinic, Katapadi')
+  // The photo goes as a file, so no link is made or sent
+  expect(text).not.toContain('storage/v1/object')
+  expect(text).not.toContain('Prescription:')
+  expect(await bookedCount()).toBe(1)
+
+  // Coming back, the visit says the message went, shows the booking, and offers the photo
+  await page.goto(visitUrl)
+  await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toBeVisible()
+  await expect(visible(page.getByText(/Booked: /))).toBeVisible()
+  await expect(photoButton).toBeEnabled({ timeout: 30_000 })
+  await photoButton.click()
+  await expect.poll(async () => (await share.shared()).length).toBe(1)
+  const [sharedNow] = await share.shared()
+  expect(sharedNow.files).toHaveLength(1)
+  expect(sharedNow.files[0].type).toMatch(/^image\//)
+  expect(sharedNow.files[0].size).toBeGreaterThan(0)
+  expect(sharedNow.files[0].name).toMatch(/^Prescription-\d{1,2}-\w{3}-\d{4}\.(jpg|png|webp)$/)
+  expect(sharedNow.text).toBe(`Prescription · Smile Dental Clinic · ${formatDate(inIndia(new Date()).date)}`)
+
+  // It stays, so he can send it again
+  await photoButton.click()
+  await expect.poll(async () => (await share.shared()).length).toBe(2)
+})
+
+test('a browser that cannot share files gets a 30-day prescription link in the text instead; nothing doubles', async () => {
+  await share.turnOff()
+  await page.reload()
+  await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toBeVisible()
+  await expect(visible(page.getByRole('button', { name: 'Send prescription photo' }))).toHaveCount(0)
+
+  const whatsapp = await captureWhatsapp(page)
+  await sendOnWhatsapp()
+  const text = whatsappText(whatsapp.url)
+  expect(text).toContain('*Your photo* _(the link works for 30 days)_')
+  const link = text.match(/- Prescription: (https:\/\/\S+\/storage\/v1\/object\/sign\/visit-photos\/\S+)/)?.[1]
   expect(link).toBeTruthy()
   const token = new URL(link!).searchParams.get('token')!
   const { exp } = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
   const days = (exp * 1000 - Date.now()) / 86_400_000
   expect(days).toBeGreaterThan(29)
   expect(days).toBeLessThan(31)
+  // Sending again never books or bills twice
+  expect(text).toContain('*Total: ₹1,200*')
   expect(await bookedCount()).toBe(1)
-
-  // Coming back, the visit says the message went, and shows the booking
   await page.goto(visitUrl)
-  await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toBeVisible()
-  await expect(visible(page.getByText(/Booked: /))).toBeVisible()
 })
 
 test('a next visit booked from the visit can be changed; it moves, never doubles', async () => {
