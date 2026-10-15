@@ -20,6 +20,8 @@ type Props = {
   only?: { id: string; name: string }
   // Shown instead of the form while the time is not free (but never over a booking just made)
   notice?: ReactNode
+  // How long the appointment is, in minutes
+  minutes?: number
 }
 
 const inputClass =
@@ -27,7 +29,7 @@ const inputClass =
 
 // Phone booking from the calendar: pick a patient already in the app, or add a new one with just a
 // name and number. A new patient's number is looked up first, so a known patient is never doubled.
-export function BookAppointment({ startsAt, when, patients: initialPatients, backTo, backLabel = 'Today', only, notice }: Props) {
+export function BookAppointment({ startsAt, when, patients: initialPatients, backTo, backLabel = 'Today', only, notice, minutes = 40 }: Props) {
   const [mode, setMode] = useState<'existing' | 'new'>(only || initialPatients.length > 0 ? 'existing' : 'new')
   const [patientId, setPatientId] = useState<string | null>(only?.id ?? null)
   const [reason, setReason] = useState('')
@@ -69,8 +71,8 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
   function submit() {
     run(() =>
       mode === 'existing'
-        ? bookAppointment(patientId ?? '', startsAt, reason)
-        : bookNewPatient({ name, phone, gender, reason }, startsAt),
+        ? bookAppointment(patientId ?? '', startsAt, reason, minutes)
+        : bookNewPatient({ name, phone, gender, reason }, startsAt, false, minutes),
     )
   }
 
@@ -170,12 +172,12 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
             This number belongs to {samePhone.length === 1 ? samePhone[0].name : `${samePhone.length} patients`}.
           </p>
           {samePhone.map((m) => (
-            <button key={m.id} type="button" disabled={pending} onClick={() => run(() => bookAppointment(m.id, startsAt, reason))}
+            <button key={m.id} type="button" disabled={pending} onClick={() => run(() => bookAppointment(m.id, startsAt, reason, minutes))}
               className="min-h-12 w-full rounded-full bg-blue-600 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
               Book {m.name}{m.age !== null ? ` (${m.age} yrs)` : ''}
             </button>
           ))}
-          <button type="button" disabled={pending} onClick={() => run(() => bookNewPatient({ name, phone, gender, reason }, startsAt, true))}
+          <button type="button" disabled={pending} onClick={() => run(() => bookNewPatient({ name, phone, gender, reason }, startsAt, true, minutes))}
             className="min-h-12 w-full rounded-full bg-white px-5 py-3 text-base font-semibold text-gray-900 ring-1 ring-gray-300 disabled:opacity-60">
             Someone new: {name.trim()}
           </button>

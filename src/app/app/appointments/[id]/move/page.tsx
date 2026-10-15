@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { lengthLabel } from '@/lib/schedule'
 import { redirect } from 'next/navigation'
 import { getAppointment, getDaySchedule } from '@/lib/data/appointments'
 import { todayInIndia } from '@/lib/dates'
@@ -18,12 +19,14 @@ async function MovePageContent({ params, searchParams }: PageProps<'/app/appoint
   const { date } = inIndia(appointment.starts_at)
   const today = todayInIndia()
   const wanted = typeof d === 'string' && DATE.test(d) ? d : date >= today ? date : today
-  const schedule = await getDaySchedule(wanted)
+  // It keeps its own length
+  const schedule = await getDaySchedule(wanted, appointment.duration_min)
 
   return (
     <div className="space-y-4">
       <BackLink href={`/app/patients/${appointment.patient_id}`} label={appointment.patient.name} />
       <h1 className="text-xl font-bold text-gray-900">Move {appointment.patient.name}</h1>
+      <p className="text-sm text-gray-600">{lengthLabel(appointment.duration_min)} appointment</p>
       <SlotScheduler
         mode="move"
         id={appointment.id}

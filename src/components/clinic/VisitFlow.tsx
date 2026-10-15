@@ -125,6 +125,7 @@ export function VisitFlow({
       )}
 
       <NextVisit visitId={visit.id} patientName={visit.patient.name} upcoming={visit.next_appointment?.starts_at ?? null}
+        upcomingMinutes={visit.next_appointment?.duration_min ?? 40}
         bookedHere={visit.next_booked_here} save={save} />
 
       <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} />

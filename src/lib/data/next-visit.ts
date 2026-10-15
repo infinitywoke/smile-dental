@@ -9,7 +9,7 @@ import { getDaySchedule } from './appointments'
 // The suggested next visit, worked out only when the visit page asks for it: the same weekday
 // a week on, at today's appointment time when that is free (else the first free time).
 // Null when the patient already has an appointment coming up, or that day is full or closed.
-export async function getNextVisitSuggestion(visitId: string): Promise<string | null> {
+export async function getNextVisitSuggestion(visitId: string, length: number = 40): Promise<string | null> {
   await getDoctor()
   const supabase = await createClient()
   const { data: visit } = await supabase.from('visits').select('id, patient_id, visit_date').eq('id', visitId).maybeSingle()
@@ -30,7 +30,7 @@ export async function getNextVisitSuggestion(visitId: string): Promise<string | 
 
   const today = todayInIndia()
   const date = suggestedDate(visit.visit_date > today ? visit.visit_date : today)
-  const schedule = await getDaySchedule(date)
+  const schedule = await getDaySchedule(date, length)
   if (schedule.closed || schedule.dayOff) return null
 
   const free = schedule.blocks.filter((b) => b.state === 'free').map((b) => b.time)

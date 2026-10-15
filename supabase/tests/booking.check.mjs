@@ -345,6 +345,23 @@ r = await db.query('select voice_variant from public.booking_requests where id =
 check('a late call leaves the request untouched', r.rows[0]?.voice_variant === null, JSON.stringify(r.rows))
 await setNow(at(WED, '10:00'))
 
+// --- Appointment lengths (Clinic OS) ---------------------------------------------------------------
+await db.exec('reset role')
+const startOk = async (iso, minutes) => (await db.query(`select public.is_clinic_start('${iso}'::timestamptz, ${minutes}) as ok`)).rows[0].ok
+check('8:50 AM is a start for 40 minutes', await startOk(at(THU, '08:50'), 40))
+check('12:50 PM fits 20 minutes', await startOk(at(THU, '12:50'), 20))
+check('12:50 PM does not fit 40 minutes (runs into lunch)', !(await startOk(at(THU, '12:50'), 40)))
+check('11:30 AM does not fit 2 hours', !(await startOk(at(THU, '11:30'), 120)))
+check('5:50 PM fits 2 hours (ends 7:50)', await startOk(at(THU, '17:50'), 120))
+check('8:40 AM is off the grid', !(await startOk(at(THU, '08:40'), 20)))
+check('45 minutes is not a clinic length', !(await startOk(at(THU, '08:30'), 45)))
+check('Fridays have no starts', !(await startOk(at(FRI, '09:10'), 40)))
+await as('authenticated', A)
+r = await expectOk('a request can be confirmed for 80 minutes', `select * from public.confirm_booking_request('${reqW}'::uuid, '${at('2026-10-24', '14:30')}'::timestamptz, null, 80)`)
+r = await db.query('select duration_min from public.appointments where id = $1', [r?.rows?.[0]?.appointment_id])
+check('the appointment is 80 minutes long', r.rows[0]?.duration_min === 80, JSON.stringify(r.rows))
+await expectErr('confirming onto a length that runs into lunch is refused', `select * from public.confirm_booking_request('${reqV}'::uuid, '${at('2026-10-24', '12:30')}'::timestamptz, null, 80)`, [], /clinic time blocks/)
+
 await as('postgres')
 console.log(`\n${passes} passed, ${failures} failed`)
 process.exit(failures ? 1 : 0)

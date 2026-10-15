@@ -12,11 +12,14 @@ export function NextVisitPicker({
   startDate,
   minDate,
   patientName,
+  minutes = 40,
   onPick,
 }: {
   startDate: string
   minDate: string
   patientName: string
+  // How long the visit is: only times where it fits are offered
+  minutes?: number
   onPick: (instant: string) => void
 }) {
   const [date, setDate] = useState(startDate)
@@ -25,7 +28,7 @@ export function NextVisitPicker({
 
   useEffect(() => {
     let cancelled = false
-    getScheduleForDate(date)
+    getScheduleForDate(date, minutes)
       .then((result) => {
         if (!cancelled) {
           setSchedule(result)
@@ -38,10 +41,10 @@ export function NextVisitPicker({
     return () => {
       cancelled = true
     }
-  }, [date])
+  }, [date, minutes])
 
-  const loading = !failed && schedule?.date !== date
-  const free = schedule && schedule.date === date ? schedule.blocks.filter((b) => b.state === 'free') : []
+  const loading = !failed && (schedule?.date !== date || schedule?.length !== minutes)
+  const free = schedule && schedule.date === date && schedule.length === minutes ? schedule.blocks.filter((b) => b.state === 'free') : []
 
   return (
     <div className="space-y-4">

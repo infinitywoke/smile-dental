@@ -11,6 +11,7 @@ import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import type { Save } from './BillTools'
 import { FullScreen, useBackToClose } from './FullScreen'
 import { NextVisitPicker } from './NextVisitPicker'
+import { LengthChips } from './LengthChips'
 
 const when = (iso: string) => {
   const { date, time } = inIndia(iso)
@@ -24,6 +25,7 @@ export function NextVisit({
   visitId,
   patientName,
   upcoming,
+  upcomingMinutes = 40,
   bookedHere,
   save,
 }: {
@@ -31,11 +33,15 @@ export function NextVisit({
   patientName: string
   // The patient's next appointment (an ISO moment), if one is booked
   upcoming: string | null
+  // Its length, in minutes
+  upcomingMinutes?: number
   // That appointment was booked from this visit, so choosing again moves it
   bookedHere: boolean
   save: Save
 }) {
   const [suggestion, setSuggestion] = useState<string | null>(null)
+  // How long the next visit will be (40 minutes unless chosen; a booked one keeps its own)
+  const [minutes, setMinutes] = useState(upcomingMinutes)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
@@ -48,13 +54,13 @@ export function NextVisit({
   useEffect(() => {
     if (upcoming) return
     let cancelled = false
-    suggestNextVisit(visitId)
+    suggestNextVisit(visitId, minutes)
       .then((instant) => !cancelled && setSuggestion(instant))
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [visitId, upcoming])
+  }, [visitId, upcoming, minutes])
 
   // Books (or moves) the next visit. From the picker, it closes first (through its history entry).
   // Once the visit's WhatsApp has gone, the patient has the old time (or none), so WhatsApp opens
@@ -64,7 +70,7 @@ export function NextVisit({
     setError(null)
     setPending(true)
     try {
-      const result = await save(() => bookNextVisit(visitId, instant))
+      const result = await save(() => bookNextVisit(visitId, instant, minutes))
       if (result.error) {
         setError(result.error)
         return
@@ -102,7 +108,8 @@ export function NextVisit({
       }
       setWhatsappUrl(null)
       setCancelUrl(result.whatsappUrl ?? null)
-      offerUndo('Next visit removed', () => save(() => bookNextVisit(visitId, was)))
+      const wasMinutes = upcomingMinutes
+      offerUndo('Next visit removed', () => save(() => bookNextVisit(visitId, was, wasMinutes)))
     } catch {
       setError("Couldn't reach the server. Check the internet and try again.")
     } finally {
@@ -141,6 +148,7 @@ export function NextVisit({
       ) : (
         <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
           <p className="text-base text-gray-700">None</p>
+          <LengthChips value={minutes} onChange={(m) => { setMinutes(m); setSuggestion(null) }} />
           {cancelUrl && (
             <a href={cancelUrl}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 text-base font-semibold text-green-700 ring-1 ring-green-600">
@@ -178,6 +186,7 @@ export function NextVisit({
               startDate={upcoming ? inIndia(upcoming).date : suggestion ? inIndia(suggestion).date : todayInIndia()}
               minDate={todayInIndia()}
               patientName={patientName}
+              minutes={minutes}
               onPick={(instant) => void book(instant, true)}
             />
           </div>

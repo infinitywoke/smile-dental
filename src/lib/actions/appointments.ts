@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { BLOCK_MINUTES, blockInstant, clinicBlockOf, formatBlock, inIndia } from '@/lib/schedule'
+import { BLOCK_MINUTES, DEFAULT_LENGTH, blockInstant, clinicBlockOf, clinicStartOf, formatBlock, inIndia, isLength, lengthLabel } from '@/lib/schedule'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { confirmationMessage, declineMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 import { parseGender } from '@/lib/gender'
@@ -35,6 +35,13 @@ function refresh() {
 }
 
 const parseBlock = clinicBlockOf
+
+// A start for an appointment of `minutes` (Clinic OS: 20-minute grid, within a session)
+function startFor(startsAt: string, minutes: number) {
+  return clinicStartOf(startsAt, minutes)
+}
+const clinicLength = (n: number) => (isLength(n) ? n : DEFAULT_LENGTH)
+const DOESNT_FIT = (minutes: number) => `A ${lengthLabel(minutes)} appointment doesn't fit there. Please choose another time or a shorter length.`
 
 // The database's messages are written for the doctor; anything else gets a generic line
 function messageOf(error: { code?: string; message: string } | null, fallback: string): string {
@@ -77,11 +84,16 @@ async function handledResult(supabase: Supabase, requestId: string): Promise<Wit
 // Save on the request screen: patient + appointment + request marked booked, all or nothing.
 // Returns the patient's WhatsApp confirmation, ready for one tap on Send. Safe to repeat: once the
 // request is booked, it returns the confirmation for that booking again.
-export async function confirmBookingRequest(requestId: string, startsAt: string, patientId: string | null): Promise<WithWhatsapp> {
+export async function confirmBookingRequest(
+  requestId: string,
+  startsAt: string,
+  patientId: string | null,
+  minutes: number = DEFAULT_LENGTH,
+): Promise<WithWhatsapp> {
   await getDoctor()
   if (!UUID.test(requestId) || (patientId && !UUID.test(patientId))) return { error: 'Something went wrong. Please reopen the request.' }
-  const block = parseBlock(startsAt)
-  if (!block) return { error: 'Please choose one of the clinic time blocks.' }
+  const block = startFor(startsAt, minutes)
+  if (!block) return { error: DOESNT_FIT(minutes) }
 
   const supabase = await createClient()
   const { data: request, error: requestError } = await supabase
@@ -95,6 +107,7 @@ export async function confirmBookingRequest(requestId: string, startsAt: string,
     p_request: requestId,
     p_starts_at: block.iso,
     p_patient: patientId,
+    p_minutes: minutes,
   })
   if (error) {
     if (error.message === HANDLED) {
@@ -141,11 +154,12 @@ export async function bookAppointment(
   patientId: string,
   startsAt: string,
   reason: string,
+  minutes: number = DEFAULT_LENGTH,
 ): Promise<WithWhatsapp> {
   await getDoctor()
   if (!UUID.test(patientId)) return { error: 'Something went wrong. Please try again.' }
-  const block = parseBlock(startsAt)
-  if (!block) return { error: 'Please choose one of the clinic time blocks.' }
+  const block = startFor(startsAt, minutes)
+  if (!block) return { error: DOESNT_FIT(minutes) }
 
   const supabase = await createClient()
   const { data: patient, error: patientError } = await supabase
@@ -160,7 +174,7 @@ export async function bookAppointment(
     .insert({
       patient_id: patientId,
       starts_at: block.iso,
-      duration_min: BLOCK_MINUTES,
+      duration_min: minutes,
       reason: reason.trim(),
       status: 'booked',
     })
@@ -192,6 +206,7 @@ export async function bookNewPatient(
   input: { name: string; phone: string; gender?: string; reason: string },
   startsAt: string,
   someoneNew = false,
+  minutes: number = DEFAULT_LENGTH,
 ): Promise<WithWhatsapp> {
   await getDoctor()
   const name = input.name.trim()
@@ -200,8 +215,8 @@ export async function bookNewPatient(
   if (phone && !isValidPhone(phone)) return { error: 'Please enter a 10-digit mobile number.' }
   const gender = parseGender(input.gender)
   if (!gender) return { error: 'Please choose the patient’s gender.' }
-  const block = parseBlock(startsAt)
-  if (!block) return { error: 'Please choose one of the clinic time blocks.' }
+  const block = startFor(startsAt, minutes)
+  if (!block) return { error: DOESNT_FIT(minutes) }
 
   if (phone && !someoneNew) {
     const known = await findPatientsByPhone(phone)
@@ -216,7 +231,7 @@ export async function bookNewPatient(
     .single()
   if (error) return { error: 'Could not save the patient. Please try again.' }
 
-  const booked = await bookAppointment(patient.id, block.iso, input.reason)
+  const booked = await bookAppointment(patient.id, block.iso, input.reason, minutes)
   if (booked.error) {
     // Don't leave a patient with no appointment behind
     await supabase.from('patients').delete().eq('id', patient.id)
@@ -240,13 +255,17 @@ export async function cancelAppointment(appointmentId: string): Promise<Result> 
 export async function moveAppointment(appointmentId: string, startsAt: string): Promise<WithWhatsapp> {
   await getDoctor()
   if (!UUID.test(appointmentId)) return { error: 'Something went wrong.' }
-  const block = parseBlock(startsAt)
-  if (!block) return { error: 'Please choose one of the clinic time blocks.' }
 
   const supabase = await createClient()
+  // It keeps its own length
+  const { data: current } = await supabase.from('appointments').select('duration_min').eq('id', appointmentId).maybeSingle()
+  if (!current) return { error: 'That appointment was not found.' }
+  const block = startFor(startsAt, current.duration_min)
+  if (!block) return { error: DOESNT_FIT(current.duration_min) }
+
   const { data, error } = await supabase
     .from('appointments')
-    .update({ starts_at: block.iso, duration_min: BLOCK_MINUTES })
+    .update({ starts_at: block.iso })
     .eq('id', appointmentId)
     .eq('status', 'booked')
     .select('id, patient:patients!inner (name, phone)')
@@ -420,7 +439,7 @@ export async function confirmRequestAsAsked(requestId: string): Promise<WithWhat
   return confirmBookingRequest(requestId, request.requested_start, null)
 }
 
-export async function getScheduleForDate(date: string): Promise<DaySchedule> {
+export async function getScheduleForDate(date: string, length: number = DEFAULT_LENGTH): Promise<DaySchedule> {
   await getDoctor()
-  return getDaySchedule(date)
+  return getDaySchedule(date, clinicLength(length))
 }

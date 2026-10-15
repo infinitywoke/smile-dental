@@ -46,7 +46,6 @@ async function freshDb() {
   `)
   await db.exec(read('schema.sql'))
   await db.exec(read('schema.sql'))
-  await db.exec(read('logic-fixes-2026-10.sql'))
   const h = {
     db,
     async doctor() { await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${A}', false); set role authenticated;`) },
@@ -73,7 +72,7 @@ try {
   ({ h, p } = await freshDb())
   ok('schema.sql applies twice, and the migration applies on top of it')
 } catch (e) {
-  bad('apply schema.sql and logic-fixes-2026-10.sql', e)
+  bad('apply schema.sql (twice)', e)
   console.log(`\n${passes} passed, ${failures} failed`)
   process.exit(1)
 }

@@ -28,12 +28,14 @@ type Props = {
   matches?: { id: string; name: string; age: number | null }[]
   // The one of them this request most likely is (same name, or the only one): chosen to start with
   likelyMatch?: string | null
+  // Request mode: how long the appointment will be (40 minutes unless chosen)
+  minutes?: number
 }
 
 type Done = { whatsappUrl?: string; patientId?: string; when: string }
 
 // Shows a day's blocks. The doctor taps a free block and saves.
-export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, originalInstant, basePath, query, matches = [], likelyMatch = null }: Props) {
+export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, originalInstant, basePath, query, matches = [], likelyMatch = null, minutes = 40 }: Props) {
   const [selected, setSelected] = useState<string | null>(() => {
     if (!originalInstant) return null
     const own = blocks.find((b) => sameInstant(b.instant, originalInstant))
@@ -54,7 +56,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
     startTransition(async () => {
       const result =
         mode === 'request'
-          ? await confirmBookingRequest(id, selected, linkPatient)
+          ? await confirmBookingRequest(id, selected, linkPatient, minutes)
           : await moveAppointment(id, selected)
       if (result.error) {
         setError(result.error)

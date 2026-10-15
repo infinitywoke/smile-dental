@@ -7,7 +7,7 @@ import { getDues, type Due } from '@/lib/data/dues'
 import { getAppointmentsOn, getBusyCounts, getDaySchedule, getPendingRequests } from '@/lib/data/appointments'
 import { formatDate, todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
-import { addDays, formatBlock, formatDay, inIndia, weekday } from '@/lib/schedule'
+import { DEFAULT_LENGTH, addDays, formatBlock, formatDay, inIndia, lengthLabel, weekday } from '@/lib/schedule'
 import { formatRupees } from '@/lib/pricing'
 import { ScreenLoading } from '@/components/clinic/ui'
 import { RequestCard } from '@/components/clinic/RequestCard'
@@ -157,7 +157,11 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                     <span className="truncate text-base font-semibold text-gray-900">{row.appointment.patient.name}</span>
                     {row.appointment.patient.medical_alerts && <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
                   </span>
-                  {row.appointment.reason && <span className="block truncate text-sm text-gray-500">{row.appointment.reason}</span>}
+                  {(row.appointment.reason || row.appointment.duration_min !== DEFAULT_LENGTH) && (
+                    <span className="block truncate text-sm text-gray-500">
+                      {[row.appointment.reason, row.appointment.duration_min !== DEFAULT_LENGTH && lengthLabel(row.appointment.duration_min)].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
                 </span>
               </Link>
               {isToday && (

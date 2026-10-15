@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  ALL_BLOCKS, addDays, blockEnd, blockInstant, blocksFor, confirmationPromise, formatBlock, inIndia,
-  isClosedDay, isOnlineBookable, sameInstant,
-} from './schedule'
+import { ALL_BLOCKS, addDays, blockEnd, blockInstant, blocksFor, confirmationPromise, formatBlock, inIndia, isClosedDay, isOnlineBookable, sameInstant, clinicStartOf, endOf, lengthFrom, lengthLabel, startsFor } from './schedule'
 
 // Wednesday 14 Oct 2026; Friday is the 16th
 const WED = '2026-10-14'
@@ -125,5 +122,39 @@ describe('sameInstant', () => {
     expect(sameInstant('2026-10-14T05:00:00.000Z', '2026-10-14T05:40:00.000Z')).toBe(false)
     expect(sameInstant(null, '2026-10-14T05:00:00.000Z')).toBe(false)
     expect(sameInstant('nonsense', 'nonsense')).toBe(false)
+  })
+})
+
+describe('appointment lengths', () => {
+  it('reads a length from a link, falling back to 40 minutes', () => {
+    expect(lengthFrom('80')).toBe(80)
+    expect(lengthFrom('45')).toBe(40)
+    expect(lengthFrom(undefined)).toBe(40)
+    expect(lengthLabel(20)).toBe('20 min')
+    expect(lengthLabel(60)).toBe('1 hour')
+    expect(lengthLabel(80)).toBe('1 h 20 min')
+    expect(lengthLabel(120)).toBe('2 hours')
+  })
+
+  it('starts every 20 minutes where the length fits in a session', () => {
+    const thu = '2026-10-15'
+    const forty = startsFor(thu, 40)
+    expect(forty[0]).toBe('08:30')
+    expect(forty).toContain('08:50')
+    expect(forty).toContain('12:30')
+    expect(forty).not.toContain('12:50') // would end 1:30 PM, past the morning
+    expect(forty.at(-1)).toBe('19:10')
+    expect(startsFor(thu, 20)).toContain('12:50')
+    expect(startsFor(thu, 120)).not.toContain('11:30') // 11:30-1:30 runs into lunch
+    expect(startsFor(thu, 120).at(-1)).toBe('17:50')
+    expect(startsFor('2026-10-16', 40)).toEqual([]) // Friday
+  })
+
+  it('accepts only a start where the chosen length fits', () => {
+    expect(clinicStartOf('2026-10-15T08:50:00+05:30', 40)?.time).toBe('08:50')
+    expect(clinicStartOf('2026-10-15T12:50:00+05:30', 40)).toBeNull()
+    expect(clinicStartOf('2026-10-15T08:40:00+05:30', 20)).toBeNull()
+    expect(clinicStartOf('2026-10-15T08:30:00+05:30', 45)).toBeNull()
+    expect(endOf('09:10', 80)).toBe('10:30')
   })
 })

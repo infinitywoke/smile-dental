@@ -17,7 +17,7 @@ export type HubVisit = {
   total: number
 }
 
-export type HubAppointment = { id: string; starts_at: string; reason: string }
+export type HubAppointment = { id: string; starts_at: string; reason: string; duration_min: number }
 
 export type PatientHub = {
   patient: Patient
@@ -50,7 +50,7 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
       .order('created_at', { ascending: false }),
     supabase
       .from('appointments')
-      .select('id, starts_at, reason, visit_id')
+      .select('id, starts_at, reason, visit_id, duration_min')
       .eq('patient_id', id)
       .eq('status', 'booked')
       .gte('starts_at', startOfToday.toISOString())
@@ -98,7 +98,7 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
   const coming = appointments
     .filter((a) => new Date(a.starts_at).getTime() > now && !a.visit_id)
     .slice(0, 3)
-    .map(({ id: appointmentId, starts_at, reason }) => ({ id: appointmentId, starts_at, reason }))
+    .map(({ id: appointmentId, starts_at, reason, duration_min }) => ({ id: appointmentId, starts_at, reason, duration_min }))
   const appointmentToday = appointments.find((a) => !a.visit_id && inIndia(a.starts_at).date === today) ?? null
 
   const todayVisit = visitRows.data.find((row) => row.visit_date === today) ?? null

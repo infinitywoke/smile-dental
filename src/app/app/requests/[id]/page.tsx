@@ -10,13 +10,15 @@ import { formatPhone } from '@/lib/phone'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { BackLink, Card, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 import { SlotScheduler } from '@/components/clinic/SlotScheduler'
+import { LengthChips } from '@/components/clinic/LengthChips'
+import { DEFAULT_LENGTH, lengthFrom } from '@/lib/schedule'
 import { genderLabel } from '@/lib/gender'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
 async function RequestPageContent({ params, searchParams }: PageProps<'/app/requests/[id]'>) {
   const { id } = await params
-  const { d } = await searchParams
+  const { d, len } = await searchParams
   const request = await getBookingRequest(id)
   const today = todayInIndia()
 
@@ -50,7 +52,8 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
 
   const requested = request.requested_start ? inIndia(request.requested_start) : null
   const wanted = typeof d === 'string' && DATE.test(d) ? d : requested && requested.date >= today ? requested.date : today
-  const [schedule, matches] = await Promise.all([getDaySchedule(wanted), findPatientsByPhone(request.phone)])
+  const minutes = lengthFrom(len)
+  const [schedule, matches] = await Promise.all([getDaySchedule(wanted, minutes), findPatientsByPhone(request.phone)])
 
   const address = request.address ?? ''
   const age = patientAge(request)
@@ -93,8 +96,12 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
         )}
       </Card>
 
+      <LengthChips value={minutes} href={(m) => `/app/requests/${request.id}?d=${wanted}${m === DEFAULT_LENGTH ? '' : `&len=${m}`}`} />
+
       <SlotScheduler
         mode="request"
+        minutes={minutes}
+        query={minutes === DEFAULT_LENGTH ? undefined : `len=${minutes}`}
         id={request.id}
         label={request.name}
         date={schedule.date}

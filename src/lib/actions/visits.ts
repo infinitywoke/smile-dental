@@ -10,7 +10,7 @@ import { getVisitBill, type VisitBill } from '@/lib/data/billing'
 import { getNextVisitSuggestion } from '@/lib/data/next-visit'
 import { MAX_PHOTOS_TO_SEND, paymentsHeldMessage } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
-import { BLOCK_MINUTES, clinicBlockOf } from '@/lib/schedule'
+import { DEFAULT_LENGTH, clinicStartOf, isLength, lengthLabel } from '@/lib/schedule'
 import { PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
 import { cancelledMessage, confirmationMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 
@@ -94,20 +94,24 @@ export async function deleteVisitPhoto(photoId: string): Promise<Result> {
 }
 
 // The suggested next visit, asked for by the visit page only when it shows the choice
-export async function suggestNextVisit(visitId: string): Promise<string | null> {
+export async function suggestNextVisit(visitId: string, minutes: number = DEFAULT_LENGTH): Promise<string | null> {
   await getDoctor()
   if (!UUID.test(visitId)) return null
-  return getNextVisitSuggestion(visitId)
+  return getNextVisitSuggestion(visitId, isLength(minutes) ? minutes : DEFAULT_LENGTH)
 }
 
 // Books the next visit, only when the doctor taps a time. Choosing again moves the same booking.
 // Once the visit's WhatsApp has gone, the patient has the old time (or none), so the reply carries
 // the message to send: "moved to" for a moved booking, "confirmed" for a new one.
-export async function bookNextVisit(visitId: string, startsAt: string): Promise<Result & { whatsappUrl?: string }> {
+export async function bookNextVisit(
+  visitId: string,
+  startsAt: string,
+  minutes: number = DEFAULT_LENGTH,
+): Promise<Result & { whatsappUrl?: string }> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
-  const block = clinicBlockOf(startsAt)
-  if (!block) return { error: 'Please choose one of the clinic time blocks.' }
+  const block = clinicStartOf(startsAt, minutes)
+  if (!block) return { error: `A ${lengthLabel(minutes)} visit doesn't fit there. Please choose another time or a shorter length.` }
   if (block.date < todayInIndia()) return { error: 'That time has already passed.' }
 
   const supabase = await createClient()
@@ -125,11 +129,11 @@ export async function bookNextVisit(visitId: string, startsAt: string): Promise<
     .eq('status', 'booked')
     .maybeSingle()
   const write = existing
-    ? supabase.from('appointments').update({ starts_at: block.iso, duration_min: BLOCK_MINUTES }).eq('id', existing.id)
+    ? supabase.from('appointments').update({ starts_at: block.iso, duration_min: minutes }).eq('id', existing.id)
     : supabase.from('appointments').insert({
         patient_id: visit.patient_id,
         starts_at: block.iso,
-        duration_min: BLOCK_MINUTES,
+        duration_min: minutes,
         reason: 'Follow-up',
         status: 'booked',
         from_visit_id: visitId,

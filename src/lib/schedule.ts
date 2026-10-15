@@ -19,6 +19,63 @@ export const MORNING_BLOCKS = ['08:30', '09:10', '09:50', '10:30', '11:10', '11:
 export const AFTERNOON_BLOCKS = ['14:30', '15:10', '15:50', '16:30', '17:10', '17:50', '18:30', '19:10']
 export const ALL_BLOCKS = [...MORNING_BLOCKS, ...AFTERNOON_BLOCKS]
 
+// Appointment lengths (Dr. Rahil picks one; 40 minutes, one block, unless he chooses otherwise).
+// Clinic OS starts appointments on a 20-minute grid within the two sessions; an appointment must end by
+// the session's last end (the last 40-minute block of each session already ran a little past closing:
+// 12:30-1:10 PM and 7:10-7:50 PM). The website keeps the 40-minute blocks above.
+export const SLOT_MINUTES = 20
+export const LENGTHS = [20, 40, 60, 80, 120] as const
+export type Length = (typeof LENGTHS)[number]
+export const DEFAULT_LENGTH: Length = 40
+const SESSIONS: [string, string][] = [['08:30', '13:10'], ['14:30', '19:50']]
+
+export const toMinutes = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+export const fromMinutes = (total: number) => `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+
+export function isLength(value: unknown): value is Length {
+  return LENGTHS.includes(Number(value) as Length)
+}
+
+// A length from a link or form ("80"), or the default
+export function lengthFrom(value: unknown): Length {
+  return isLength(value) ? (Number(value) as Length) : DEFAULT_LENGTH
+}
+
+// "20 min", "40 min", "1 hour", "1 h 20 min", "2 hours"
+export function lengthLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h} hour${h === 1 ? '' : 's'}` : `${h} h ${m} min`
+}
+
+// Every start on the 20-minute grid where an appointment of this length fits (none on a Friday)
+export function startsFor(date: string, length: number): string[] {
+  if (isClosedDay(date)) return []
+  return SESSIONS.flatMap(([from, until]) => {
+    const starts: string[] = []
+    for (let t = toMinutes(from); t + length <= toMinutes(until); t += SLOT_MINUTES) starts.push(fromMinutes(t))
+    return starts
+  })
+}
+
+// A start where an appointment of this length may begin (Clinic OS), else null
+export function clinicStartOf(startsAt: string, length: number): { iso: string; date: string; time: string } | null {
+  const d = new Date(startsAt)
+  if (Number.isNaN(d.getTime()) || !isLength(length)) return null
+  const { date, time } = inIndia(d)
+  if (!startsFor(date, length).includes(time)) return null
+  return { iso: d.toISOString(), date, time }
+}
+
+// "09:10" + 60 -> "10:10"
+export function endOf(hhmm: string, minutes: number): string {
+  return fromMinutes(toMinutes(hhmm) + minutes)
+}
+
 // "YYYY-MM-DD" + "HH:MM" in India time -> the exact moment, as an ISO string
 export function blockInstant(date: string, hhmm: string): string {
   return new Date(`${date}T${hhmm}:00${IST_OFFSET}`).toISOString()

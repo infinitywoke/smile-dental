@@ -106,7 +106,7 @@ export async function getVisit(id: string): Promise<VisitPageData> {
     patient: patientRow,
     photos: photos.map((p) => ({ id: p.id, caption: p.caption ?? '', url: urls[p.storage_path] ?? null })),
     linked_appointment: linkedAppointment,
-    next_appointment: next && { id: next.id, starts_at: next.starts_at, status: next.status },
+    next_appointment: next && { id: next.id, starts_at: next.starts_at, status: next.status, duration_min: next.duration_min },
     // The next visit was booked from this visit, so it can be changed from here
     next_booked_here: next?.from_visit_id === id,
   }
@@ -121,7 +121,7 @@ export async function appointmentsOfVisit(visitId: string, patientId: string) {
     supabase.from('appointments').select('id, starts_at, status').eq('visit_id', visitId).maybeSingle(),
     supabase
       .from('appointments')
-      .select('id, starts_at, status, from_visit_id')
+      .select('id, starts_at, status, from_visit_id, duration_min')
       .eq('patient_id', patientId)
       .eq('status', 'booked')
       .gt('starts_at', new Date().toISOString())

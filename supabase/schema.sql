@@ -89,6 +89,26 @@ as $$
     select 1 from public.clinic_slots(((p_start at time zone 'Asia/Kolkata'))::date) s where s = p_start)
 $$;
 
+-- A start where Clinic OS may book an appointment of p_minutes: on the 20-minute grid of a session
+-- (8:30 AM / 2:30 PM), ending by 1:10 PM / 7:50 PM, not on a Friday, and one of the clinic's lengths.
+-- (The website keeps the 40-minute blocks of clinic_slots.)
+create or replace function public.is_clinic_start(p_start timestamptz, p_minutes integer)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(
+    p_minutes in (20, 40, 60, 80, 120)
+    and extract(isodow from local) <> 5
+    and extract(second from local) = 0
+    and ((m >= 510 and (m - 510) % 20 = 0 and m + p_minutes <= 790)
+      or (m >= 870 and (m - 870) % 20 = 0 and m + p_minutes <= 1190)), false)
+  from (select p_start at time zone 'Asia/Kolkata' as local,
+               (extract(hour from p_start at time zone 'Asia/Kolkata') * 60
+                + extract(minute from p_start at time zone 'Asia/Kolkata'))::int as m) t
+$$;
+
 -- App config: which account owns the clinic (single row) ----------------------
 -- Used by submit_booking_request() to know whose list a website request lands in.
 create table if not exists public.app_config (
@@ -742,15 +762,17 @@ grant execute on function public.submit_booking_request(text, text, text, text, 
   to anon, authenticated;
 
 -- Confirm a request (signed in) ---------------------------------------------------------
--- One transaction: create the patient (or link an existing one), book the 40-minute
--- block, mark the request booked. Runs as the signed-in doctor, so row-level security
+-- One transaction: create the patient (or link an existing one), book the time (40 minutes
+-- unless the doctor chose another length), mark the request booked. Runs as the signed-in doctor, so row-level security
 -- applies. Any failure rolls everything back. A block that is already over is refused (the
 -- block in progress may still be confirmed). When linking a patient already in the app, what the
 -- request says under medical alerts is added to their record, never dropped.
+drop function if exists public.confirm_booking_request(uuid, timestamptz, uuid);
 create or replace function public.confirm_booking_request(
   p_request uuid,
   p_starts_at timestamptz,
-  p_patient uuid default null
+  p_patient uuid default null,
+  p_minutes integer default 40
 )
 returns table (patient_id uuid, appointment_id uuid)
 language plpgsql
@@ -776,15 +798,15 @@ begin
     raise exception 'This request has already been handled.';
   end if;
 
-  if not public.is_clinic_slot(p_starts_at) then
+  if not public.is_clinic_start(p_starts_at, p_minutes) then
     raise exception 'Please choose one of the clinic time blocks (the clinic is closed on Fridays).';
   end if;
-  if public.appointment_end(p_starts_at, 40) <= public.clinic_now() then
+  if public.appointment_end(p_starts_at, p_minutes) <= public.clinic_now() then
     raise exception 'That time has already passed.';
   end if;
   if exists (select 1 from public.time_off t
              where t.owner_id = (select auth.uid())
-               and tstzrange(t.starts_at, t.ends_at) && tstzrange(p_starts_at, public.appointment_end(p_starts_at, 40))) then
+               and tstzrange(t.starts_at, t.ends_at) && tstzrange(p_starts_at, public.appointment_end(p_starts_at, p_minutes))) then
     raise exception 'That time is blocked off in your calendar.';
   end if;
 
@@ -813,7 +835,7 @@ begin
   begin
     insert into public.appointments (patient_id, starts_at, duration_min, reason, status)
     values (
-      v_patient, p_starts_at, 40,
+      v_patient, p_starts_at, p_minutes,
       coalesce(nullif(concat_ws(' - ', r.reason, r.notes), ''), ''),
       'booked'
     )
@@ -830,8 +852,8 @@ begin
 end;
 $$;
 
-revoke all on function public.confirm_booking_request(uuid, timestamptz, uuid) from public, anon, authenticated;
-grant execute on function public.confirm_booking_request(uuid, timestamptz, uuid) to authenticated;
+revoke all on function public.confirm_booking_request(uuid, timestamptz, uuid, integer) from public, anon, authenticated;
+grant execute on function public.confirm_booking_request(uuid, timestamptz, uuid, integer) to authenticated;
 
 revoke all on function public.mark_bill_changed() from public, anon, authenticated;
 revoke all on function public.check_appointment_time() from public, anon, authenticated;

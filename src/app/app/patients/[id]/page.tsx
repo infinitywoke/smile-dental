@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
 import { formatRupees } from '@/lib/pricing'
-import { blockEnd, formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { endOf, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { whatsappLink } from '@/lib/whatsapp'
 import { BackLink, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
@@ -85,7 +85,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
                 <div className="flex items-center gap-3">
                   <CalendarClock className="h-5 w-5 shrink-0 text-blue-600" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-gray-900">{formatDay(date)}, {formatBlock(time)} – {formatBlock(blockEnd(time))}</p>
+                    <p className="font-semibold text-gray-900">{formatDay(date)}, {formatBlock(time)} – {formatBlock(endOf(time, appointment.duration_min))}</p>
                     {appointment.reason && <p className="truncate text-sm text-gray-500">{appointment.reason}</p>}
                   </div>
                 </div>

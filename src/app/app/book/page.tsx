@@ -7,7 +7,8 @@ import { getPatient, searchPatients } from '@/lib/data/patients'
 import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
 import { todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
-import { ALL_BLOCKS, addDays, blockEnd, formatBlock, formatDay, inIndia, isClosedDay } from '@/lib/schedule'
+import { ALL_BLOCKS, DEFAULT_LENGTH, addDays, clinicStartOf, endOf, formatBlock, formatDay, lengthFrom, lengthLabel } from '@/lib/schedule'
+import { LengthChips } from '@/components/clinic/LengthChips'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { BookAppointment } from '@/components/clinic/BookAppointment'
 import { BlockThisTimeButton, DayOffButton, UnblockButton } from '@/components/clinic/CalendarActions'
@@ -23,21 +24,24 @@ const hasFreeTime = (schedule: DaySchedule) => !schedule.closed && !schedule.day
 // Book by phone. Step 1: pick a free time. Step 2: type to find the patient (or add a new one), then Book.
 async function BookContent({ searchParams }: PageProps<'/app/book'>) {
   await getDoctor()
-  const { at, d, patient: patientParam } = await searchParams
+  const { at, d, patient: patientParam, len } = await searchParams
+  // How long the appointment is (40 minutes unless chosen)
+  const minutes = lengthFrom(len)
+  const withLength = minutes === DEFAULT_LENGTH ? '' : `&len=${minutes}`
   // Booking for a patient already known (from their page)
   const known = typeof patientParam === 'string' && UUID.test(patientParam) ? await getPatient(patientParam) : null
   const withPatient = known ? `&patient=${known.id}` : ''
 
   // ---- Step 2: who is it for? ----
   if (typeof at === 'string') {
-    const start = new Date(at)
-    if (Number.isNaN(start.getTime())) notFound()
-    const { date, time } = inIndia(start)
-    if (isClosedDay(date) || !ALL_BLOCKS.includes(time)) notFound()
+    const slot = clinicStartOf(at, minutes)
+    if (!slot) notFound()
+    const start = new Date(slot.iso)
+    const { date, time } = slot
 
-    const schedule = await getDaySchedule(date)
+    const schedule = await getDaySchedule(date, minutes)
     const block = schedule.blocks.find((b) => b.time === time)
-    const when = `${formatDay(date)}, ${formatBlock(time)} – ${formatBlock(blockEnd(time))}`
+    const when = `${formatDay(date)}, ${formatBlock(time)} – ${formatBlock(endOf(time, minutes))} (${lengthLabel(minutes)})`
     const backTo = `/app?d=${date}`
 
     // Shown instead of the form while the time is taken. The panel itself stays mounted, so a
@@ -62,7 +66,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
 
     return (
       <div className="space-y-5">
-        <BackLink href={`/app/book?d=${date}${withPatient}`} label="Pick another time" />
+        <BackLink href={`/app/book?d=${date}${withPatient}${withLength}`} label="Pick another time" />
         <div>
           <p className="text-sm font-medium text-gray-500">{known ? `Book ${known.name}` : 'Book a patient'}</p>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">{when}</h1>
@@ -75,10 +79,11 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
           backLabel={known ? known.name : 'Today'}
           only={known ? { id: known.id, name: known.name } : undefined}
           notice={notice}
+          minutes={minutes}
           patients={patients.map((p) => ({ id: p.id, name: p.name, phone: p.phone, age: patientAge(p) }))}
         />
 
-        {!known && !notice && <BlockThisTimeButton startsAt={start.toISOString()} backTo={backTo} />}
+        {!known && !notice && ALL_BLOCKS.includes(time) && <BlockThisTimeButton startsAt={start.toISOString()} backTo={backTo} />}
       </div>
     )
   }
@@ -87,16 +92,16 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
   const today = todayInIndia()
   const chosen = typeof d === 'string' && DATE.test(d) && d >= today ? d : null
   let date = chosen ?? today
-  let schedule = await getDaySchedule(date)
+  let schedule = await getDaySchedule(date, minutes)
   // No day chosen and nothing left to book today (late, full or closed): open the next day with a free time
   const skippedToday = !chosen && !hasFreeTime(schedule)
   for (let i = 0; i < MAX_DAYS_AHEAD && !chosen && !hasFreeTime(schedule); i++) {
     date = addDays(date, 1)
-    schedule = await getDaySchedule(date)
+    schedule = await getDaySchedule(date, minutes)
   }
   // A day he moved to himself that has nothing left: say so, with a big way on
   const nothingLeft = !schedule.closed && !schedule.blocks.some((b) => b.state === 'free' || b.state === 'blocked')
-  const nextDayHref = `/app/book?d=${addDays(date, 1)}${withPatient}`
+  const nextDayHref = `/app/book?d=${addDays(date, 1)}${withPatient}${withLength}`
 
   return (
     <div className="space-y-5">
@@ -105,7 +110,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
 
       <div className="flex items-center justify-between">
         {date > today ? (
-          <Link href={`/app/book?d=${addDays(date, -1)}${withPatient}`} className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Previous day">
+          <Link href={`/app/book?d=${addDays(date, -1)}${withPatient}${withLength}`} className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Previous day">
             <ChevronLeft className="h-6 w-6" />
           </Link>
         ) : <span className="w-12" />}
@@ -116,6 +121,8 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
           </Link>
         )}
       </div>
+
+      <LengthChips value={minutes} href={(m) => `/app/book?d=${date}${withPatient}${m === DEFAULT_LENGTH ? '' : `&len=${m}`}`} />
 
       {skippedToday && date !== today && (
         <p className="rounded-xl bg-blue-50 p-3 text-center text-sm font-medium text-blue-900">No times left today.</p>
@@ -137,7 +144,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
           hrefs={Object.fromEntries(
             schedule.blocks
               .filter((b) => b.state === 'free' || b.state === 'blocked')
-              .map((b) => [b.instant, `/app/book?at=${encodeURIComponent(b.instant)}${withPatient}`]),
+              .map((b) => [b.instant, `/app/book?at=${encodeURIComponent(b.instant)}${withPatient}${withLength}`]),
           )}
         />
       )}
