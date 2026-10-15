@@ -179,7 +179,7 @@ test('evidence tour', async ({ page }) => {
       await tap(review)
       await page.waitForTimeout(600); await snap(page, 'site-book-3-review')
     }
-    current.notes.push(`Send button enabled on the details page: ${await visible(page.getByRole('button', { name: /Send on WhatsApp/ })).isEnabled().catch(() => false)}`)
+    current.notes.push(`Send button enabled on the details page: ${await visible(page.getByRole('button', { name: /Confirm & send WhatsApp message/ })).isEnabled().catch(() => false)}`)
     current.notes.push('Stopped before the Send tap (that tap would be the last one).')
     current.taps++
   })

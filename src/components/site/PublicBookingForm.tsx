@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { submitBookingRequest } from '@/lib/actions/booking'
-import { isValidPhone, normalizePhone } from '@/lib/phone'
+import { formatPhone, isValidPhone, normalizePhone } from '@/lib/phone'
 import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
 import { SOURCE_KEY } from './SourceTracker'
@@ -71,7 +71,11 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
     phone: '', name: '', gender: '', age: '', address: '', medicalAlerts: '', heardFrom: '', reason: initialReason.slice(0, 100), notes: '',
   })
   const [error, setError] = useState<string | null>(null)
-  const [sent, setSent] = useState<{ url: string } | null>(null)
+  // Saved: the WhatsApp link to send (or, for a call-back, none)
+  const [sent, setSent] = useState<{ url: string | null } | null>(null)
+  // Bot traps: a hidden field, and the details step open for at least a few seconds
+  const [trap, setTrap] = useState('')
+  const [humanPace, setHumanPace] = useState(false)
   // "Google", "Instagram"... worked out from the link the visitor came from (see SourceTracker)
   const [guessed, setGuessed] = useState('')
   const [pending, startTransition] = useTransition()
@@ -150,7 +154,14 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
     }, 220)
   }
 
-  function submit() {
+  // People take more than a few seconds to fill in the details; a bot doesn't
+  useEffect(() => {
+    if (step !== 2) return
+    const timer = setTimeout(() => setHumanPace(true), 3000)
+    return () => clearTimeout(timer)
+  }, [step])
+
+  function submit(contact: 'whatsapp' | 'call' = 'whatsapp') {
     if (!picked) return
     if (missing) {
       setTried(true)
@@ -172,7 +183,15 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
         reason: details.reason,
         notes: details.notes,
         requestedStart: picked,
+        contact,
+        website: trap,
+        tooFast: !humanPace,
       })
+      if (result.ok && contact === 'call') {
+        // No WhatsApp: the clinic calls to confirm
+        setSent({ url: null })
+        return
+      }
       if (result.ok) {
         const message = bookingRequestMessage({
           name: details.name.trim(),
@@ -187,6 +206,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
         window.location.assign(url)
         return
       }
+      if (result.ok) return
       setError(result.error)
       // The time was probably taken meanwhile: reload the free times and go back to choose again
       if (/no longer available|available times/i.test(result.error)) {
@@ -212,16 +232,25 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
             <strong>{formatDay(date)}, {formatBlock(time)}</strong>.
           </p>
         </div>
-        <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
-          <p className="font-semibold">WhatsApp should have opened with your message ready. Just press Send.</p>
-          <p className="mt-1">That is how the clinic gets alerted.</p>
-        </div>
-        <a href={sent.url}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-green-700">
-          <MessageCircle className="h-6 w-6" />
-          WhatsApp didn&apos;t open? Tap here
-        </a>
-        <p className="text-sm text-gray-600">{promise}</p>
+        {sent.url ? (
+          <>
+            <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
+              <p className="font-semibold">WhatsApp should have opened with your request written. Just tap Send.</p>
+              <p className="mt-1">Dr. Rahil sees it straight away and confirms your time on WhatsApp.</p>
+            </div>
+            <a href={sent.url}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-green-700">
+              <MessageCircle className="h-6 w-6" />
+              WhatsApp didn&apos;t open? Tap here
+            </a>
+            <p className="text-sm text-gray-600">{promise}</p>
+          </>
+        ) : (
+          <div className="rounded-xl bg-blue-50 p-4 text-sm text-blue-900 ring-1 ring-blue-200">
+            <p className="font-semibold">The clinic will call you on {formatPhone(normalizePhone(details.phone) ?? details.phone)} to confirm.</p>
+            <p className="mt-1">Please keep your phone close. Calls come during clinic hours.</p>
+          </div>
+        )}
       </div>
     )
   }
@@ -435,19 +464,32 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
                 value={details.notes} onChange={(e) => set({ notes: e.target.value })} className={inputClass} />
             </div>
 
-            <p className="text-sm text-gray-600">{promise}</p>
+            {/* Bot trap: hidden from people (and screen readers), so only bots fill it in */}
+            <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+              <label htmlFor="website">Leave this empty</label>
+              <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" value={trap} onChange={(e) => setTrap(e.target.value)} />
+            </div>
+
+            <div className="flex items-start gap-3 rounded-2xl bg-green-50 p-4 text-sm text-green-900 ring-1 ring-green-200">
+              <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+              <p>
+                <span className="font-semibold">Next, WhatsApp opens with your request already written.</span>{' '}
+                Just tap <span className="font-semibold">Send</span>: that is how Dr. Rahil sees your request straight away and confirms your time. {promise}
+              </p>
+            </div>
 
             {tried && missing && (
               <p className="text-sm font-semibold text-red-700" role="alert">{missing.text}</p>
             )}
-            <button type="button" onClick={submit} disabled={pending}
+            <button type="button" onClick={() => submit('whatsapp')} disabled={pending}
               className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white shadow-lg shadow-green-600/30 hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:opacity-50">
               <MessageCircle className="h-6 w-6" />
-              {pending ? 'Sending…' : 'Send on WhatsApp'}
+              {pending ? 'Sending…' : 'Confirm & send WhatsApp message'}
             </button>
-            <p className="text-center text-xs text-gray-500">
-              WhatsApp opens with your message ready. Just press Send there.
-            </p>
+            <button type="button" onClick={() => submit('call')} disabled={pending}
+              className="flex min-h-12 w-full items-center justify-center text-base font-semibold text-blue-700 disabled:opacity-50">
+              No WhatsApp? Ask the clinic to call you
+            </button>
             <button type="button" onClick={() => window.history.back()}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 text-base font-medium text-gray-700 hover:bg-gray-200">
               <ArrowLeft className="h-5 w-5" /> Back

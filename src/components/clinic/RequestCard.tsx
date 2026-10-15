@@ -19,6 +19,9 @@ type Props = {
   canConfirm: boolean
   otherTimeHref: string
   details: { age: string | null; address: string | null; heardFrom: string | null; notes: string | null }
+  // Asked to be called (no WhatsApp)
+  callBack?: boolean
+  phone?: string | null
   // "Time passed" or "No longer held, asked 2 days ago": shown on the card, with Decline right there
   notice?: string | null
 }
@@ -26,7 +29,7 @@ type Props = {
 type Done = { declined: boolean; whatsappUrl?: string; when: string | null }
 
 // A website booking on Today: Confirm books the time asked for in one tap
-export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, otherTimeHref, details, notice = null }: Props) {
+export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, otherTimeHref, details, notice = null, callBack = false, phone = null }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -101,7 +104,14 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
             {whenLabel ?? 'No time chosen'}
             {reason ? ` · ${reason}` : ''}
           </p>
+          {callBack && <p className="mt-1 text-sm font-semibold text-blue-800">📞 No WhatsApp: call to confirm</p>}
         </div>
+        {callBack && phone && (
+          <a href={`tel:+91${phone}`} aria-label={`Call ${name}`}
+            className="flex min-h-12 shrink-0 items-center rounded-full bg-white px-4 text-base font-semibold text-blue-800 ring-1 ring-blue-200">
+            Call
+          </a>
+        )}
         {hasDetails && (
           <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Details"
             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-amber-800 hover:bg-amber-100">

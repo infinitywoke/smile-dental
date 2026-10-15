@@ -7,6 +7,7 @@ import { isOnlineBookable, inIndia } from '@/lib/schedule'
 import type { SubmitBookingRequestArgs } from '@/lib/data/types'
 import { parseGender } from '@/lib/gender'
 import { birthYearFromAge, parseAge, titleCaseName } from '@/lib/patient-fields'
+import { CALL_BACK_NOTE } from '@/lib/booking-contact'
 
 // Public: free appointment times for the website's booking page. Start times only, no names.
 export async function getOpenSlots(): Promise<string[]> {
@@ -28,6 +29,11 @@ export type BookingInput = {
   reason: string
   notes: string
   requestedStart: string
+  // 'call': no WhatsApp, the clinic calls to confirm
+  contact: 'whatsapp' | 'call'
+  // Bot traps: a field people never see (left empty by people), and a form sent in under a few seconds
+  website: string
+  tooFast: boolean
 }
 
 export type BookingResult = { ok: true; id: string } | { ok: false; error: string }
@@ -35,6 +41,8 @@ export type BookingResult = { ok: true; id: string } | { ok: false; error: strin
 // Public: saves the request. The database re-checks every rule (free block, 2 hours' notice,
 // before 7 PM, limits per phone and device), so nothing here is trusted.
 export async function submitBookingRequest(input: BookingInput): Promise<BookingResult> {
+  // A bot: answer as if saved, so it learns nothing, but save nothing
+  if (input.website.trim() || input.tooFast) return { ok: true, id: crypto.randomUUID() }
   const phone = normalizePhone(input.phone)
   if (!isValidPhone(phone)) return { ok: false, error: 'Please enter a valid 10-digit mobile number.' }
   if (input.name.trim().length < 2) return { ok: false, error: 'Please enter your name.' }
@@ -67,7 +75,7 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
     p_medical_alerts: input.medicalAlerts.trim() || null,
     p_heard_from: input.heardFrom.trim() || null,
     p_reason: input.reason.trim() || null,
-    p_notes: input.notes.trim() || null,
+    p_notes: [input.contact === 'call' ? CALL_BACK_NOTE : '', input.notes.trim()].filter(Boolean).join('\n') || null,
     p_requested_start: start.toISOString(),
     p_gender: gender,
   }

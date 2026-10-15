@@ -16,6 +16,7 @@ import { DayOffButton } from '@/components/clinic/CalendarActions'
 import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
 import { StartVisitButton } from '@/components/clinic/StartVisitButton'
 import { genderLabel } from '@/lib/gender'
+import { noteWithoutCallBack, wantsCallBack } from '@/lib/booking-contact'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
@@ -110,12 +111,14 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                 alerts={request.medical_alerts}
                 canConfirm={request.confirmable}
                 notice={request.notice}
+                callBack={wantsCallBack(request.notes)}
+                phone={request.phone}
                 otherTimeHref={`/app/requests/${request.id}${wanted ? `?d=${wanted.date >= today ? wanted.date : today}` : ''}`}
                 details={{
                   age: [age !== null && `${age} yrs`, genderLabel(request.gender)].filter(Boolean).join(' · ') || null,
                   address: request.address || null,
                   heardFrom: request.heard_from,
-                  notes: request.notes,
+                  notes: noteWithoutCallBack(request.notes),
                 }}
               />
             )

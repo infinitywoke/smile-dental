@@ -34,7 +34,7 @@ test('the public booking page offers real times, no SOS, and needs only four ans
   await page.getByRole('radio', { name: 'Female', exact: true }).click()
 
   // Send is tappable with the reason missing: it names the reason and sends nothing
-  const send = page.getByRole('button', { name: 'Send on WhatsApp' })
+  const send = page.getByRole('button', { name: 'Confirm & send WhatsApp message' })
   await expect(send).toBeEnabled()
   await send.click()
   await expect(page.getByText('Please choose a reason')).toBeVisible()
@@ -51,6 +51,14 @@ test('the public booking page offers real times, no SOS, and needs only four ans
   // No review page: Send is on this page, ready once the four required answers are in. Nothing is sent.
   await expect(page.getByRole('heading', { name: 'Looks good?' })).toHaveCount(0)
   await expect(send).toBeEnabled()
+
+  // Before WhatsApp opens, the page says what happens next; without WhatsApp, the clinic can call instead
+  await expect(page.getByText('Next, WhatsApp opens with your request already written.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'No WhatsApp? Ask the clinic to call you' })).toBeVisible()
+  // The bot trap is out of sight for people
+  const trap = page.locator('#website')
+  await expect(trap).toHaveCount(1)
+  await expect(trap).not.toBeInViewport()
 })
 
 test('Back on the details step returns to the times and keeps what was typed', async ({ page }) => {
