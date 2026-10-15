@@ -25,7 +25,8 @@ type Props = {
 const inputClass =
   'block w-full rounded-xl border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
 
-// Phone booking from the calendar: pick a patient already in the app, or add a new one with just a name and number
+// Phone booking from the calendar: pick a patient already in the app, or add a new one with just a
+// name and number. A new patient's number is looked up first, so a known patient is never doubled.
 export function BookAppointment({ startsAt, when, patients: initialPatients, backTo, backLabel = 'Today', only, notice }: Props) {
   const [mode, setMode] = useState<'existing' | 'new'>(only || initialPatients.length > 0 ? 'existing' : 'new')
   const [patientId, setPatientId] = useState<string | null>(only?.id ?? null)
@@ -37,6 +38,8 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
   const [patients, setPatients] = useState(initialPatients)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<{ whatsappUrl?: string; patientId?: string } | null>(null)
+  // New patient: the number typed already belongs to these patients (nothing was saved yet)
+  const [samePhone, setSamePhone] = useState<{ id: string; name: string; age: number | null }[] | null>(null)
   const [pending, startTransition] = useTransition()
 
   // Results appear while typing (name or phone): no Search button
@@ -53,16 +56,22 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
     }
   }, [query, only, notice])
 
-  function submit() {
+  function run(work: () => ReturnType<typeof bookNewPatient>) {
     setError(null)
     startTransition(async () => {
-      const result =
-        mode === 'existing'
-          ? await bookAppointment(patientId ?? '', startsAt, reason)
-          : await bookNewPatient({ name, phone, gender, reason }, startsAt)
+      const result = await work()
       if (result.error) setError(result.error)
+      else if (result.matches) setSamePhone(result.matches)
       else setDone({ whatsappUrl: result.whatsappUrl, patientId: result.patientId })
     })
+  }
+
+  function submit() {
+    run(() =>
+      mode === 'existing'
+        ? bookAppointment(patientId ?? '', startsAt, reason)
+        : bookNewPatient({ name, phone, gender, reason }, startsAt),
+    )
   }
 
   if (done) {
@@ -133,7 +142,7 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
           </div>
           <div className="space-y-1.5">
             <label htmlFor="new-phone" className="text-sm font-semibold text-gray-700">WhatsApp number</label>
-            <input id="new-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" className={inputClass} placeholder="98450 21763" />
+            <input id="new-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setSamePhone(null) }} autoComplete="off" className={inputClass} placeholder="98450 21763" />
           </div>
           <div className="space-y-1.5">
             <p className="text-sm font-semibold text-gray-700">Gender</p>
@@ -154,10 +163,29 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
         </div>
       )}
 
-      <button type="button" onClick={submit} disabled={!ready || pending}
-        className="min-h-12 w-full rounded-full bg-blue-600 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
-        {pending ? 'Booking…' : 'Book appointment'}
-      </button>
+      {mode === 'new' && samePhone ? (
+        // Family members share phones: book the person already in the app, or add someone new
+        <div className="space-y-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
+          <p className="text-sm font-semibold text-amber-900">
+            This number belongs to {samePhone.length === 1 ? samePhone[0].name : `${samePhone.length} patients`}.
+          </p>
+          {samePhone.map((m) => (
+            <button key={m.id} type="button" disabled={pending} onClick={() => run(() => bookAppointment(m.id, startsAt, reason))}
+              className="min-h-12 w-full rounded-full bg-blue-600 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
+              Book {m.name}{m.age !== null ? ` (${m.age} yrs)` : ''}
+            </button>
+          ))}
+          <button type="button" disabled={pending} onClick={() => run(() => bookNewPatient({ name, phone, gender, reason }, startsAt, true))}
+            className="min-h-12 w-full rounded-full bg-white px-5 py-3 text-base font-semibold text-gray-900 ring-1 ring-gray-300 disabled:opacity-60">
+            Someone new: {name.trim()}
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={submit} disabled={!ready || pending}
+          className="min-h-12 w-full rounded-full bg-blue-600 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
+          {pending ? 'Booking…' : 'Book appointment'}
+        </button>
+      )}
     </div>
   )
 }

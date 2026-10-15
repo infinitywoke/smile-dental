@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { addDays, blockInstant, blocksFor, BLOCK_MINUTES, inIndia } from '@/lib/schedule'
+import { requestNotice } from '@/lib/request-hold'
 import type { BookingRequest } from './types'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -116,7 +117,8 @@ export async function getDaySchedule(date: string): Promise<DaySchedule> {
   return { date, closed: blocksFor(date).length === 0, blocks, dayOff }
 }
 
-// Number of booked appointments per day, for the day strip
+// Number of booked appointments per day, for the day strip. One that already has its visit (the
+// patient came; e.g. no phone, so WhatsApp never marked it done) is not counted.
 export async function getBusyCounts(from: string, days: number): Promise<Record<string, number>> {
   await getDoctor()
   const supabase = await createClient()
@@ -124,6 +126,7 @@ export async function getBusyCounts(from: string, days: number): Promise<Record<
     .from('appointments')
     .select('starts_at')
     .eq('status', 'booked')
+    .is('visit_id', null)
     .gte('starts_at', dayRange(from).start.toISOString())
     .lt('starts_at', dayRange(addDays(from, days)).start.toISOString())
   if (error) throw error
@@ -160,8 +163,19 @@ export async function getAppointment(id: string): Promise<AppointmentRow> {
   return data as unknown as AppointmentRow
 }
 
-// `confirmable`: the time asked for is still ahead, so one tap can book it
-export type PendingRequest = BookingRequest & { confirmable: boolean }
+// The same, or null when it is gone (for pages that only mention it)
+export async function findAppointment(id: string | null): Promise<AppointmentRow | null> {
+  await getDoctor()
+  if (!id || !UUID.test(id)) return null
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('appointments').select(APPOINTMENT_SELECT).eq('id', id).maybeSingle()
+  if (error) throw error
+  return data as unknown as AppointmentRow | null
+}
+
+// `confirmable`: the time asked for is still ahead, so one tap can book it.
+// `notice`: "Time passed" or "No longer held, asked 2 days ago" (null while the request is held).
+export type PendingRequest = BookingRequest & { confirmable: boolean; notice: string | null }
 
 export async function getPendingRequests(): Promise<PendingRequest[]> {
   await getDoctor()
@@ -176,6 +190,7 @@ export async function getPendingRequests(): Promise<PendingRequest[]> {
   return (data as BookingRequest[]).map((request) => ({
     ...request,
     confirmable: !!request.requested_start && new Date(request.requested_start).getTime() > now,
+    notice: requestNotice(request.requested_start, request.created_at, now),
   }))
 }
 

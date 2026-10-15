@@ -136,6 +136,40 @@ export async function makeRequest(runId: string, label: string, hhmm: string, da
   return { id: data.id as string, day, requestName, requestPhone }
 }
 
+// The same, from a given phone (a patient already in the app) and/or sent `hoursAgo` hours ago
+export async function makeRequestFrom(
+  runId: string, label: string, hhmm: string, daysAhead: number,
+  options: { phone?: string; hoursAgo?: number } = {},
+) {
+  const { supabase } = await testDb()
+  const day = openDay(daysAhead)
+  const requestPhone = options.phone ?? newPhone('8')
+  const requestName = `${runId} ${label}`
+  const { data, error } = await supabase.from('booking_requests').insert({
+    name: requestName, phone: requestPhone, gender: 'male', reason: 'Check-up', requested_start: blockInstant(day, hhmm),
+    status: 'new', created_at: new Date(Date.now() - (options.hoursAgo ?? 0) * 60 * 60_000).toISOString(),
+  }).select('id').single()
+  if (error) throw new Error(`creating request: ${error.message}`)
+  return { id: data.id as string, day, requestName, requestPhone }
+}
+
+// Patients of the test account with this phone (to check no duplicate was made)
+export async function patientsWithPhone(phone: string): Promise<{ id: string; name: string }[]> {
+  const { supabase } = await testDb()
+  const { data, error } = await supabase.from('patients').select('id, name').eq('phone', phone)
+  if (error) throw new Error(`reading patients: ${error.message}`)
+  return data as { id: string; name: string }[]
+}
+
+// Removes time off a spec made on `day` (closing a day or blocking a time), whatever state it ended in
+export async function clearTimeOff(day: string) {
+  const { supabase } = await testDb()
+  const start = blockInstant(day, '00:00')
+  const end = new Date(new Date(start).getTime() + 24 * 60 * 60_000).toISOString()
+  const { error } = await supabase.from('time_off').delete().gte('starts_at', start).lte('ends_at', end)
+  if (error) throw new Error(`clearing time off: ${error.message}`)
+}
+
 // Stops WhatsApp opening for real: the test reads the link the app would open
 export async function captureWhatsapp(page: Page) {
   const captured = { url: '' }
