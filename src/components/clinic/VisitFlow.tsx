@@ -18,6 +18,7 @@ import { PhotoGallery, type UploadCounts } from './PhotoGallery'
 import { SendWhatsApp } from './SendWhatsApp'
 import { VisitNotes, type NotesHandle } from './VisitNotes'
 import { MedicalAlert } from './ui'
+import { UndoProvider } from './UndoBar'
 
 // A visit is one page that saves by itself: notes, photos, bill, payment, next visit, WhatsApp.
 export function VisitFlow({
@@ -86,6 +87,7 @@ export function VisitFlow({
   const showPayment = bill.charges.length > 0 || bill.payments.length > 0 || bill.summary.due > 0
 
   return (
+    <UndoProvider>
     <div className="space-y-7 pb-4">
       <div className="space-y-3">
         <div>
@@ -129,6 +131,7 @@ export function VisitFlow({
 
       <DeleteVisit visit={visit} payments={bill.payments} />
     </div>
+    </UndoProvider>
   )
 }
 

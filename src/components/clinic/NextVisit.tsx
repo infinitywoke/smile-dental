@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { AlertCircle, CalendarClock, CalendarPlus, MessageCircle } from 'lucide-react'
-import { bookNextVisit, suggestNextVisit } from '@/lib/actions/visits'
+import { bookNextVisit, removeNextVisit, suggestNextVisit } from '@/lib/actions/visits'
+import { firstName } from '@/lib/whatsapp'
+import { useUndo } from './UndoBar'
 import { openWhatsApp } from '@/lib/whatsapp-business'
 import { todayInIndia } from '@/lib/dates'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
@@ -38,6 +40,9 @@ export function NextVisit({
   const [pending, setPending] = useState(false)
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
   const picker = useBackToClose()
+  const offerUndo = useUndo()
+  // After removing a next visit the patient already heard about: their cancellation message
+  const [cancelUrl, setCancelUrl] = useState<string | null>(null)
 
   // The suggestion is only worked out when there is a choice to show
   useEffect(() => {
@@ -66,6 +71,9 @@ export function NextVisit({
       }
       const url = result.whatsappUrl ?? null
       setWhatsappUrl(url)
+      setCancelUrl(null)
+      // A new booking can be taken back at once (a change is undone by changing again)
+      if (!upcoming) offerUndo(`Next visit booked: ${when(instant)}`, () => save(() => removeNextVisit(visitId)))
       if (fromPicker) {
         // WhatsApp opens once Back has closed the picker, so the two never cross
         if (url) window.addEventListener('popstate', () => openWhatsApp(url), { once: true })
@@ -73,6 +81,28 @@ export function NextVisit({
       } else if (url) {
         openWhatsApp(url)
       }
+    } catch {
+      setError("Couldn't reach the server. Check the internet and try again.")
+    } finally {
+      setPending(false)
+    }
+  }
+
+  // Booked by mistake: it goes at once, with Undo (which books the same time again)
+  async function remove() {
+    if (pending || !upcoming) return
+    const was = upcoming
+    setError(null)
+    setPending(true)
+    try {
+      const result = await save(() => removeNextVisit(visitId))
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      setWhatsappUrl(null)
+      setCancelUrl(result.whatsappUrl ?? null)
+      offerUndo('Next visit removed', () => save(() => bookNextVisit(visitId, was)))
     } catch {
       setError("Couldn't reach the server. Check the internet and try again.")
     } finally {
@@ -89,10 +119,16 @@ export function NextVisit({
             <CalendarClock className="h-5 w-5 shrink-0 text-blue-600" />
             <p className="min-w-0 flex-1 text-base font-semibold text-blue-900">Booked: {when(upcoming)}</p>
             {bookedHere && (
-              <button type="button" onClick={picker.show}
-                className="min-h-12 shrink-0 rounded-xl bg-white px-4 text-base font-semibold text-blue-800 ring-1 ring-blue-200">
-                Change
-              </button>
+              <>
+                <button type="button" onClick={() => void remove()} disabled={pending}
+                  className="min-h-12 shrink-0 rounded-xl px-3 text-base font-semibold text-red-700 disabled:opacity-60">
+                  Remove
+                </button>
+                <button type="button" onClick={picker.show} disabled={pending}
+                  className="min-h-12 shrink-0 rounded-xl bg-white px-4 text-base font-semibold text-blue-800 ring-1 ring-blue-200 disabled:opacity-60">
+                  Change
+                </button>
+              </>
             )}
           </div>
           {whatsappUrl && (
@@ -105,6 +141,12 @@ export function NextVisit({
       ) : (
         <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
           <p className="text-base text-gray-700">None</p>
+          {cancelUrl && (
+            <a href={cancelUrl}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 text-base font-semibold text-green-700 ring-1 ring-green-600">
+              <MessageCircle className="h-5 w-5" /> Tell {firstName(patientName)} it&apos;s cancelled
+            </a>
+          )}
           {error && !picker.open && (
             <p className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}

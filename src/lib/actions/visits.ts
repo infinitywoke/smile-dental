@@ -12,7 +12,7 @@ import { MAX_PHOTOS_TO_SEND, paymentsHeldMessage } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { BLOCK_MINUTES, clinicBlockOf } from '@/lib/schedule'
 import { PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
-import { confirmationMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
+import { cancelledMessage, confirmationMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_NOTES = 20_000
@@ -154,6 +154,31 @@ export async function bookNextVisit(visitId: string, startsAt: string): Promise<
     ? movedMessage({ name: patient.name, startsAt: block.iso })
     : confirmationMessage({ name: patient.name, startsAt: block.iso })
   return { whatsappUrl: whatsappLink(patient.phone, message) }
+}
+
+// Removes the next visit booked from this visit (booked by mistake). Once the visit's WhatsApp has gone,
+// the patient knows that time, so the cancellation message is returned for one tap.
+export async function removeNextVisit(visitId: string): Promise<Result & { whatsappUrl?: string }> {
+  await getDoctor()
+  if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
+  const supabase = await createClient()
+  const { data: visit } = await supabase
+    .from('visits')
+    .select('closed_at, patient:patients!inner (name, phone)')
+    .eq('id', visitId)
+    .maybeSingle()
+  if (!visit) return { error: 'That visit was not found.' }
+  const { data: removed, error } = await supabase
+    .from('appointments')
+    .update({ status: 'cancelled' })
+    .eq('from_visit_id', visitId)
+    .eq('status', 'booked')
+    .select('starts_at')
+  if (error) return { error: 'Could not remove the next visit. Please try again.' }
+  refreshClinicScreens()
+  const patient = visit.patient as unknown as { name: string; phone: string | null }
+  if (removed.length === 0 || !visit.closed_at || !patient.phone) return {}
+  return { whatsappUrl: whatsappLink(patient.phone, cancelledMessage({ name: patient.name, startsAt: removed[0].starts_at })) }
 }
 
 // What the WhatsApp message says, read fresh from the database at the tap

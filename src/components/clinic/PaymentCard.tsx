@@ -5,6 +5,7 @@ import QRCode from 'qrcode'
 import { AlertCircle, Banknote, Check, QrCode } from 'lucide-react'
 import type { VisitBill } from '@/lib/data/billing'
 import { recordPayment, removePayment } from '@/lib/actions/billing'
+import { useUndo } from './UndoBar'
 import { parseAmount } from '@/lib/billing'
 import { formatRupees } from '@/lib/pricing'
 import { upiLink } from '@/lib/upi'
@@ -37,6 +38,7 @@ export function PaymentCard({
   const [pending, setPending] = useState(false)
   const qr = useBackToClose()
   const saveId = useSaveId()
+  const offerUndo = useUndo()
 
   const parsed = parseAmount(amount)
   const valid = parsed !== null && parsed > 0
@@ -58,6 +60,7 @@ export function PaymentCard({
         return false
       }
       saveId.done()
+      offerUndo(`${formatRupees(parsed!)} ${method === 'upi' ? 'UPI' : 'cash'} recorded`, () => save(() => removePayment(paymentId)))
       return true
     } catch {
       setError("Couldn't reach the server. Check the internet and try again.")

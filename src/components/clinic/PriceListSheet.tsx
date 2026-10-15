@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { AlertCircle, Loader2, Plus, Search } from 'lucide-react'
-import { addCharge } from '@/lib/actions/billing'
+import { addCharge, removeCharge } from '@/lib/actions/billing'
+import { useUndo } from './UndoBar'
 import { parseAmount } from '@/lib/billing'
 import { formatPrice, formatRupees, priceListOptions, type PriceListOption } from '@/lib/pricing'
 import type { Save, SaveId } from './BillTools'
@@ -31,6 +32,7 @@ export function PriceListSheet({
   onClose: () => void
 }) {
   const options = useMemo(() => priceListOptions(), [])
+  const offerUndo = useUndo()
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [amount, setAmount] = useState('')
@@ -52,6 +54,7 @@ export function PriceListSheet({
       if (result.error) setError(result.error)
       else {
         saveId.done()
+        offerUndo(`Added ${input.description}: ${formatRupees(input.amount)}`, () => save(() => removeCharge(chargeId)))
         onAdded()
       }
     } catch {
