@@ -148,6 +148,11 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
           </Link>
         </div>
       </details>
+
+      {/* Rare and serious: out of the way, and it asks for the password */}
+      <Link href={`/app/patients/${patient.id}/delete`} className="flex min-h-12 items-center justify-center text-sm font-semibold text-red-600">
+        Delete patient
+      </Link>
     </div>
   )
 }

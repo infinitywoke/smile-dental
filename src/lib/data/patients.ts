@@ -67,3 +67,40 @@ export function likelyPatient<T extends { id: string; name: string }>(name: stri
   if (same.length === 0 && samePhone.length === 1) return samePhone[0]
   return null
 }
+
+// What deleting a patient would remove, for the confirmation screen
+export type PatientFootprint = {
+  visits: number
+  photos: number
+  payments: { count: number; total: number }
+  coming: { id: string; starts_at: string }[]
+}
+
+export async function getPatientFootprint(id: string): Promise<PatientFootprint> {
+  await getDoctor()
+  if (!UUID.test(id)) notFound()
+  const supabase = await createClient()
+  const [visits, photos, payments, coming] = await Promise.all([
+    supabase.from('visits').select('id', { count: 'exact', head: true }).eq('patient_id', id),
+    supabase.from('visit_photos').select('id, visits!inner (patient_id)', { count: 'exact', head: true }).eq('visits.patient_id', id),
+    supabase.from('payments').select('amount').eq('patient_id', id),
+    supabase
+      .from('appointments')
+      .select('id, starts_at')
+      .eq('patient_id', id)
+      .eq('status', 'booked')
+      .gt('starts_at', new Date().toISOString())
+      .order('starts_at'),
+  ])
+  if (visits.error) throw visits.error
+  if (photos.error) throw photos.error
+  if (payments.error) throw payments.error
+  if (coming.error) throw coming.error
+  const paise = payments.data.reduce((sum, p) => sum + Math.round(Number(p.amount) * 100), 0)
+  return {
+    visits: visits.count ?? 0,
+    photos: photos.count ?? 0,
+    payments: { count: payments.data.length, total: paise / 100 },
+    coming: coming.data,
+  }
+}
