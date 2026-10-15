@@ -33,15 +33,16 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
   const [done, setDone] = useState<Done | null>(null)
   const [pending, startTransition] = useTransition()
 
-  function finish(result: { declined?: boolean; whatsappUrl?: string; startsAt?: string }) {
+  function finish(result: { declined?: boolean; whatsappUrl?: string; startsAt?: string }, fromDecline = false) {
     const booked = result.startsAt ? inIndia(result.startsAt) : null
     setDone({
       declined: !!result.declined,
       whatsappUrl: result.whatsappUrl,
       when: booked ? `${formatDay(booked.date)}, ${formatBlock(booked.time)}` : whenLabel,
     })
-    // The patient's chat opens with the message ready; the "Open WhatsApp" button below is the fallback
-    if (result.whatsappUrl) openWhatsApp(result.whatsappUrl)
+    // The patient's chat opens with the message ready; the "Open WhatsApp" button below is the fallback.
+    // A request found declined after tapping Confirm (another tab) keeps its message one tap away.
+    if (result.whatsappUrl && (!result.declined || fromDecline)) openWhatsApp(result.whatsappUrl)
   }
 
   function confirm() {
@@ -67,7 +68,7 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
     startTransition(async () => {
       const result = await declineBookingRequest(id)
       if (result.error) setError(result.error)
-      else finish(result)
+      else finish(result, true)
     })
   }
 

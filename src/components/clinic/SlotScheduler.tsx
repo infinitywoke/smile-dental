@@ -61,9 +61,9 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         return
       }
       if (result.declined) {
-        // Declined already (another tab): nothing was booked, but the message can still go
+        // Declined already (another tab): nothing was booked. The decline message stays one tap away,
+        // but doesn't open by itself, since the doctor tapped Save, not Decline.
         setDone({ whatsappUrl: result.whatsappUrl, when: 'Declined' })
-        if (result.whatsappUrl) openWhatsApp(result.whatsappUrl)
         return
       }
       // A retry may find the request booked already, at the time it was booked then
