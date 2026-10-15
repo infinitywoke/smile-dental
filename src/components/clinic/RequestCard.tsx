@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AlertCircle, AlertTriangle, CalendarCheck, ChevronDown, MessageCircle } from 'lucide-react'
 import { confirmRequestAsAsked } from '@/lib/actions/appointments'
+import { openWhatsApp } from '@/lib/whatsapp-business'
 
 type Props = {
   id: string
@@ -35,7 +36,7 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
       }
       setDone({ whatsappUrl: result.whatsappUrl })
       // The patient's chat opens with the confirmation ready; the "Open WhatsApp" button below is the fallback
-      if (result.whatsappUrl) window.location.assign(result.whatsappUrl)
+      if (result.whatsappUrl) openWhatsApp(result.whatsappUrl)
     })
   }
 

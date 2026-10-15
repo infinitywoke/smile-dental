@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
 import { BottomNav } from '@/components/clinic/BottomNav'
+import { WhatsAppBusiness } from '@/components/clinic/WhatsAppBusiness'
 
 // The manifest is linked only here, so "Add to Home screen" installs Clinic OS, not the website.
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ async function DoctorGate({ children }: { children: React.ReactNode }) {
     <>
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-28">{children}</main>
       <BottomNav />
+      <WhatsAppBusiness />
     </>
   )
 }

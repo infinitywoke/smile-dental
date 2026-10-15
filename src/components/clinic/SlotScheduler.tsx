@@ -7,6 +7,7 @@ import { confirmBookingRequest, declineBookingRequest, moveAppointment } from '@
 import { addDays, formatBlock, formatDay, inIndia, sameInstant } from '@/lib/schedule'
 import type { DayBlock } from '@/lib/data/appointments'
 import { SlotGrid, isPlaceable } from './SlotGrid'
+import { openWhatsApp } from '@/lib/whatsapp-business'
 
 type Props = {
   mode: 'request' | 'move'
@@ -57,7 +58,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
       const { date: d, time } = inIndia(selected)
       setDone({ whatsappUrl: result.whatsappUrl, patientId: result.patientId, when: `${formatDay(d)}, ${formatBlock(time)}` })
       // Open the patient's chat with the message ready; the big "Open WhatsApp" button below is the fallback
-      if (result.whatsappUrl) window.location.assign(result.whatsappUrl)
+      if (result.whatsappUrl) openWhatsApp(result.whatsappUrl)
     })
   }
 
@@ -71,7 +72,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         return
       }
       setDone({ whatsappUrl: result.whatsappUrl, when: 'Declined' })
-      if (result.whatsappUrl) window.location.assign(result.whatsappUrl)
+      if (result.whatsappUrl) openWhatsApp(result.whatsappUrl)
     })
   }
 

@@ -12,6 +12,7 @@ import { formatDate } from '@/lib/dates'
 import type { PhotoKind } from '@/lib/visit-status'
 import { firstName, whatsappLink } from '@/lib/whatsapp'
 import type { UploadCounts } from './PhotoGallery'
+import { openWhatsApp } from '@/lib/whatsapp-business'
 
 // WhatsApp opens by itself only within this time of the tap: Android keeps a tap's "opened by the
 // user" for about 5 seconds, so WhatsApp itself opens. Slower than this, a big button is shown instead.
@@ -224,7 +225,7 @@ export function SendWhatsApp({
       // Quick enough: open WhatsApp now, still counted as the doctor's tap. Otherwise wait for his tap.
       if (!tooSlow) {
         setSending({ state: 'idle' })
-        window.location.assign(link)
+        openWhatsApp(link)
       } else {
         setSending({ state: 'ready', link })
       }
