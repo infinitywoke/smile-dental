@@ -51,7 +51,6 @@ export const siteConfig = {
   media: {
     logo: "/images/logo.jpg", // [VERIFIED]
     priceList: "/images/price-list.jpg", // [VERIFIED]
-    sideProfile: "/images/dr-rahil-side.jpg" // [VERIFIED]
   }
 }
 
