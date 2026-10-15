@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { AlertCircle, AlertTriangle, CalendarCheck, ChevronDown, MessageCircle } from 'lucide-react'
-import { confirmRequestAsAsked } from '@/lib/actions/appointments'
+import { useRouter } from 'next/navigation'
+import { AlertCircle, AlertTriangle, CalendarCheck, ChevronDown, Clock, MessageCircle } from 'lucide-react'
+import { confirmRequestAsAsked, declineBookingRequest } from '@/lib/actions/appointments'
+import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { openWhatsApp } from '@/lib/whatsapp-business'
 
 type Props = {
@@ -17,14 +19,30 @@ type Props = {
   canConfirm: boolean
   otherTimeHref: string
   details: { age: string | null; address: string | null; heardFrom: string | null; notes: string | null }
+  // "Time passed" or "No longer held, asked 2 days ago": shown on the card, with Decline right there
+  notice?: string | null
 }
 
+type Done = { declined: boolean; whatsappUrl?: string; when: string | null }
+
 // A website booking on Today: Confirm books the time asked for in one tap
-export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, otherTimeHref, details }: Props) {
+export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, otherTimeHref, details, notice = null }: Props) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState<{ whatsappUrl?: string } | null>(null)
+  const [done, setDone] = useState<Done | null>(null)
   const [pending, startTransition] = useTransition()
+
+  function finish(result: { declined?: boolean; whatsappUrl?: string; startsAt?: string }) {
+    const booked = result.startsAt ? inIndia(result.startsAt) : null
+    setDone({
+      declined: !!result.declined,
+      whatsappUrl: result.whatsappUrl,
+      when: booked ? `${formatDay(booked.date)}, ${formatBlock(booked.time)}` : whenLabel,
+    })
+    // The patient's chat opens with the message ready; the "Open WhatsApp" button below is the fallback
+    if (result.whatsappUrl) openWhatsApp(result.whatsappUrl)
+  }
 
   function confirm() {
     setError(null)
@@ -34,9 +52,22 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
         setError(result.error)
         return
       }
-      setDone({ whatsappUrl: result.whatsappUrl })
-      // The patient's chat opens with the confirmation ready; the "Open WhatsApp" button below is the fallback
-      if (result.whatsappUrl) openWhatsApp(result.whatsappUrl)
+      // The number already belongs to a patient: the request page asks who this is
+      if (result.needsChoice) {
+        router.push(otherTimeHref)
+        return
+      }
+      finish(result)
+    })
+  }
+
+  function decline() {
+    if (!window.confirm(`Decline ${name}'s request? You can send them a message to call the clinic.`)) return
+    setError(null)
+    startTransition(async () => {
+      const result = await declineBookingRequest(id)
+      if (result.error) setError(result.error)
+      else finish(result)
     })
   }
 
@@ -46,7 +77,7 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
         <div className="flex items-center gap-3">
           <CalendarCheck className="h-6 w-6 shrink-0 text-green-600" />
           <p className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
-            {name} is booked{whenLabel ? ` · ${whenLabel}` : ''}
+            {done.declined ? `${name}: request declined` : `${name} is booked${done.when ? ` · ${done.when}` : ''}`}
           </p>
         </div>
         {done.whatsappUrl && (
@@ -77,6 +108,12 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
           </button>
         )}
       </div>
+
+      {notice && (
+        <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+          <Clock className="h-4 w-4 shrink-0" /> {notice}
+        </p>
+      )}
 
       {alerts && (
         <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-sm text-red-800 ring-1 ring-red-200">
@@ -111,6 +148,12 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
           className="flex min-h-12 flex-1 items-center justify-center rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-gray-900 ring-1 ring-gray-300">
           Other time
         </Link>
+        {notice && (
+          <button type="button" onClick={decline} disabled={pending}
+            className="min-h-12 flex-1 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60">
+            Decline
+          </button>
+        )}
       </div>
     </div>
   )

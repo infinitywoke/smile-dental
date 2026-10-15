@@ -95,6 +95,19 @@ export function movedMessage(args: { name: string; startsAt: string }): string {
   ].join('\n')
 }
 
+// Clinic -> patient, after an appointment is cancelled: which one, and how to book again
+export function cancelledMessage(args: { name: string; startsAt: string }): string {
+  return [
+    ...messageHeader(args.name),
+    `Your appointment at ${siteConfig.name} has been *cancelled*:`,
+    '',
+    ...appointmentLines(args.startsAt),
+    '',
+    `To book a new time, call or WhatsApp us on ${siteConfig.phone}.`,
+    ...messageSignOff(),
+  ].join('\n')
+}
+
 // Clinic -> patient, when the requested time can't be given
 export function declineMessage(args: { name: string }): string {
   return [
