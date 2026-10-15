@@ -72,9 +72,10 @@ export default function PrivacyPage() {
             The dentist may record his notes about your visit by voice. The recording is sent to Google&apos;s
             Gemini service, which writes it out as text and sorts it (complaint, findings, treatment,
             prescription, advice) and may suggest a charge or a next visit for him to check. Nothing else
-            about you is sent: not your name, phone number, address, age or history. The recording is not
-            kept by the clinic. While the clinic uses Gemini&apos;s free version, Google may use what it
-            receives to improve its services.
+            about you is sent: not your name, phone number, address, age or history. The clinic keeps the
+            recording privately with your visit (only the dentist can play it), and it is deleted with your
+            record. While the clinic uses Gemini&apos;s free version, Google may use what it receives to
+            improve its services.
           </p>
           <p className="mt-3">
             When you book online you may record a short voice note about your problem (up to a minute), or send

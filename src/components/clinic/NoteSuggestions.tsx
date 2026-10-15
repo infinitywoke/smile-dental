@@ -32,10 +32,31 @@ export function NoteSuggestions({
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [ids] = useState(() => Object.fromEntries(suggestions.charges.map((c) => [c.key, crypto.randomUUID()])))
+  const [otherIds] = useState(() => suggestions.notOnList.map(() => crypto.randomUUID()))
 
   const charges = suggestions.charges.filter((c) => !done[c.key])
+  const others = suggestions.notOnList.filter((_, i) => !done[`other-${i}`])
   const next = !hasNextVisit && !done.next && suggestions.nextVisit?.instant ? suggestions.nextVisit : null
-  if (charges.length === 0 && !next) return null
+  if (charges.length === 0 && others.length === 0 && !next && suggestions.unclear.length === 0) return null
+
+  // Not on the price list: added as another charge with the amount he types
+  async function addOther(index: number, description: string) {
+    const key = `other-${index}`
+    const amount = parseAmount(amounts[key] ?? '')
+    if (amount === null || amount <= 0) {
+      setError(`Please type the amount for ${description}.`)
+      return
+    }
+    setError(null)
+    const id = otherIds[index]
+    const result = await save(() => addCharge(visitId, { description: description.charAt(0).toUpperCase() + description.slice(1), amount, treatmentSlug: null }, id))
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    setDone((d) => ({ ...d, [key]: true }))
+    offerUndo(`Added ${description}: ${formatRupees(amount)}`, () => save(() => removeCharge(id)))
+  }
 
   async function add(c: Suggestions['charges'][number]) {
     const amount = c.amount ?? parseAmount(amounts[c.key] ?? '')
@@ -85,6 +106,7 @@ export function NoteSuggestions({
         <div key={c.key} className="space-y-2 rounded-xl bg-white p-3 ring-1 ring-violet-100">
           <p className="text-base text-gray-900">
             {c.description}
+            {c.guess && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-800">best guess: check</span>}
             <span className="block text-sm text-gray-600">{c.amount !== null ? formatRupees(c.amount) : `Price ${c.priceText}: type the amount`}</span>
           </p>
           <div className="flex gap-2">
@@ -101,6 +123,26 @@ export function NoteSuggestions({
         </div>
       ))}
 
+      {suggestions.notOnList.map((item, i) =>
+        done[`other-${i}`] ? null : (
+          <div key={`other-${i}`} className="space-y-2 rounded-xl bg-white p-3 ring-1 ring-violet-100">
+            <p className="text-base text-gray-900">
+              {item}
+              <span className="block text-sm text-gray-600">Not on your price list: add it as a charge with its amount</span>
+            </p>
+            <div className="flex gap-2">
+              <input inputMode="decimal" placeholder="Amount" aria-label={`Amount for ${item}`} value={amounts[`other-${i}`] ?? ''}
+                onChange={(e) => setAmounts((a) => ({ ...a, [`other-${i}`]: e.target.value }))}
+                className="block min-h-12 w-32 rounded-xl border-0 px-3 text-base ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-violet-600" />
+              <button type="button" onClick={() => void addOther(i, item)}
+                className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-violet-600 px-4 text-base font-semibold text-white">
+                <Plus className="h-5 w-5" /> Add charge
+              </button>
+            </div>
+          </div>
+        ),
+      )}
+
       {next?.instant && (
         <div className="space-y-2 rounded-xl bg-white p-3 ring-1 ring-violet-100">
           <p className="text-base text-gray-900">
@@ -111,6 +153,14 @@ export function NoteSuggestions({
             className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-violet-600 px-4 text-base font-semibold text-white">
             <CalendarPlus className="h-5 w-5" /> Book next visit
           </button>
+        </div>
+      )}
+
+      {suggestions.unclear.length > 0 && (
+        <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+          <p className="font-semibold">Couldn&apos;t make out (please check the notes):</p>
+          <ul className="mt-1 list-disc pl-5">{suggestions.unclear.map((u) => <li key={u}>{u}</li>)}</ul>
+          <p className="mt-1">Words marked (?) in the notes are best guesses.</p>
         </div>
       )}
 

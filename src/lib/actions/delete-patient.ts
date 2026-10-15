@@ -50,6 +50,20 @@ export async function deletePatient(patientId: string, mode: DeleteMode, passwor
       files.forEach((f) => paths.add(`${folder}/${f.name}`))
     }
   }
+  // Their recorded notes, kept with each visit
+  const audioPaths: string[] = []
+  for (const visitId of visitIds) {
+    const folder = `${doctor.id}/${visitId}`
+    const { data: files, error: listError } = await supabase.storage.from('visit-audio').list(folder, { limit: 1000 })
+    if (listError) return { error: 'Could not delete the recordings. Nothing was deleted.' }
+    files.forEach((f) => audioPaths.push(`${folder}/${f.name}`))
+  }
+  if (audioPaths.length > 0) {
+    const { error: audioError } = await supabase.storage.from('visit-audio').remove(audioPaths)
+    if (audioError) return { error: 'Could not delete the recordings. Please try again.' }
+  }
+  if (visitIds.length > 0) await supabase.from('visit_recordings').delete().in('visit_id', visitIds)
+
   const all = [...paths]
   for (let i = 0; i < all.length; i += 100) {
     const { error: removeError } = await supabase.storage.from(PHOTO_BUCKET).remove(all.slice(i, i + 100))

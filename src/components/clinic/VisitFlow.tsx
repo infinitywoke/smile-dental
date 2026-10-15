@@ -107,6 +107,24 @@ export function VisitFlow({
       <VisitNotes handle={notesRef} visitId={visit.id} initialNotes={visit.notes}
         listed={visit.photos.length > 0 || bill.charges.length > 0 || bill.payments.length > 0}
         onSuggestions={setSuggestions} />
+      {(visit.recordings ?? []).length > 0 && (
+        <details className="rounded-xl bg-white px-3 py-1 ring-1 ring-gray-200">
+          <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold text-gray-700">
+            🎙 Recordings ({(visit.recordings ?? []).length})
+          </summary>
+          <ul className="space-y-2 pb-2">
+            {(visit.recordings ?? []).map((r) => (
+              <li key={r.id} className="space-y-1">
+                <p className="text-xs text-gray-500">
+                  {new Date(r.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                  {r.seconds ? ` · ${Math.floor(r.seconds / 60)}:${String(r.seconds % 60).padStart(2, '0')}` : ''}
+                </p>
+                {r.url ? <audio src={r.url} controls preload="none" className="w-full" aria-label="Recorded notes" /> : <p className="text-sm text-gray-500">Unavailable</p>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {suggestions && (
         <NoteSuggestions visitId={visit.id} suggestions={suggestions} hasNextVisit={!!visit.next_appointment}
           save={save} onDismiss={() => setSuggestions(null)} />

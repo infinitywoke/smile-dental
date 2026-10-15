@@ -54,6 +54,8 @@ export type VisitDetail = Visit & {
   photos: VisitPhoto[]
   linked_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status'> | null
   next_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status' | 'duration_min'> | null
+  // Recorded notes kept with the visit, playable through short-lived links
+  recordings?: { id: string; seconds: number | null; created_at: string; url: string | null }[]
 }
 
 export type VisitChargeKind = 'item' | 'extra'

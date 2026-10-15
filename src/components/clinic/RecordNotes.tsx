@@ -5,7 +5,7 @@ import { AlertCircle, Loader2, Mic, Pause, Play, RotateCcw, Square } from 'lucid
 import { sortVisitNotes, type NoteSuggestions } from '@/lib/actions/smart-notes'
 
 // Record the visit's notes (talk freely, pause, stop), then Gemini writes them out and sorts them.
-// The recording stays on this phone until the notes are in, so a busy moment can be tried again.
+// The clinic keeps the recording with the visit; if Gemini is busy, Try again sorts the saved one.
 const MAX_SECONDS = 10 * 60
 const TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']
 
@@ -24,7 +24,9 @@ export function RecordNotes({ visitId, onSorted }: { visitId: string; onSorted: 
   const chunks = useRef<Blob[]>([])
   const ticker = useRef<ReturnType<typeof setInterval> | null>(null)
   const seconds = useRef(0)
+  // Not saved yet (no connection): the recording itself; saved: its id, for Try again
   const kept = useRef<Blob | null>(null)
+  const savedId = useRef<string | null>(null)
 
   useEffect(
     () => () => {
@@ -38,14 +40,20 @@ export function RecordNotes({ visitId, onSorted }: { visitId: string; onSorted: 
     setState({ kind: 'sorting' })
     const form = new FormData()
     form.set('visitId', visitId)
-    form.set('audio', blob)
+    if (savedId.current) form.set('recordingId', savedId.current)
+    else {
+      form.set('audio', blob)
+      form.set('seconds', String(seconds.current))
+    }
     try {
       const reply = await sortVisitNotes(form)
+      if (reply.recordingId) savedId.current = reply.recordingId
       if (reply.error || !reply.result) {
         setState({ kind: 'failed', message: reply.error ?? "Couldn't sort the notes. Tap Try again.", canRetry: true })
         return
       }
       kept.current = null
+      savedId.current = null
       setState({ kind: 'idle' })
       onSorted(reply.result)
     } catch {
@@ -77,6 +85,7 @@ export function RecordNotes({ visitId, onSorted }: { visitId: string; onSorted: 
         return
       }
       kept.current = blob
+      savedId.current = null
       void sort(blob)
     }
     recorder.current = rec

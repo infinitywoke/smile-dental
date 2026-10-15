@@ -295,6 +295,13 @@ export async function deleteVisit(visitId: string, patientId: string): Promise<R
     supabase.from('appointments').select('id').eq('visit_id', visitId).eq('status', 'done'),
   ])
   if (rows.error || files.error || linked.error) return { error: 'Could not delete the visit. Please try again.' }
+  // Its recorded notes go too
+  const { data: audio, error: audioError } = await supabase.storage.from('visit-audio').list(folder, { limit: 1000 })
+  if (audioError) return { error: 'Could not delete the visit. Please try again.' }
+  if (audio.length > 0) {
+    const { error: removeAudioError } = await supabase.storage.from('visit-audio').remove(audio.map((f) => `${folder}/${f.name}`))
+    if (removeAudioError) return { error: "Could not delete the visit's recordings. Please try again." }
+  }
   const paths = new Set([...rows.data.map((p) => p.storage_path as string), ...files.data.map((f) => `${folder}/${f.name}`)])
   if (paths.size > 0) {
     const { error: removeError } = await supabase.storage.from(PHOTO_BUCKET).remove([...paths])

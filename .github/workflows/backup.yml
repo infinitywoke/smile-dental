@@ -34,7 +34,7 @@ jobs:
     env:
       PG: /usr/lib/postgresql/17/bin
       SCRATCH: postgresql://postgres:scratch@localhost:5433/postgres
-      TABLES: patients visits visit_charges payments visit_photos appointments booking_requests time_off app_config share_links
+      TABLES: patients visits visit_charges payments visit_photos visit_recordings appointments booking_requests time_off app_config share_links
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
       # Supabase Storage, through its S3-compatible endpoint (read)
@@ -130,6 +130,10 @@ jobs:
           prune sync supa:request-voice vault:voice/current --backup-dir "vault:voice/removed/$day"
           prune delete --min-age 31d vault:voice/removed
           prune rmdirs --leave-root vault:voice/removed
+          # Recorded visit notes (the bucket exists once visit-recordings-2026-10.sql is applied)
+          prune sync supa:visit-audio vault:recordings/current --backup-dir "vault:recordings/removed/$day"
+          prune delete --min-age 31d vault:recordings/removed
+          prune rmdirs --leave-root vault:recordings/removed
           echo "Backup sizes:"
           rclone size vault:database
           rclone size vault:photos/current

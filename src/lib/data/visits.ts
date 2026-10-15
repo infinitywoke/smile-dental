@@ -77,13 +77,14 @@ export async function getVisit(id: string): Promise<VisitPageData> {
 
   const { data, error } = await supabase
     .from('visits')
-    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts), visit_photos (id, caption, storage_path, created_at)`)
+    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts), visit_photos (id, caption, storage_path, created_at), visit_recordings (id, storage_path, seconds, created_at)`)
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
   if (!data) notFound()
 
-  const { visit_photos, patient, ...visit } = data
+  const { visit_photos, visit_recordings, patient, ...visit } = data
+  const recordings = [...(visit_recordings ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at))
   const patientRow = Array.isArray(patient) ? patient[0] : patient
   const photos = [...(visit_photos ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
@@ -101,9 +102,16 @@ export async function getVisit(id: string): Promise<VisitPageData> {
     }
   }
 
+  let audioUrls: Record<string, string> = {}
+  if (recordings.length > 0) {
+    const { data: signed } = await supabase.storage.from('visit-audio').createSignedUrls(recordings.map((r) => r.storage_path), DISPLAY_LINK_SECONDS)
+    audioUrls = Object.fromEntries((signed ?? []).flatMap((s) => (s.path && s.signedUrl ? [[s.path, s.signedUrl]] : [])))
+  }
+
   return {
     ...visit,
     patient: patientRow,
+    recordings: recordings.map((r) => ({ id: r.id, seconds: r.seconds, created_at: r.created_at, url: audioUrls[r.storage_path] ?? null })),
     photos: photos.map((p) => ({ id: p.id, caption: p.caption ?? '', url: urls[p.storage_path] ?? null })),
     linked_appointment: linkedAppointment,
     next_appointment: next && { id: next.id, starts_at: next.starts_at, status: next.status, duration_min: next.duration_min },

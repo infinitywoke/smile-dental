@@ -45,9 +45,19 @@ test('record, stop: the notes are written out and sorted; the charge and next vi
   const charges = async () => (await supabase.from('visit_charges').select('description').eq('visit_id', visitId)).data!.map((c) => c.description)
   expect(await charges()).not.toContain('Root Canal Treatment – Standard Treatment (46)')
 
-  await card.getByRole('button', { name: 'Add charge' }).click()
+  await card.getByRole('button', { name: 'Add charge' }).first().click()
   await expect.poll(charges).toContain('Root Canal Treatment – Standard Treatment (46)')
+
+  // What Gemini couldn't match or make out is said plainly
+  await expect(card).toContainText('occlusal adjustment on 16')
+  await expect(card).toContainText('Not on your price list')
+  await expect(card).toContainText('the mouthwash name in the advice')
+
+  // The clinic keeps the recording with the visit
+  expect((await supabase.from('visit_recordings').select('id').eq('visit_id', visitId)).data).toHaveLength(1)
 
   await card.getByRole('button', { name: 'Book next visit' }).click()
   await expect.poll(async () => (await supabase.from('appointments').select('duration_min').eq('from_visit_id', visitId).eq('status', 'booked')).data?.[0]?.duration_min).toBe(60)
+  await page.reload()
+  await expect(visible(page.getByText(/Recordings \(1\)/))).toBeVisible()
 })
