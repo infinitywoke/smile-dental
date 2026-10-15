@@ -55,7 +55,7 @@ jobs:
       RCLONE_CONFIG_VAULT_FILENAME_ENCRYPTION: 'off'
       RCLONE_CONFIG_VAULT_DIRECTORY_NAME_ENCRYPTION: 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check the backup secrets are set
         run: |
