@@ -22,7 +22,7 @@ You add four secrets in GitHub: **infinitywoke/smile-dental → Settings → Sec
    - Supabase → **Storage → S3 Configuration** (turn on "S3 protocol connection" if it is off) → **New access key** → name it "backup" → copy both values (the secret is shown only once).
 3. **`RCLONE_DRIVE_TOKEN`** (permission to write into your Google Drive)
    - On your PC, in PowerShell: `winget install Rclone.Rclone`, then close and reopen PowerShell.
-   - Run: `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ=="`
+   - Run: `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`
    - A browser opens: sign in with the Google account whose Drive should hold the backups, then **Allow**.
    - PowerShell prints a token between two lines of dashes, starting `{"access_token":`. Copy that whole `{…}` line into the secret.
    - The code in the command limits it to files the backup itself creates: it cannot see anything else in your Drive.
