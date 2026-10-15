@@ -109,6 +109,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                 reason={request.reason}
                 alerts={request.medical_alerts}
                 canConfirm={request.confirmable}
+                notice={request.notice}
                 otherTimeHref={`/app/requests/${request.id}${wanted ? `?d=${wanted.date >= today ? wanted.date : today}` : ''}`}
                 details={{
                   age: [age !== null && `${age} yrs`, genderLabel(request.gender)].filter(Boolean).join(' · ') || null,

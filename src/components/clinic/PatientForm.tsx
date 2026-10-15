@@ -22,8 +22,11 @@ type Props = {
 // never loses typing. Once the patient is saved the form is emptied, ready for the next one.
 // On New patient, "Start fresh" empties it by hand, and a form that comes back with typing in it
 // says whose it is, so one person's phone or medical alert never slips onto the next walk-in.
+// A new patient gets its id here, on the phone, once per patient: a save repeated after a lost
+// reply sends the same id, so the server knows it is saved already and never makes a second record.
 export function PatientForm(props: Props) {
   const saving = useRef(false)
+  const newId = useRef<string | null>(null)
   const [resetKey, setResetKey] = useState(0)
 
   // The cleanup runs when Next hides this screen (or removes it): start fresh only if it was saved
@@ -31,6 +34,7 @@ export function PatientForm(props: Props) {
     () => () => {
       if (saving.current) {
         saving.current = false
+        newId.current = null
         setResetKey((k) => k + 1)
       }
     },
@@ -40,10 +44,12 @@ export function PatientForm(props: Props) {
   const setSaving = useCallback((value: boolean) => { saving.current = value }, [])
   const startFresh = useCallback(() => {
     saving.current = false
+    newId.current = null
     setResetKey((k) => k + 1)
   }, [])
+  const takeId = useCallback(() => (newId.current ??= crypto.randomUUID()), [])
 
-  return <PatientFields key={resetKey} {...props} setSaving={setSaving} startFresh={startFresh} />
+  return <PatientFields key={resetKey} {...props} setSaving={setSaving} startFresh={startFresh} takeId={takeId} />
 }
 
 const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Instagram', 'Doctor referral']
@@ -59,7 +65,8 @@ function PatientFields({
   submitLabel,
   setSaving,
   startFresh,
-}: Props & { setSaving: (value: boolean) => void; startFresh: () => void }) {
+  takeId,
+}: Props & { setSaving: (value: boolean) => void; startFresh: () => void; takeId: () => string }) {
   const [state, formAction, pending] = useActionState(action, {})
   const [phone, setPhone] = useState(patient?.phone ? formatPhone(patient.phone) : '')
   const [name, setName] = useState(patient?.name ?? '')
@@ -113,7 +120,14 @@ function PatientFields({
   const options = heardFrom && !HEARD_FROM.includes(heardFrom) ? [...HEARD_FROM, heardFrom] : HEARD_FROM
 
   return (
-    <form action={formAction} onSubmit={() => setSaving(true)} className="space-y-5">
+    <form action={formAction} className="space-y-5"
+      onSubmit={(e) => {
+        setSaving(true)
+        // Read by the action after this runs (React builds the form data after onSubmit)
+        const id = e.currentTarget.elements.namedItem('patient_id')
+        if (id instanceof HTMLInputElement) id.value = takeId()
+      }}>
+      {!patient && <input type="hidden" name="patient_id" defaultValue="" />}
       {typed && (
         <div className="flex items-center gap-3">
           <p className="min-w-0 flex-1 text-base font-medium text-gray-700" role="status">

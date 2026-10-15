@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { blockDay, blockTime, cancelAppointment, unblockTime } from '@/lib/actions/appointments'
-import { BLOCK_MINUTES, blockInstant } from '@/lib/schedule'
+import { blockDay, blockTime, cancelAppointment, reopenDay, unblockTime } from '@/lib/actions/appointments'
+import { BLOCK_MINUTES } from '@/lib/schedule'
 
 function useAction() {
   const router = useRouter()
@@ -21,14 +21,16 @@ function useAction() {
   return { router, pending, error, run }
 }
 
-export function CancelAppointmentButton({ appointmentId, backTo }: { appointmentId: string; backTo: string }) {
+// After Cancel, a screen offers to tell the patient on WhatsApp (and leads back to their page).
+// `backTo` is no longer needed; it is kept so existing callers still fit.
+export function CancelAppointmentButton({ appointmentId }: { appointmentId: string; backTo?: string }) {
   const { router, pending, error, run } = useAction()
   return (
     <div className="space-y-2">
       <button type="button" disabled={pending}
         onClick={() => {
           if (!window.confirm('Cancel this appointment? The time becomes free again.')) return
-          run(() => cancelAppointment(appointmentId), () => router.replace(backTo))
+          run(() => cancelAppointment(appointmentId), () => router.replace(`/app/appointments/${appointmentId}/cancelled`))
         }}
         className="min-h-12 w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60">
         {pending ? 'Cancelling…' : 'Cancel appointment'}
@@ -38,31 +40,33 @@ export function CancelAppointmentButton({ appointmentId, backTo }: { appointment
   )
 }
 
-// Close or reopen a whole day (holiday); closed days disappear from the website
-export function DayOffButton({ date, dayOff }: { date: string; dayOff: boolean }) {
+// Close or reopen a whole day (holiday); closed days disappear from the website. Closing is
+// refused, with the reason, while patients are booked or website requests wait that day.
+export function DayOffButton({ date, dayOff, reopenLabel = 'Reopen this day' }: { date: string; dayOff: boolean; reopenLabel?: string }) {
   const { pending, error, run } = useAction()
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <button type="button" disabled={pending}
-        onClick={() => run(() => (dayOff ? unblockTime(blockInstant(date, '12:00')) : blockDay(date)))}
+        onClick={() => run(() => (dayOff ? reopenDay(date) : blockDay(date)))}
         className="min-h-12 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
-        {dayOff ? 'Reopen this day' : 'Close this day'}
+        {pending ? '…' : dayOff ? reopenLabel : 'Close this day'}
       </button>
-      {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+      {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
     </div>
   )
 }
 
+// Reopen one blocked time (only that time; a closed day stays closed)
 export function UnblockButton({ instant }: { instant: string }) {
   const { pending, error, run } = useAction()
   return (
-    <>
+    <div className="space-y-2">
       <button type="button" disabled={pending} onClick={() => run(() => unblockTime(instant))}
-        className="min-h-12 shrink-0 rounded-full bg-white px-4 py-1 text-sm font-semibold text-blue-700 ring-1 ring-gray-300 disabled:opacity-60">
+        className="min-h-12 rounded-full bg-white px-5 py-2 text-sm font-semibold text-blue-700 ring-1 ring-gray-300 disabled:opacity-60">
         {pending ? '…' : 'Reopen'}
       </button>
-      {error && <span className="sr-only" role="alert">{error}</span>}
-    </>
+      {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+    </div>
   )
 }
 

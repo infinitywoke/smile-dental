@@ -1,6 +1,7 @@
 -- Smile Dental: the whole database, in one file.
 --
--- This is the database as it is after supabase/cleanup-2026-10.sql. Run it on an EMPTY
+-- This is the database as it is after supabase/cleanup-2026-10.sql and
+-- supabase/logic-fixes-2026-10.sql. Run it on an EMPTY
 -- Supabase project: Dashboard -> SQL Editor -> New query -> paste -> Run (or
 -- `npx supabase db query --linked --file supabase/schema.sql`). It is safe to run again.
 -- The live project already has all of this: do not run it there for any other reason.
@@ -125,6 +126,7 @@ create table if not exists public.visits (
   visit_date date not null default (now() at time zone 'Asia/Kolkata')::date,
   notes text not null default '',
   closed_at timestamptz,      -- when the visit was finished and marked done
+  resend_needed boolean not null default false, -- the bill changed after the WhatsApp was sent
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -132,6 +134,8 @@ create table if not exists public.visits (
 create index if not exists visits_owner_date_idx on public.visits (owner_id, visit_date desc, created_at desc);
 create index if not exists visits_patient_idx on public.visits (patient_id, visit_date desc, created_at desc);
 create index if not exists visits_owner_closed_idx on public.visits (owner_id, closed_at);
+-- One visit per patient per day: "Start visit" always reuses today's visit
+create unique index if not exists visits_one_per_patient_day on public.visits (patient_id, visit_date);
 
 create or replace trigger visits_set_updated_at
   before update on public.visits
@@ -176,7 +180,9 @@ create table if not exists public.payments (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   patient_id uuid not null references public.patients (id) on delete cascade,
-  visit_id uuid references public.visits (id) on delete set null,
+  -- Every payment belongs to a visit. A visit that holds money cannot be deleted: its payments are
+  -- removed one by one first (deleting the patient still removes everything).
+  visit_id uuid not null references public.visits (id) on delete restrict,
   amount numeric(10,2) not null check (amount > 0),
   method text not null check (method in ('upi', 'cash')),
   received_at timestamptz not null default now(),
@@ -191,6 +197,30 @@ create index if not exists payments_visit_idx on public.payments (visit_id);
 create or replace trigger payments_set_updated_at
   before update on public.payments
   for each row execute function public.set_updated_at();
+
+-- "WhatsApp sent" means the patient has the current bill: any change to a sent visit's charges or
+-- payments sets resend_needed (markWhatsappSent clears it).
+create or replace function public.mark_bill_changed()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  update public.visits v
+  set resend_needed = true
+  where v.id in (old.visit_id, new.visit_id)   -- old is null on insert, new is null on delete
+    and v.closed_at is not null
+    and not v.resend_needed;
+  return null;
+end;
+$$;
+
+create or replace trigger visit_charges_bill_changed
+  after insert or update or delete on public.visit_charges
+  for each row execute function public.mark_bill_changed();
+create or replace trigger payments_bill_changed
+  after insert or update or delete on public.payments
+  for each row execute function public.mark_bill_changed();
 
 -- Share links: private /r/<token> page ----------------------------------------
 -- The token is 64 hex characters from two gen_random_uuid() calls (~244 random
@@ -269,6 +299,35 @@ create index if not exists time_off_owner_starts_idx on public.time_off (owner_i
 create or replace trigger time_off_set_updated_at
   before update on public.time_off
   for each row execute function public.set_updated_at();
+
+-- A booked appointment is never in blocked time or already over, whichever screen or action made or
+-- moved it. Status changes (done, cancelled) are not checked, so Send and Cancel still work on past
+-- appointments.
+create or replace function public.check_appointment_time()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.status = 'booked' and (tg_op = 'INSERT' or new.starts_at is distinct from old.starts_at
+                                or new.duration_min is distinct from old.duration_min) then
+    if public.appointment_end(new.starts_at, new.duration_min) <= public.clinic_now() then
+      raise exception 'That time has already passed.';
+    end if;
+    if exists (select 1 from public.time_off t
+               where t.owner_id = new.owner_id
+                 and tstzrange(t.starts_at, t.ends_at)
+                     && tstzrange(new.starts_at, public.appointment_end(new.starts_at, new.duration_min))) then
+      raise exception 'That time is blocked off in your calendar.';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create or replace trigger appointments_check_time
+  before insert or update on public.appointments
+  for each row execute function public.check_appointment_time();
 
 -- Booking requests from the public website ------------------------------------
 -- Inserted only through public.submit_booking_request(...) below.
@@ -374,12 +433,9 @@ create policy "Owner full access" on public.payments
   using (owner_id = (select auth.uid()))
   with check (
     owner_id = (select auth.uid())
-    and exists (select 1 from public.patients p
-                where p.id = payments.patient_id and p.owner_id = (select auth.uid()))
-    and (payments.visit_id is null or exists (
-          select 1 from public.visits v
-          where v.id = payments.visit_id and v.owner_id = (select auth.uid())
-            and v.patient_id = payments.patient_id))
+    and exists (select 1 from public.visits v
+                where v.id = payments.visit_id and v.owner_id = (select auth.uid())
+                  and v.patient_id = payments.patient_id)
   );
 
 drop policy if exists "Owner full access" on public.share_links;
@@ -654,7 +710,9 @@ grant execute on function public.submit_booking_request(text, text, text, text, 
 -- Confirm a request (signed in) ---------------------------------------------------------
 -- One transaction: create the patient (or link an existing one), book the 40-minute
 -- block, mark the request booked. Runs as the signed-in doctor, so row-level security
--- applies. Any failure rolls everything back.
+-- applies. Any failure rolls everything back. A block that is already over is refused (the
+-- block in progress may still be confirmed). When linking a patient already in the app, what the
+-- request says under medical alerts is added to their record, never dropped.
 create or replace function public.confirm_booking_request(
   p_request uuid,
   p_starts_at timestamptz,
@@ -669,7 +727,6 @@ declare
   r public.booking_requests;
   v_patient uuid;
   v_appointment uuid;
-  v_today_start timestamptz := ((public.clinic_now() at time zone 'Asia/Kolkata')::date)::timestamp at time zone 'Asia/Kolkata';
 begin
   if (select auth.uid()) is null then
     raise exception 'Please sign in.';
@@ -688,7 +745,7 @@ begin
   if not public.is_clinic_slot(p_starts_at) then
     raise exception 'Please choose one of the clinic time blocks (the clinic is closed on Fridays).';
   end if;
-  if p_starts_at < v_today_start then
+  if public.appointment_end(p_starts_at, 40) <= public.clinic_now() then
     raise exception 'That time has already passed.';
   end if;
   if exists (select 1 from public.time_off t
@@ -702,6 +759,16 @@ begin
     where p.id = p_patient and p.owner_id = (select auth.uid());
     if v_patient is null then
       raise exception 'That patient was not found.';
+    end if;
+    if nullif(btrim(r.medical_alerts), '') is not null then
+      update public.patients p
+      set medical_alerts = case
+        when nullif(btrim(p.medical_alerts), '') is null then r.medical_alerts
+        when position(lower(btrim(r.medical_alerts)) in lower(p.medical_alerts)) > 0 then p.medical_alerts
+        else p.medical_alerts || E'\n' || r.medical_alerts
+             || ' (website, ' || to_char(r.created_at at time zone 'Asia/Kolkata', 'DD Mon YYYY') || ')'
+      end
+      where p.id = v_patient;
     end if;
   else
     insert into public.patients (name, phone, gender, birth_year, address, medical_alerts, heard_from)
@@ -731,5 +798,18 @@ $$;
 
 revoke all on function public.confirm_booking_request(uuid, timestamptz, uuid) from public, anon, authenticated;
 grant execute on function public.confirm_booking_request(uuid, timestamptz, uuid) to authenticated;
+
+revoke all on function public.mark_bill_changed() from public, anon, authenticated;
+revoke all on function public.check_appointment_time() from public, anon, authenticated;
+
+-- Money per visit in one place: every screen reads charged and paid from here and
+-- applies one rule in src/lib/billing.ts. security_invoker: row-level security applies as usual.
+create or replace view public.visit_money with (security_invoker = true) as
+  select v.id as visit_id, v.patient_id, v.visit_date, v.created_at, v.closed_at, v.resend_needed,
+    coalesce((select sum(c.amount) from public.visit_charges c where c.visit_id = v.id), 0)::numeric(12,2) as charged,
+    coalesce((select sum(p.amount) from public.payments p where p.visit_id = v.id), 0)::numeric(12,2) as paid
+  from public.visits v;
+revoke all on public.visit_money from anon;
+grant select on public.visit_money to authenticated;
 
 notify pgrst, 'reload schema';

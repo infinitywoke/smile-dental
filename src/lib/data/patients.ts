@@ -46,3 +46,24 @@ export async function findPatientsByPhone(phone: string): Promise<Patient[]> {
   if (error) throw error
   return data
 }
+
+const nameKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ')
+
+// The patients among `patients` with exactly this name (ignoring case and spacing)
+export function withSameName<T extends { name: string }>(name: string, patients: T[]): T[] {
+  return patients.filter((p) => nameKey(p.name) === nameKey(name))
+}
+
+// "Prakash Shetty", "Prakash Shetty and Asha Shetty", "A, B and C"
+export function namesList(names: string[]): string {
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+// Who a website request most likely is, among the patients with its phone number: the one with the
+// same name, or the only one with that number. Null when it can't be told, so the doctor chooses.
+export function likelyPatient<T extends { id: string; name: string }>(name: string, samePhone: T[]): T | null {
+  const same = withSameName(name, samePhone)
+  if (same.length === 1) return same[0]
+  if (same.length === 0 && samePhone.length === 1) return samePhone[0]
+  return null
+}

@@ -53,21 +53,38 @@ function columnsToSave(patient: PatientInput, isNew: boolean) {
   return columns
 }
 
-// New patients go straight to their first visit
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const ALREADY_SAVED = '23505'
+
+// New patients go straight to their first visit. The form sends an id made on the phone, so a save
+// repeated after a lost reply finds the patient already saved and carries on, never making a second.
 export async function createPatient(_prev: PatientFormState, formData: FormData): Promise<PatientFormState> {
   await getDoctor()
   const patient = readPatientForm(formData)
   const problem = validate(patient, true)
   if (problem) return { error: problem }
 
+  const givenId = String(formData.get('patient_id') ?? '')
+  const id = UUID.test(givenId) ? givenId : null
   const supabase = await createClient()
-  const { data, error } = await supabase.from('patients').insert(columnsToSave(patient, true)).select('id').single()
-  if (error) return { error: 'Could not save the patient. Please try again.' }
+  const { data, error } = await supabase
+    .from('patients')
+    .insert({ ...(id ? { id } : {}), ...columnsToSave(patient, true) })
+    .select('id')
+    .single()
+  let patientId: string | undefined = data?.id
+  if (error) {
+    const saved = id && error.code === ALREADY_SAVED
+      ? (await supabase.from('patients').select('id').eq('id', id).maybeSingle()).data
+      : null
+    if (!saved) return { error: 'Could not save the patient. Please try again.' }
+    patientId = saved.id
+  }
 
   // The visit opens at once and replaces the form in the history, so Back never returns to it
-  const visitId = await findOrCreateTodaysVisit(data.id)
+  const visitId = await findOrCreateTodaysVisit(patientId!)
   revalidatePath('/app', 'layout')
-  redirect(visitId ? `/app/visits/${visitId}` : `/app/patients/${data.id}`, RedirectType.replace)
+  redirect(visitId ? `/app/visits/${visitId}` : `/app/patients/${patientId}`, RedirectType.replace)
 }
 
 export async function updatePatient(id: string, _prev: PatientFormState, formData: FormData): Promise<PatientFormState> {

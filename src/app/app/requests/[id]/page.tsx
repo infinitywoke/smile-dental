@@ -1,9 +1,9 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Phone } from 'lucide-react'
-import { getBookingRequest } from '@/lib/data/appointments'
-import { getDaySchedule } from '@/lib/data/appointments'
-import { findPatientsByPhone } from '@/lib/data/patients'
+import { MessageCircle, Phone } from 'lucide-react'
+import { findAppointment, getBookingRequest, getDaySchedule } from '@/lib/data/appointments'
+import { findPatientsByPhone, likelyPatient } from '@/lib/data/patients'
+import { confirmationMessage, whatsappLink } from '@/lib/whatsapp'
 import { todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
@@ -21,14 +21,25 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
   const today = todayInIndia()
 
   if (request.status !== 'new') {
+    // Booked: the confirmation can be sent again, for the appointment's time as it is now
+    const appointment = request.status === 'booked' ? await findAppointment(request.appointment_id) : null
+    const booked = appointment?.status === 'booked' ? inIndia(appointment.starts_at) : null
     return (
       <div className="space-y-4">
         <BackLink href="/app" label="Today" />
-        <Card className="space-y-2">
+        <Card className="space-y-3">
           <h1 className="text-xl font-bold text-gray-900">{request.name}</h1>
           <p className="text-sm text-gray-600">
-            This request was {request.status === 'booked' ? 'booked' : request.status === 'declined' ? 'declined' : 'handled'} already.
+            {booked
+              ? `Booked for ${formatDay(booked.date)}, ${formatBlock(booked.time)}.`
+              : `This request was ${request.status === 'booked' ? 'booked' : request.status === 'declined' ? 'declined' : 'handled'} already.`}
           </p>
+          {booked && appointment && (
+            <a href={whatsappLink(request.phone, confirmationMessage({ name: request.name, startsAt: appointment.starts_at }))}
+              className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-base font-semibold text-white">
+              <MessageCircle className="h-5 w-5" /> Send confirmation again
+            </a>
+          )}
           {request.patient_id && (
             <Link href={`/app/patients/${request.patient_id}`} className="inline-flex min-h-12 items-center text-base font-semibold text-blue-700">Open patient</Link>
           )}
@@ -84,6 +95,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
         originalInstant={request.requested_start}
         basePath={`/app/requests/${request.id}`}
         matches={matches.map((m) => ({ id: m.id, name: m.name, age: patientAge(m) }))}
+        likelyMatch={likelyPatient(request.name, matches)?.id ?? null}
       />
     </div>
   )
