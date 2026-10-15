@@ -2,22 +2,32 @@ import { describe, expect, it } from 'vitest'
 import { isEmptyVisit, photoKind, visitStatus } from './visit-status'
 
 describe('visitStatus', () => {
-  it('says "no bill" until something is charged', () => {
-    expect(visitStatus({ closedAt: null, total: 0, paid: 0 })).toEqual({ money: 'none', due: 0, sent: false })
-    expect(visitStatus({ closedAt: undefined, total: 0, paid: 500 }).money).toBe('none')
+  const open = { closedAt: null, total: 0, paid: 0, due: 0 }
+
+  it('says "no bill" with nothing charged and nothing paid, ₹0 lines included', () => {
+    expect(visitStatus(open)).toEqual({ money: 'none', due: 0, sent: false, resend: false })
   })
 
-  it('shows what is still due, and paid once covered', () => {
-    expect(visitStatus({ closedAt: null, total: 1500, paid: 0 })).toEqual({ money: 'due', due: 1500, sent: false })
-    expect(visitStatus({ closedAt: null, total: 1500, paid: 1000 })).toEqual({ money: 'due', due: 500, sent: false })
-    expect(visitStatus({ closedAt: null, total: 1500, paid: 1500 })).toEqual({ money: 'paid', due: 0, sent: false })
-    expect(visitStatus({ closedAt: null, total: 1500, paid: 2000 })).toEqual({ money: 'paid', due: 0, sent: false })
-    expect(visitStatus({ closedAt: null, total: 0.3, paid: 0.1 }).due).toBe(0.2)
+  it('says "paid ahead" when money was paid and nothing charged', () => {
+    expect(visitStatus({ ...open, paid: 600 }).money).toBe('ahead')
   })
 
-  it('records the WhatsApp separately from the money', () => {
-    expect(visitStatus({ closedAt: '2026-10-15T10:00:00Z', total: 1500, paid: 0 })).toEqual({ money: 'due', due: 1500, sent: true })
-    expect(visitStatus({ closedAt: '2026-10-15T10:00:00Z', total: 0, paid: 0 })).toEqual({ money: 'none', due: 0, sent: true })
+  it("shows this visit's part of what is owed, and paid once covered (by any visit's money)", () => {
+    expect(visitStatus({ ...open, total: 1500, due: 1500 })).toEqual({ money: 'due', due: 1500, sent: false, resend: false })
+    expect(visitStatus({ ...open, total: 1500, paid: 1000, due: 500 }).due).toBe(500)
+    expect(visitStatus({ ...open, total: 1500, paid: 1500, due: 0 }).money).toBe('paid')
+    expect(visitStatus({ ...open, total: 1500, paid: 2000, due: 0 }).money).toBe('paid')
+    // Unpaid here, but covered by an advance on another visit
+    expect(visitStatus({ ...open, total: 500, paid: 0, due: 0 }).money).toBe('paid')
+    expect(visitStatus({ ...open, total: 0.3, paid: 0.1, due: 0.2 }).due).toBe(0.2)
+  })
+
+  it('records the WhatsApp separately from the money, and says when the bill changed after it', () => {
+    const sent = { ...open, closedAt: '2026-10-15T10:00:00Z' }
+    expect(visitStatus({ ...sent, total: 1500, due: 1500 })).toEqual({ money: 'due', due: 1500, sent: true, resend: false })
+    expect(visitStatus({ ...sent, resendNeeded: true })).toEqual({ money: 'none', due: 0, sent: true, resend: true })
+    // Never "send again" for a visit that was never sent
+    expect(visitStatus({ ...open, resendNeeded: true }).resend).toBe(false)
   })
 })
 

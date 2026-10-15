@@ -1,6 +1,94 @@
 import { describe, expect, it } from 'vitest'
-import { parseAmount, summarise, sumAmounts, visitMessage } from './billing'
+import { newestVisitOwing, parseAmount, patientAccount, paymentsHeldMessage, summarise, sumAmounts, visitMessage, type VisitMoney } from './billing'
 import { upiLink } from './upi'
+
+// A visit's money, oldest day first unless said otherwise
+const v = (id: string, date: string, charged: number, paid: number, createdAt = '2026-10-01T10:00:00Z'): VisitMoney => ({ id, date, createdAt, charged, paid })
+const parts = (account: ReturnType<typeof patientAccount>) => Object.fromEntries(account.dueByVisit)
+const sumOfParts = (account: ReturnType<typeof patientAccount>) => sumAmounts([...account.dueByVisit.values()].map((amount) => ({ amount })))
+
+describe('patientAccount (the one money rule)', () => {
+  it('the worked example: an advance on day 1 is taken off the crown on day 2 (₹4,499)', () => {
+    const account = patientAccount([v('d1', '2026-10-01', 200, 3200), v('d2', '2026-10-02', 7499, 0)])
+    expect(account.owed).toBe(4499)
+    expect(parts(account)).toEqual({ d1: 0, d2: 4499 })
+  })
+
+  it('overpaid, then unpaid: ₹500 in advance and nothing to collect', () => {
+    const account = patientAccount([v('d1', '2026-10-01', 1000, 2000), v('d2', '2026-10-02', 500, 0)])
+    expect(account.owed).toBe(-500)
+    expect(parts(account)).toEqual({ d1: 0, d2: 0 })
+  })
+
+  it('an old due paid on a new visit: nothing owed anywhere', () => {
+    const account = patientAccount([v('d1', '2026-10-01', 800, 500), v('d2', '2026-10-02', 500, 800)])
+    expect(account.owed).toBe(0)
+    expect(parts(account)).toEqual({ d1: 0, d2: 0 })
+  })
+
+  it('a part payment stays on its own visit', () => {
+    const account = patientAccount([v('d1', '2026-10-01', 1000, 400), v('d2', '2026-10-02', 600, 0)])
+    expect(account.owed).toBe(1200)
+    expect(parts(account)).toEqual({ d1: 600, d2: 600 })
+  })
+
+  it('money paid above a bill pays the oldest visit still unpaid first', () => {
+    const account = patientAccount([v('d3', '2026-10-03', 0, 400), v('d2', '2026-10-02', 300, 0), v('d1', '2026-10-01', 300, 0)])
+    expect(account.owed).toBe(200)
+    expect(parts(account)).toEqual({ d1: 0, d2: 200, d3: 0 })
+  })
+
+  it('two visits on one day are taken in the order they were started', () => {
+    const account = patientAccount([
+      v('late', '2026-10-01', 300, 0, '2026-10-01T12:00:00Z'),
+      v('early', '2026-10-01', 300, 0, '2026-10-01T09:00:00Z'),
+      v('next', '2026-10-02', 0, 300),
+    ])
+    expect(parts(account)).toEqual({ early: 0, late: 300, next: 0 })
+  })
+
+  it('a charge removed after it was paid leaves an advance, not "no bill"', () => {
+    const account = patientAccount([v('d1', '2026-10-01', 0, 600)])
+    expect(account.owed).toBe(-600)
+    expect(parts(account)).toEqual({ d1: 0 })
+  })
+
+  it('works in paise: decimals add up exactly', () => {
+    const account = patientAccount([v('d1', '2026-10-01', 0.1, 0), v('d2', '2026-10-02', 0.2, 0.15)])
+    expect(account.owed).toBe(0.15)
+    expect(parts(account)).toEqual({ d1: 0.1, d2: 0.05 })
+  })
+
+  it('whenever something is owed, the parts add up to it', () => {
+    const cases = [
+      [v('a', '2026-10-01', 200, 3200), v('b', '2026-10-02', 7499, 0), v('c', '2026-10-03', 1250.5, 100)],
+      [v('a', '2026-10-01', 999.99, 0), v('b', '2026-10-02', 0, 0.01), v('c', '2026-10-03', 10, 5)],
+      [v('a', '2026-10-01', 500, 0)],
+    ]
+    for (const visits of cases) {
+      const account = patientAccount(visits)
+      expect(account.owed).toBeGreaterThan(0)
+      expect(sumOfParts(account)).toBe(account.owed)
+    }
+    expect(patientAccount([]).owed).toBe(0)
+  })
+
+  it('Collect goes to the newest visit that still has a part owed', () => {
+    const visits = [v('d1', '2026-10-01', 1000, 400), v('d2', '2026-10-02', 600, 600), v('d3', '2026-10-03', 0, 0)]
+    expect(newestVisitOwing(visits, patientAccount(visits))).toBe('d1')
+    const settled = [v('d1', '2026-10-01', 100, 100)]
+    expect(newestVisitOwing(settled, patientAccount(settled))).toBeNull()
+  })
+})
+
+describe('paymentsHeldMessage', () => {
+  it('names the amounts by method', () => {
+    expect(paymentsHeldMessage([{ amount: 1000, method: 'cash' }, { amount: 500, method: 'upi' }])).toBe(
+      'This visit holds ₹1,500 in payments (cash ₹1,000, UPI ₹500). If they were a mistake, remove them in Payment first, then delete the visit.',
+    )
+    expect(paymentsHeldMessage([{ amount: 200, method: 'cash' }])).toContain('holds ₹200 in payments (cash ₹200)')
+  })
+})
 
 describe('sumAmounts', () => {
   it('adds money without floating-point noise', () => {
@@ -29,15 +117,21 @@ describe('parseAmount', () => {
 })
 
 describe('summarise', () => {
-  it('works out what is still due, with what other visits owe', () => {
-    const s = summarise({ charges: [{ amount: 1200 }, { amount: 300 }], payments: [{ amount: 1000 }], earlier: 500 })
+  it('this visit, the other visits, and what the patient owes in all', () => {
+    const s = summarise({ charges: [{ amount: 1200 }, { amount: 300 }], payments: [{ amount: 1000 }], owed: 1000 })
     expect(s).toEqual({ total: 1500, paid: 1000, balance: 500, earlier: 500, due: 1000 })
   })
 
   it('shows an advance as a negative balance', () => {
-    const s = summarise({ charges: [], payments: [{ amount: 2000 }], earlier: 0 })
+    const s = summarise({ charges: [], payments: [{ amount: 2000 }], owed: -2000 })
     expect(s.balance).toBe(-2000)
     expect(s.due).toBe(-2000)
+    expect(s.earlier).toBe(0)
+  })
+
+  it('an advance from another visit is taken off this bill', () => {
+    const s = summarise({ charges: [{ amount: 7499 }], payments: [], owed: 4499 })
+    expect(s).toEqual({ total: 7499, paid: 0, balance: 7499, earlier: -3000, due: 4499 })
   })
 })
 
@@ -70,7 +164,7 @@ describe('visitMessage', () => {
         { description: 'X-ray', amount: 200 },
       ],
       payments: [{ amount: 2000, method: 'upi' }],
-      summary: summarise({ charges: [{ amount: 3500 }, { amount: 200 }], payments: [{ amount: 2000 }], earlier: 0 }),
+      summary: summarise({ charges: [{ amount: 3500 }, { amount: 200 }], payments: [{ amount: 2000 }], owed: 1700 }),
       nextAppointment: nextVisit,
       photos: [{ label: 'Prescription', url: 'https://example.com/p.jpg' }],
     })
@@ -127,8 +221,10 @@ describe('visitMessage', () => {
     expect(text).toContain('Thank you for visiting us on 12 Oct 2026.')
   })
 
-  it('names money owed from other visits as such, with the total due', () => {
-    const summary = summarise({ charges: [{ amount: 1000 }], payments: [{ amount: 800 }], earlier: 500 })
+  const bold = (text: string) => text.split('\n').filter((line) => /^\*(Balance due|Advance with us|Paid in full)/.test(line))
+
+  it('names money owed from other visits in one line, then one bold line with all there is to pay', () => {
+    const summary = summarise({ charges: [{ amount: 1000 }], payments: [{ amount: 800 }], owed: 700 })
     const text = visitMessage({
       patientName: 'Prakash Shetty',
       visitDate: '2026-10-12',
@@ -136,17 +232,25 @@ describe('visitMessage', () => {
       payments: [{ amount: 800, method: 'cash' }],
       summary,
     })
-    expect(text).toContain('Paid: ₹800 (Cash)')
-    expect(text).toContain('*Balance due: ₹200*')
-    expect(text).toContain('Due from other visits: ₹500')
-    expect(text).toContain('*Total due: ₹700*')
+    expect(text).toContain('*Payment*\nPaid: ₹800 (Cash)\nDue from other visits: ₹500\n*Balance due: ₹700*')
+    expect(bold(text)).toEqual(['*Balance due: ₹700*'])
+  })
+
+  it('the worked example: an advance from another visit is taken off, and the box, card and message agree (₹4,499)', () => {
+    const account = patientAccount([v('d1', '2026-10-01', 200, 3200), v('d2', '2026-10-02', 7499, 0)])
+    const text = visitMessage({
+      patientName: 'Asha Rao', visitDate: '2026-10-02', lines: [{ description: 'Crown', amount: 7499 }], payments: [],
+      summary: summarise({ charges: [{ amount: 7499 }], payments: [], owed: account.owed }),
+    })
+    expect(text).toContain('*Total: ₹7,499*\n\n*Payment*\nAdvance from other visits: ₹3,000\n*Balance due: ₹4,499*')
+    expect(bold(text)).toEqual(['*Balance due: ₹4,499*'])
   })
 
   it('says paid in full, or an advance, in bold', () => {
     const paid = visitMessage({
       patientName: 'Asha', visitDate: '2026-10-12', lines: [{ description: 'Scaling', amount: 800 }],
       payments: [{ amount: 500, method: 'cash' }, { amount: 300, method: 'upi' }],
-      summary: summarise({ charges: [{ amount: 800 }], payments: [{ amount: 800 }], earlier: 0 }),
+      summary: summarise({ charges: [{ amount: 800 }], payments: [{ amount: 800 }], owed: 0 }),
     })
     expect(paid).toContain('Paid: ₹800 (Cash + UPI)')
     expect(paid).toContain('*Paid in full.* Thank you!')
@@ -154,10 +258,29 @@ describe('visitMessage', () => {
 
     const advance = visitMessage({
       patientName: 'Asha', visitDate: '2026-10-12', payments: [{ amount: 2000, method: 'upi' }],
-      summary: summarise({ charges: [], payments: [{ amount: 2000 }], earlier: 0 }),
+      summary: summarise({ charges: [], payments: [{ amount: 2000 }], owed: -2000 }),
     })
     expect(advance).not.toContain('*Treatment & charges*')
-    expect(advance).toContain('*Advance with us: ₹2,000*')
+    expect(bold(advance)).toEqual(['*Advance with us: ₹2,000*'])
+  })
+
+  it('overpaid before, unpaid now: an advance, never an amount to pay', () => {
+    const text = visitMessage({
+      patientName: 'Asha', visitDate: '2026-10-12', lines: [{ description: 'Filling', amount: 500 }], payments: [],
+      summary: summarise({ charges: [{ amount: 500 }], payments: [], owed: -500 }),
+    })
+    expect(text).toContain('Advance from other visits: ₹1,000\n*Advance with us: ₹500*')
+    expect(text).not.toContain('Balance due')
+  })
+
+  it('a ₹0 bill has no Payment section', () => {
+    const text = visitMessage({
+      patientName: 'Asha', visitDate: '2026-10-12', lines: [{ description: 'Consultation', amount: 0 }], payments: [],
+      summary: summarise({ charges: [{ amount: 0 }], payments: [], owed: 0 }),
+    })
+    expect(text).toContain('- Consultation: ₹0')
+    expect(text).not.toContain('*Payment*')
+    expect(text).not.toContain('Paid in full')
   })
 
   it('names each photo by its kind and numbers repeats', () => {

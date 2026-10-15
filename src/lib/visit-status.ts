@@ -1,12 +1,22 @@
 import type { VisitStatus } from '@/lib/data/types'
 
 // Two plain facts about a visit, worked out once so every screen agrees:
-// the money (no bill, paid, or how much is still due) and whether the WhatsApp was sent.
-// `closedAt` is set when the WhatsApp message was sent.
-export function visitStatus(args: { closedAt: string | null | undefined; total: number; paid: number }): VisitStatus {
-  const due = Math.round((args.total - args.paid) * 100) / 100
-  const money = args.total <= 0 ? 'none' : due > 0 ? 'due' : 'paid'
-  return { money, due: Math.max(due, 0), sent: !!args.closedAt }
+// the money and whether the WhatsApp was sent (and is still up to date).
+// - `due` is this visit's part of what the patient owes (patientAccount's dueByVisit in
+//   src/lib/billing.ts), so an advance from another visit is counted;
+// - money: "₹X due", "Paid", "Paid ahead" (money paid, nothing charged) or "No bill";
+// - `closedAt` is set when the WhatsApp was sent; `resendNeeded` when the bill changed after that.
+export function visitStatus(args: {
+  closedAt: string | null | undefined
+  resendNeeded?: boolean | null
+  total: number
+  paid: number
+  due: number
+}): VisitStatus {
+  const due = Math.max(Math.round(args.due * 100) / 100, 0)
+  const money = due > 0 ? 'due' : args.total > 0 ? 'paid' : args.paid > 0 ? 'ahead' : 'none'
+  const sent = !!args.closedAt
+  return { money, due, sent, resend: sent && !!args.resendNeeded }
 }
 
 // A visit with nothing in it (started, then left) is not listed anywhere

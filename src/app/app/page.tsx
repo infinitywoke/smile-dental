@@ -19,6 +19,7 @@ import { genderLabel } from '@/lib/gender'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
+const DUES_SHOWN = 5
 
 // Today is the day sheet: who needs a decision, who is coming and has been seen (one list), and what is free.
 async function TodayContent({ searchParams }: PageProps<'/app'>) {
@@ -35,22 +36,24 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     getVisitsOn(date),
     getPendingRequests(),
     getBusyCounts(today, STRIP_DAYS),
-    isToday ? getDues() : Promise.resolve([] as Due[]),
+    isToday ? getDues(DUES_SHOWN * 2) : Promise.resolve([] as Due[]),
   ])
 
   const strip = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i))
   const poolBlocks = schedule.blocks.filter((b) => b.state === 'free' || b.state === 'blocked' || b.state === 'request')
 
-  // Money owed is a today thing: other days show only who is coming. A due whose visit is already
-  // a row below shows its badge there, so it isn't listed twice.
-  const listed = new Set(visits.map((v) => v.id))
-  const showDues = dues.filter((due) => !listed.has(due.visitId))
+  // Money owed is a today thing: other days show only who is coming. A due is left out of Needs you
+  // only when a row below already shows the whole amount (one money rule, src/lib/billing.ts).
+  const showDues = dues
+    .filter((due) => !visits.some((v) => v.patient.id === due.patientId && v.status.due === due.amount))
+    .slice(0, DUES_SHOWN)
 
-  // One list in time order. A booked patient who already has a visit that day shows once, as the visit.
-  const seen = new Set(visits.map((v) => v.patient.id))
+  // One list in time order. An appointment whose own visit is listed shows once, as the visit;
+  // the patient's other bookings that day still show.
+  const listed = new Set(visits.map((v) => v.id))
   const rows = [
     ...appointments
-      .filter((a) => !seen.has(a.patient_id))
+      .filter((a) => !a.visit_id || !listed.has(a.visit_id))
       .map((appointment) => ({ kind: 'booked' as const, at: new Date(appointment.starts_at).getTime(), appointment })),
     ...visits.map((visit) => ({ kind: 'seen' as const, at: new Date(visit.created_at).getTime(), visit })),
   ].sort((x, y) => x.at - y.at)

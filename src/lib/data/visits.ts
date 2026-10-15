@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sumAmounts } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { PHOTO_BUCKET, isEmptyVisit, visitStatus } from '@/lib/visit-status'
+import { NO_ACCOUNT, getAccounts } from './billing'
 import type { Patient, Visit, VisitDetail, VisitStatus } from './types'
 
 // Photos are shown on screen through short-lived links; links that go to a patient (30 days)
@@ -12,7 +13,7 @@ import type { Patient, Visit, VisitDetail, VisitStatus } from './types'
 const DISPLAY_LINK_SECONDS = 60 * 60
 export const SHARE_LINK_SECONDS = 60 * 60 * 24 * 30
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at, updated_at, closed_at'
+const VISIT_COLUMNS = 'id, patient_id, visit_date, notes, created_at, updated_at, closed_at, resend_needed'
 
 export type TodayVisit = Visit & {
   patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts'>
@@ -20,7 +21,8 @@ export type TodayVisit = Visit & {
   status: VisitStatus
   total: number
   paid: number
-  balance: number
+  // What the patient owes, all visits together (negative: an advance)
+  owed: number
 }
 
 export async function getVisitsOn(date: string): Promise<TodayVisit[]> {
@@ -44,21 +46,24 @@ export async function getVisitsOn(date: string): Promise<TodayVisit[]> {
       }),
   )
 
+  // Each row's badge shows that visit's part of what the patient owes (the one money rule)
+  const accounts = await getAccounts([...new Set(filled.map((row) => row.patient_id))])
+
   return filled.map(({ visit_photos, patient, visit_charges, payments, ...visit }) => {
     const charges = ((visit_charges ?? []) as { amount: number }[]).map((c) => ({ amount: Number(c.amount) }))
     const pmts = ((payments ?? []) as { amount: number }[]).map((p) => ({ amount: Number(p.amount) }))
     const total = sumAmounts(charges)
     const paid = sumAmounts(pmts)
-    const balance = Math.round((total - paid) * 100) / 100
+    const account = accounts.get(visit.patient_id) ?? NO_ACCOUNT
 
     return {
       ...visit,
       patient: Array.isArray(patient) ? patient[0] : patient,
       photo_count: visit_photos?.[0]?.count ?? 0,
-      status: visitStatus({ closedAt: visit.closed_at, total, paid }),
+      status: visitStatus({ closedAt: visit.closed_at, resendNeeded: visit.resend_needed, total, paid, due: account.dueByVisit.get(visit.id) ?? 0 }),
       total,
       paid,
-      balance,
+      owed: account.owed,
     }
   })
 }
@@ -141,32 +146,38 @@ export async function findOrCreateTodaysVisit(
   const today = todayInIndia()
   const appointmentId = options.appointmentId && UUID.test(options.appointmentId) ? options.appointmentId : null
 
-  const { data: existing, error: findError } = await supabase
-    .from('visits')
-    .select('id')
-    .eq('patient_id', patientId)
-    .eq('visit_date', today)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (findError) return null
-  if (existing) {
-    // Started from an appointment: link it to today's visit, unless the visit already has one
-    if (appointmentId) await linkAppointment(existing.id, patientId, appointmentId)
-    return existing.id
+  // The patient's visit today, if any (the database keeps at most one per patient per day)
+  const todays = async () => {
+    const { data, error } = await supabase.from('visits').select('id').eq('patient_id', patientId).eq('visit_date', today).maybeSingle()
+    return error ? { error } : { id: data?.id ?? null }
   }
+  // Started from an appointment: link it to today's visit, unless the visit already has one
+  const reuse = async (id: string) => {
+    if (appointmentId) await linkAppointment(id, patientId, appointmentId)
+    return id
+  }
+
+  const existing = await todays()
+  if (existing.error) return null
+  if (existing.id) return reuse(existing.id)
 
   let visitId = options.visitId && UUID.test(options.visitId) ? options.visitId : crypto.randomUUID()
   const { error } = await supabase.from('visits').insert({ id: visitId, patient_id: patientId, visit_date: today })
   if (error) {
     if (error.code !== '23505') return null
-    // The same id again: an earlier tap made it. Reuse it only if it is this patient's visit today,
-    // so a screen left open overnight never reopens yesterday's visit.
-    const { data: same } = await supabase.from('visits').select('patient_id, visit_date').eq('id', visitId).maybeSingle()
-    if (!same || same.patient_id !== patientId || same.visit_date !== today) {
-      visitId = crypto.randomUUID()
-      const { error: retryError } = await supabase.from('visits').insert({ id: visitId, patient_id: patientId, visit_date: today })
-      if (retryError) return null
+    // Already there: an earlier tap made this id, or another tap (another tab) made today's visit
+    // first. Either way today's visit is the one to open; a screen left open overnight never
+    // reopens yesterday's visit, since only today's is read.
+    const now = await todays()
+    if (now.error) return null
+    if (now.id) return reuse(now.id)
+    // The id belongs to some other visit (not this patient's today): make a fresh one
+    visitId = crypto.randomUUID()
+    const { error: retryError } = await supabase.from('visits').insert({ id: visitId, patient_id: patientId, visit_date: today })
+    if (retryError) {
+      if (retryError.code !== '23505') return null
+      const again = await todays()
+      return again.id ? reuse(again.id) : null
     }
   }
 

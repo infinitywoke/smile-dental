@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
 import { formatDate } from '../src/lib/dates'
-import { inIndia } from '../src/lib/schedule'
-import { captureWhatsapp, cleanRun, createPatient, newPhone, newRunId, signIn, stubShareSheet, testDb, visible, whatsappText } from './helpers'
+import { addDays, formatBlock, inIndia } from '../src/lib/schedule'
+import {
+  blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, createVisit, newPhone, newRunId, photoFolderFiles,
+  signIn, stubShareSheet, testDb, visible, whatsappText,
+} from './helpers'
 
 // A walk-in's visit on ONE page that saves by itself: new patient, notes, a photo marked Prescription,
 // one-tap charges, part payment, UPI QR, next visit, one WhatsApp message, then Collect from Today.
@@ -233,7 +237,7 @@ test('a browser that cannot share files gets a 30-day prescription link in the t
   await page.goto(visitUrl)
 })
 
-test('a next visit booked from the visit can be changed; it moves, never doubles', async () => {
+test('a next visit booked from the visit can be changed; it moves, never doubles, and after Send the patient is told', async () => {
   const booked = visible(page.getByText(/Booked: /))
   const before = await booked.textContent()
   await visible(page.getByRole('button', { name: 'Change' })).click()
@@ -245,9 +249,18 @@ test('a next visit booked from the visit can be changed; it moves, never doubles
   await expect(picker).toHaveCount(0)
   await expect(page).toHaveURL(visitUrl)
 
+  // The visit's WhatsApp already went with the old time, so WhatsApp opens with the moved message
+  const whatsapp = await captureWhatsapp(page)
   await visible(page.getByRole('button', { name: 'Change' })).click()
   await picker.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)/ }).first().click()
-  await expect(picker).toHaveCount(0)
+  await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
+  expect(whatsapp.url).toContain(`wa.me/91${phone}`)
+  const text = whatsappText(whatsapp.url)
+  expect(text).toContain(`Dear ${runId},`)
+  expect(text).toContain('has been moved to:')
+  expect(text).not.toContain(patientName)
+
+  await page.goto(visitUrl)
   await expect(booked).not.toHaveText(before!)
   expect(await bookedCount()).toBe(1)
 })
@@ -266,6 +279,188 @@ test('Today lists the visit with its money once (no Collect in Needs you); the r
   await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
   await visible(page.getByRole('button', { name: 'Cash received' })).click()
   await expect(visible(page.getByText('Paid in full'))).toBeVisible()
+})
+
+test('a payment changed after Send: "Bill changed – send again" until it is sent again', async () => {
+  const changed = visible(page.getByText('The bill changed after the WhatsApp was sent.'))
+  await expect(changed).toBeVisible()
+  // The ₹200 never arrived: remove it
+  page.once('dialog', (dialog) => void dialog.accept())
+  await visible(page.getByRole('button', { name: 'Remove payment ₹200' })).click()
+  await expect(visible(page.locator('#payment'))).toContainText('Still due₹200')
+  await expect(changed).toBeVisible()
+  await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toHaveCount(0)
+  // Send is the main button again
+  await expect(visible(page.getByRole('link', { name: 'Send on WhatsApp' }))).toHaveClass(/bg-green-600/)
+
+  await page.goto('/app')
+  const row = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: '1 photo' }))
+  await expect(row).toContainText('₹200 due')
+  await expect(row).toContainText('Bill changed – send again')
+  await expect(row).not.toContainText('WhatsApp sent')
+
+  await page.goto(visitUrl)
+  const whatsapp = await captureWhatsapp(page)
+  await sendOnWhatsapp()
+  expect(whatsappText(whatsapp.url)).toContain('*Balance due: ₹200*')
+  await page.goto('/app')
+  await expect(row).toContainText('WhatsApp sent')
+  await expect(row).not.toContainText('Bill changed')
+})
+
+test('Delete visit is refused while it holds a payment; once removed, it goes and leaves no "Advance"', async () => {
+  const name = `${runId} Refund`
+  const patientId = await createPatient(name, newPhone('6'))
+  await page.goto(`/app/patients/${patientId}`)
+  await visible(page.getByRole('button', { name: 'Start visit' })).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+  const id = page.url().split('/').pop()!
+
+  await visible(page.getByRole('button', { name: 'Add charge' })).click()
+  const sheet = page.getByRole('dialog', { name: 'Add charge' })
+  await sheet.getByRole('button', { name: 'Other charge' }).click()
+  await sheet.getByLabel('What for').fill('Consultation')
+  await sheet.getByLabel('Amount (₹)').fill('200')
+  await sheet.getByRole('button', { name: 'Add to bill' }).click()
+  await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
+  await visible(page.getByRole('button', { name: 'Cash received' })).click()
+  await expect(visible(page.getByText('Paid in full'))).toBeVisible()
+
+  // Refused at once, naming the money; nothing is asked and nothing is deleted
+  await visible(page.getByRole('button', { name: 'Delete visit' })).click()
+  await expect(visible(page.getByRole('alert').filter({ hasText: 'This visit holds' }))).toHaveText(
+    'This visit holds ₹200 in payments (cash ₹200). If they were a mistake, remove them in Payment first, then delete the visit.',
+  )
+  page.once('dialog', (dialog) => void dialog.accept())
+  await visible(page.getByRole('button', { name: 'Remove payment ₹200' })).click()
+  await expect(visible(page.getByText('Paid by cash'))).toHaveCount(0)
+
+  // A payment recorded meanwhile in another tab: the server refuses too
+  const { supabase } = await testDb()
+  const { data: late } = await supabase.from('payments').insert({ visit_id: id, patient_id: patientId, amount: 100, method: 'upi' }).select('id').single()
+  page.once('dialog', (dialog) => void dialog.accept())
+  await visible(page.getByRole('button', { name: 'Delete visit' })).click()
+  await expect(visible(page.getByRole('alert').filter({ hasText: 'This visit holds' }))).toContainText('₹100 in payments (UPI ₹100)')
+  expect((await supabase.from('visits').select('id').eq('id', id)).data).toHaveLength(1)
+  await supabase.from('payments').delete().eq('id', late!.id)
+
+  await page.reload()
+  let question = ''
+  page.once('dialog', (dialog) => {
+    question = dialog.message()
+    void dialog.accept()
+  })
+  await visible(page.getByRole('button', { name: 'Delete visit' })).click()
+  await expect(page).toHaveURL(new RegExp(`/app/patients/${patientId}$`), { timeout: 30_000 })
+  expect(question).toBe('Delete this visit, with its notes, photos and bill?')
+  await expect(visible(page.getByRole('heading', { name: 'Visits (0)' }))).toBeVisible()
+  await expect(visible(page.getByText(/Advance/))).toHaveCount(0)
+  await expect(visible(page.getByText(/^Collect/))).toHaveCount(0)
+  expect((await supabase.from('payments').select('id').eq('patient_id', patientId)).data).toHaveLength(0)
+})
+
+test('an advance from an earlier visit: Today, the patient page, the card, the box and the message all say ₹4,499', async () => {
+  const name = `${runId} Advance`
+  const advancePhone = newPhone('5')
+  const patientId = await createPatient(name, advancePhone)
+  // Day 1: Consultation ₹200, paid ₹3,200
+  await createVisit(patientId, addDays(inIndia(new Date()).date, -1), 200, 3200)
+  await page.goto(`/app/patients/${patientId}`)
+  await expect(visible(page.getByText('Advance with us: ₹3,000'))).toBeVisible()
+  await expect(visible(page.getByText(/^Collect/))).toHaveCount(0)
+
+  // Day 2 (today): a crown
+  await visible(page.getByRole('button', { name: 'Start visit' })).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+  const url = page.url()
+  await visible(page.getByRole('button', { name: 'Add charge' })).click()
+  const sheet = page.getByRole('dialog', { name: 'Add charge' })
+  await sheet.getByRole('button', { name: 'Other charge' }).click()
+  await sheet.getByLabel('What for').fill('Crown')
+  await sheet.getByLabel('Amount (₹)').fill('7499')
+  await sheet.getByRole('button', { name: 'Add to bill' }).click()
+  const card = visible(page.locator('#payment'))
+  await expect(card).toContainText('Advance from other visits₹3,000')
+  await expect(card).toContainText('Still due₹4,499')
+  await expect(visible(page.locator('#payment-amount'))).toHaveValue('4499')
+
+  const whatsapp = await captureWhatsapp(page)
+  await sendOnWhatsapp()
+  const text = whatsappText(whatsapp.url)
+  expect(text).toContain('*Total: ₹7,499*\n\n*Payment*\nAdvance from other visits: ₹3,000\n*Balance due: ₹4,499*')
+
+  await page.goto('/app')
+  const row = visible(page.getByRole('link').filter({ hasText: name }))
+  await expect(row).toHaveCount(1)
+  await expect(row).toContainText('₹4,499 due')
+  await expect(visible(page.getByRole('link').filter({ hasText: name }).filter({ hasText: 'Collect' }))).toHaveCount(0)
+
+  await page.goto(`/app/patients/${patientId}`)
+  await expect(visible(page.getByRole('link', { name: 'Collect ₹4,499' }))).toBeVisible()
+  await expect(visible(page.getByText(/Advance with us/))).toHaveCount(0)
+  await page.goto(url)
+})
+
+test('Send leaves a later booking today booked; deleting the sent visit empties its photo folder and books its appointment again', async () => {
+  const name = `${runId} Meena`
+  const patientId = await createPatient(name, newPhone('4'))
+  const today = inIndia(new Date()).date
+  const first = await createAppointmentAtFirstFree(patientId, today, blocksLeftToday(10))
+  const later = first && (await createAppointmentAtFirstFree(patientId, today, blocksLeftToday(10).filter((t) => t > first.time)))
+  test.skip(!first || !later, 'Two clinic times are not left today')
+  const { supabase } = await testDb()
+  const statusOf = async (appointmentId: string) =>
+    (await supabase.from('appointments').select('status').eq('id', appointmentId).single()).data!.status as string
+
+  // Start from the earlier booking
+  await page.goto('/app')
+  const firstRow = visible(page.locator('div.rounded-2xl').filter({ hasText: name }).filter({ hasText: formatBlock(first!.time) }))
+  await firstRow.getByRole('button', { name: 'Start', exact: true }).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+  const id = page.url().split('/').pop()!
+
+  // A photo, and a stray file in the visit's folder (an upload that was never recorded)
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), visible(page.getByRole('button', { name: 'Gallery' })).click()])
+  await chooser.setFiles(fixturePhoto)
+  await expect(visible(page.getByRole('img', { name: /^Photo 1/ }))).toBeVisible({ timeout: 30_000 })
+  const { userId } = await testDb()
+  const { error: strayError } = await supabase.storage
+    .from('visit-photos')
+    .upload(`${userId}/${id}/stray.png`, readFileSync(fixturePhoto), { contentType: 'image/png' })
+  expect(strayError).toBeNull()
+  expect(await photoFolderFiles(id)).toHaveLength(2)
+
+  const whatsapp = await captureWhatsapp(page)
+  await sendOnWhatsapp()
+  expect(whatsappText(whatsapp.url)).toContain(`🕗 *${formatBlock(later!.time)}*`)
+  // The booking she came for is done; the later one is still to come
+  expect(await statusOf(first!.id)).toBe('done')
+  expect(await statusOf(later!.id)).toBe('booked')
+
+  await page.goto('/app')
+  const laterRow = visible(page.locator('div.rounded-2xl').filter({ hasText: name }).filter({ hasText: formatBlock(later!.time) }))
+  await expect(laterRow.getByRole('button', { name: 'Start', exact: true })).toBeVisible()
+  await expect(visible(page.getByRole('link').filter({ hasText: name }).filter({ hasText: 'WhatsApp sent' }))).toHaveCount(1)
+
+  await page.goto(`/app/visits/${id}`)
+  let question = ''
+  page.once('dialog', (dialog) => {
+    question = dialog.message()
+    void dialog.accept()
+  })
+  await visible(page.getByRole('button', { name: 'Delete visit' })).click()
+  await expect(page).toHaveURL(new RegExp(`/app/patients/${patientId}$`), { timeout: 30_000 })
+  expect(question).toContain('Delete this visit, with its notes, photos and bill?')
+  expect(question).toContain('This bill was sent on WhatsApp.')
+
+  expect(await photoFolderFiles(id)).toEqual([])
+  expect((await supabase.from('visit_photos').select('id').eq('visit_id', id)).data).toHaveLength(0)
+  expect(await statusOf(first!.id)).toBe('booked')
+
+  // Both bookings are back on Today
+  await page.goto('/app')
+  await expect(firstRow).toHaveCount(1)
+  await expect(laterRow).toHaveCount(1)
 })
 
 test('Start visit twice from the patient page opens one visit; an empty visit is listed nowhere', async () => {

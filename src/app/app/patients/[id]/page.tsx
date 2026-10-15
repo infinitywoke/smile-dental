@@ -57,17 +57,17 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
         ) : (
           <StartVisitButton patientId={patient.id} appointmentId={appointmentTodayId ?? undefined} className={startClass} />
         )}
-        {due && (
+        {/* One money rule (src/lib/billing.ts): Collect when something is owed, Advance when paid ahead, never both */}
+        {due ? (
           <Link href={`/app/visits/${due.visitId}?step=bill`}
             className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-red-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-red-700">
             Collect {formatRupees(due.amount)}
           </Link>
-        )}
-        {balance < 0 && (
+        ) : balance < 0 ? (
           <p className="rounded-xl bg-green-50 px-3 py-2 text-sm font-semibold text-green-800 ring-1 ring-green-200">
             Advance with us: {formatRupees(-balance)}
           </p>
-        )}
+        ) : null}
         <Link href={`/app/book?patient=${patient.id}`}
           className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-white px-5 text-base font-semibold text-blue-700 ring-1 ring-gray-300">
           Book appointment
@@ -116,7 +116,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
               </p>
               {visit.total > 0 && (
                 <p className="mt-0.5 text-xs font-medium text-gray-600">
-                  {formatRupees(visit.total)} billed{visit.balance > 0 ? ` · ${formatRupees(visit.balance)} due` : ''}
+                  {formatRupees(visit.total)} billed{visit.status.due > 0 ? ` · ${formatRupees(visit.status.due)} due` : ''}
                 </p>
               )}
               {visit.notes && <p className="mt-1 line-clamp-2 text-sm text-gray-600">{visit.notes}</p>}

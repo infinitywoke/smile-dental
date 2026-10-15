@@ -2,21 +2,61 @@ import 'server-only'
 import { notFound } from 'next/navigation'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { summarise, sumAmounts, type BillSummary } from '@/lib/billing'
+import { patientAccount, summarise, visitMoneyOf, type BillSummary, type PatientAccount, type VisitMoney } from '@/lib/billing'
 import type { Payment, VisitCharge } from './types'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const PAGE = 1000
+const CHUNK = 100
+const MONEY_COLUMNS = 'visit_id, patient_id, visit_date, created_at, charged, paid'
+
+type MoneyRow = { visit_id: string; patient_id: string; visit_date: string; created_at: string; charged: number | string; paid: number | string }
+
+export type Account = PatientAccount & { visits: VisitMoney[] }
+
+// Money per visit from the `visit_money` view (charged and paid summed by the database), grouped by
+// patient, with the one money rule applied (patientAccount in src/lib/billing.ts). All patients when
+// `patientIds` is left out. Supabase returns at most 1000 rows a call, so it reads page by page.
+export async function getAccounts(patientIds?: string[]): Promise<Map<string, Account>> {
+  await getDoctor()
+  const supabase = await createClient()
+  const rows: MoneyRow[] = []
+  const groups = patientIds ? Array.from({ length: Math.ceil(patientIds.length / CHUNK) }, (_, i) => patientIds.slice(i * CHUNK, (i + 1) * CHUNK)) : [null]
+  for (const ids of groups) {
+    for (let from = 0; ; from += PAGE) {
+      let query = supabase.from('visit_money').select(MONEY_COLUMNS)
+      if (ids) query = query.in('patient_id', ids)
+      const { data, error } = await query.order('visit_id').range(from, from + PAGE - 1)
+      if (error) throw error
+      rows.push(...(data as MoneyRow[]))
+      if (data.length < PAGE) break
+    }
+  }
+
+  const byPatient = new Map<string, MoneyRow[]>()
+  for (const row of rows) byPatient.set(row.patient_id, [...(byPatient.get(row.patient_id) ?? []), row])
+  const accounts = new Map<string, Account>()
+  for (const [patientId, patientRows] of byPatient) {
+    const visits = visitMoneyOf(patientRows)
+    accounts.set(patientId, { ...patientAccount(visits), visits })
+  }
+  return accounts
+}
+
+export const NO_ACCOUNT: Account = { owed: 0, dueByVisit: new Map(), visits: [] }
 
 export type VisitBill = {
   visit: { id: string; visit_date: string }
   patient: { id: string; name: string; phone: string | null }
   charges: Pick<VisitCharge, 'id' | 'description' | 'amount' | 'kind'>[]
   payments: Pick<Payment, 'id' | 'amount' | 'method' | 'received_at'>[]
+  // This visit's lines, the other visits together, and what the patient owes (`due`, all visits)
   summary: BillSummary
 }
 
-// Everything the bill screen needs: this visit's charges and payments, plus what the patient owes
-// from their other visits (shown as "Other visits"; earlier or later, so the total due is always right)
+// Everything the bill screen needs: this visit's charges and payments, plus the patient's account
+// (what they owe, or have in advance, across all visits), so the card, the amount box and the
+// WhatsApp message say the same as Today and the patient page.
 export async function getVisitBill(visitId: string): Promise<VisitBill> {
   await getDoctor()
   if (!UUID.test(visitId)) notFound()
@@ -31,26 +71,22 @@ export async function getVisitBill(visitId: string): Promise<VisitBill> {
   if (!visit) notFound()
   const patient = visit.patient as unknown as VisitBill['patient']
 
-  const [charges, payments, allCharges, allPayments] = await Promise.all([
+  const [charges, payments, accounts] = await Promise.all([
     supabase.from('visit_charges').select('id, description, amount, kind').eq('visit_id', visitId).order('created_at'),
     supabase.from('payments').select('id, amount, method, received_at').eq('visit_id', visitId).order('received_at'),
-    supabase.from('visit_charges').select('amount').eq('patient_id', patient.id),
-    supabase.from('payments').select('amount').eq('patient_id', patient.id),
+    getAccounts([patient.id]),
   ])
-  for (const result of [charges, payments, allCharges, allPayments]) if (result.error) throw result.error
+  for (const result of [charges, payments]) if (result.error) throw result.error
 
   const visitCharges = charges.data!.map((c) => ({ ...c, amount: Number(c.amount) }))
   const visitPayments = payments.data!.map((p) => ({ ...p, amount: Number(p.amount) }))
-  const everything = sumAmounts(allCharges.data!.map((c) => ({ amount: Number(c.amount) }))) -
-    sumAmounts(allPayments.data!.map((p) => ({ amount: Number(p.amount) })))
-  const thisVisit = sumAmounts(visitCharges) - sumAmounts(visitPayments)
-  const earlier = Math.round((everything - thisVisit) * 100) / 100
+  const owed = (accounts.get(patient.id) ?? NO_ACCOUNT).owed
 
   return {
     visit: { id: visit.id, visit_date: visit.visit_date },
     patient,
     charges: visitCharges,
     payments: visitPayments,
-    summary: summarise({ charges: visitCharges, payments: visitPayments, earlier }),
+    summary: summarise({ charges: visitCharges, payments: visitPayments, owed }),
   }
 }
