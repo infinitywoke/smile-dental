@@ -1,0 +1,124 @@
+# Nightly backup of Clinic OS to the owner's Google Drive (setup and restore: docs/BACKUPS.md).
+# The database (a full dump plus a CSV of each clinic table) and the visit photos are encrypted with the
+# owner's passphrase (rclone crypt) before they leave this runner. Every run restores the dump into a
+# scratch database first and checks it, so a backup that could not be restored fails loudly (GitHub
+# emails the owner when a scheduled run fails).
+name: Nightly backup
+
+on:
+  schedule:
+    - cron: '30 20 * * *' # 02:00 India time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      scratch:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: scratch
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PG: /usr/lib/postgresql/17/bin
+      SCRATCH: postgresql://postgres:scratch@localhost:5433/postgres
+      TABLES: patients visits visit_charges payments visit_photos appointments booking_requests time_off app_config share_links
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      # Supabase Storage, through its S3-compatible endpoint (read)
+      RCLONE_CONFIG_SUPA_TYPE: s3
+      RCLONE_CONFIG_SUPA_PROVIDER: Other
+      RCLONE_CONFIG_SUPA_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_SUPA_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_S3_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_SUPA_ENDPOINT: https://pmuecirfwmtsvojxleoq.supabase.co/storage/v1/s3
+      RCLONE_CONFIG_SUPA_REGION: ap-south-1
+      RCLONE_CONFIG_SUPA_FORCE_PATH_STYLE: 'true'
+      # The owner's Google Drive (only files this backup creates: drive.file)
+      RCLONE_CONFIG_GDRIVE_TYPE: drive
+      RCLONE_CONFIG_GDRIVE_SCOPE: drive.file
+      RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+      # Encryption on top of Drive: contents encrypted, file names readable (dates)
+      RCLONE_CONFIG_VAULT_TYPE: crypt
+      RCLONE_CONFIG_VAULT_REMOTE: 'gdrive:Smile Dental backups'
+      RCLONE_CONFIG_VAULT_FILENAME_ENCRYPTION: 'off'
+      RCLONE_CONFIG_VAULT_DIRECTORY_NAME_ENCRYPTION: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the backup secrets are set
+        run: |
+          missing=0
+          for name in DB_URL BACKUP_PASSPHRASE RCLONE_CONFIG_SUPA_ACCESS_KEY_ID RCLONE_CONFIG_SUPA_SECRET_ACCESS_KEY RCLONE_CONFIG_GDRIVE_TOKEN; do
+            if [ -z "${!name}" ]; then echo "::error::Backup secret missing: $name (see docs/BACKUPS.md)"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Install PostgreSQL 17 tools and rclone
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common > /dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          curl -fsSLo rclone.zip https://downloads.rclone.org/v1.68.2/rclone-v1.68.2-linux-amd64.zip
+          unzip -q rclone.zip
+          sudo install rclone-v1.68.2-linux-amd64/rclone /usr/local/bin/rclone
+          "$PG/pg_dump" --version
+          rclone version | head -1
+
+      - name: Dump the database
+        run: |
+          mkdir -p out
+          # Row counts at the moment of the dump, to compare with the restored copy
+          for t in $TABLES; do
+            echo "$t $("$PG/psql" "$DB_URL" -tAc "select count(*) from public.$t")" >> counts-live.txt
+          done
+          "$PG/pg_dump" "$DB_URL" --format=custom --no-owner --no-privileges \
+            --schema=public --schema=auth --schema=storage --file=out/database.dump
+          "$PG/pg_restore" --list out/database.dump > /dev/null
+
+      - name: Restore it into a scratch database and check it
+        run: |
+          "$PG/psql" "$SCRATCH" -v ON_ERROR_STOP=1 -q -f scripts/backup/restore-stubs.sql
+          "$PG/psql" "$SCRATCH" -v ON_ERROR_STOP=1 -q -f supabase/schema.sql > /dev/null
+          "$PG/pg_restore" --dbname="$SCRATCH" --data-only --schema=public --disable-triggers --no-owner --exit-on-error out/database.dump
+          status=0
+          while read -r t live; do
+            restored=$("$PG/psql" "$SCRATCH" -tAc "select count(*) from public.$t")
+            echo "$t: live $live, restored $restored"
+            if [ "$live" -gt 0 ] && [ "$restored" -eq 0 ]; then echo "::error::$t restored empty"; status=1
+            elif [ "$live" != "$restored" ]; then echo "::warning::$t changed during the backup ($live vs $restored)"; fi
+            # A CSV of each table, from the restored copy (opens in Excel)
+            "$PG/psql" "$SCRATCH" -v ON_ERROR_STOP=1 -q -c "\copy public.$t to 'out/$t.csv' with (format csv, header)"
+          done < counts-live.txt
+          exit $status
+
+      - name: Encrypt and upload to Google Drive
+        run: |
+          export RCLONE_CONFIG_VAULT_PASSWORD="$(rclone obscure "$BACKUP_PASSPHRASE")"
+          day=$(TZ=Asia/Kolkata date +%F)
+          tar -C out -czf "clinic-$day.tar.gz" .
+          rclone copyto "clinic-$day.tar.gz" "vault:database/daily/clinic-$day.tar.gz"
+          if [ "$(TZ=Asia/Kolkata date +%d)" = 01 ]; then
+            rclone copyto "clinic-$day.tar.gz" "vault:database/monthly/clinic-$(TZ=Asia/Kolkata date +%Y-%m).tar.gz"
+          fi
+          rclone delete --min-age 31d vault:database/daily
+          rclone delete --min-age 370d vault:database/monthly
+          # Photos: a mirror of the bucket; a photo deleted in the app is kept 31 days under photos/removed
+          rclone sync supa:visit-photos vault:photos/current --backup-dir "vault:photos/removed/$day"
+          rclone delete --min-age 31d vault:photos/removed
+          rclone rmdirs --leave-root vault:photos/removed
+          echo "Backup sizes:"
+          rclone size vault:database
+          rclone size vault:photos/current

@@ -79,6 +79,9 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 - [ ] Built, checked, pushed
 
 #### Next plan (15 Oct) — **resume here after the go-ahead**
+- [x] Go-ahead given (15 Oct). Change: on-phone Whisper won't run well on Dr. Rahil's **Poco M2 Pro** (2020, Snapdragon 720G), so step 8 sends the recording to Gemini's free tier (transcribe + sort in one call; he doesn't say names) or uses Gboard voice typing + Gemini for text; owner chooses at step 8. Design for the Poco too (older, slower phone).
+- [x] 1. Backups: `.github/workflows/backup.yml` (nightly 2 AM IST: pg_dump public/auth/storage + CSVs, restored into a scratch Postgres and row-counted, then rclone crypt → owner's Google Drive; photos mirrored; 30 daily + 12 monthly), `scripts/backup/restore-stubs.sql`, `docs/BACKUPS.md`. [ ] **Owner adds the 4 GitHub secrets and runs it once** (docs/BACKUPS.md).
+- [ ] 2. Delete patient (password; keep or delete payments)
 - Plan: `docs/build/PLAN-2026-10-next.md` (backups to Google Drive, delete patient, undo/remove, website wording + fallback + abuse guards, WhatsApp-verified holds, patient voice note test, appointment lengths, smart voice notes, extras). Waiting for the owner's go-ahead; built directly by the orchestrator, one item at a time, pushed after each.
 
 ## Logic fixes (owner's bug: deleting a visit showed an advance) — **resume here**
