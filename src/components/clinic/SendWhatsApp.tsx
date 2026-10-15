@@ -22,6 +22,9 @@ const TAP_WAIT_MS = 2000
 const STILL_TRYING_MS = 15_000
 // Recording the send waits at most this long before WhatsApp opens, so the tap still counts
 const RECORD_WAIT_MS = 3000
+// Opening by itself straight after preparing (which may take up to TAP_WAIT_MS): wait less, so WhatsApp
+// still opens within the few seconds Android allows after the tap. The record carries on in the background.
+const RECORD_WAIT_AFTER_PREPARE_MS = 1500
 
 const labelOf = (kind: PhotoKind | null) => (kind === 'Prescription' || kind === 'X-ray' ? kind : 'Photo')
 const photos = (n: number) => (n === 1 ? '1 photo' : `${n} photos`)
@@ -205,12 +208,12 @@ export function SendWhatsApp({
   // WhatsApp is opening: record the send ("WhatsApp sent", "bill changed" cleared), then open it.
   // A slow reply doesn't hold WhatsApp back (the tap only counts for a few seconds); it is recorded
   // when the reply comes. A refusal from the server is shown instead of opening.
-  async function recordAndOpen(link: string, onOpen?: () => void) {
+  async function recordAndOpen(link: string, onOpen?: () => void, waitMs = RECORD_WAIT_MS) {
     const recorded = markWhatsappSent(visit.id).then(
       (r) => r.error ?? null,
       () => "Couldn't reach the server. Check the internet and try again.",
     )
-    const outcome = await Promise.race([recorded, new Promise<'slow'>((resolve) => setTimeout(() => resolve('slow'), RECORD_WAIT_MS))])
+    const outcome = await Promise.race([recorded, new Promise<'slow'>((resolve) => setTimeout(() => resolve('slow'), waitMs))])
     if (outcome !== null && outcome !== 'slow') {
       setSending({ state: 'failed', message: outcome })
       return
@@ -248,7 +251,7 @@ export function SendWhatsApp({
       // waits for his tap, and only that tap records the send.
       if (!tooSlow) {
         // "Preparing…" stays until WhatsApp opens
-        await recordAndOpen(link, () => setSending({ state: 'idle' }))
+        await recordAndOpen(link, () => setSending({ state: 'idle' }), RECORD_WAIT_AFTER_PREPARE_MS)
       } else {
         setSending({ state: 'ready', link })
       }
