@@ -118,12 +118,14 @@ jobs:
           if [ "$(TZ=Asia/Kolkata date +%d)" = 01 ]; then
             rclone copyto "clinic-$day.tar.gz" "vault:database/monthly/clinic-$(TZ=Asia/Kolkata date +%Y-%m).tar.gz"
           fi
-          rclone delete --min-age 31d vault:database/daily
-          rclone delete --min-age 370d vault:database/monthly
+          # Old copies go; a folder that doesn't exist yet (the first runs) has nothing to clean (rclone exit 3)
+          prune() { rclone "$@" || [ $? -eq 3 ]; }
+          prune delete --min-age 31d vault:database/daily
+          prune delete --min-age 370d vault:database/monthly
           # Photos: a mirror of the bucket; a photo deleted in the app is kept 31 days under photos/removed
           rclone sync supa:visit-photos vault:photos/current --backup-dir "vault:photos/removed/$day"
-          rclone delete --min-age 31d vault:photos/removed
-          rclone rmdirs --leave-root vault:photos/removed
+          prune delete --min-age 31d vault:photos/removed
+          prune rmdirs --leave-root vault:photos/removed
           echo "Backup sizes:"
           rclone size vault:database
           rclone size vault:photos/current
