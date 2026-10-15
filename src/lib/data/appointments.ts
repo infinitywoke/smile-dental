@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { addDays, blockInstant, blocksFor, BLOCK_MINUTES, inIndia } from '@/lib/schedule'
-import { requestNotice } from '@/lib/request-hold'
+import { requestNotice, type RequestNotice } from '@/lib/request-hold'
 import type { BookingRequest } from './types'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -177,7 +177,7 @@ export async function findAppointment(id: string | null): Promise<AppointmentRow
 
 // `confirmable`: the time asked for is still ahead, so one tap can book it.
 // `notice`: "Time passed" or "No longer held, asked 2 days ago" (null while the request is held).
-export type PendingRequest = BookingRequest & { confirmable: boolean; notice: string | null }
+export type PendingRequest = BookingRequest & { confirmable: boolean; notice: RequestNotice | null }
 
 export async function getPendingRequests(): Promise<PendingRequest[]> {
   await getDoctor()
@@ -192,7 +192,7 @@ export async function getPendingRequests(): Promise<PendingRequest[]> {
   return (data as BookingRequest[]).map((request) => ({
     ...request,
     confirmable: !!request.requested_start && new Date(request.requested_start).getTime() > now,
-    notice: requestNotice(request.requested_start, request.created_at, now),
+    notice: requestNotice(request.requested_start, request.created_at, request.received_at, now),
   }))
 }
 

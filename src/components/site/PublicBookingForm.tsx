@@ -198,7 +198,8 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
           phone: normalizePhone(details.phone) ?? details.phone,
           startsAt: picked,
           reason: details.reason,
-          link: `${window.location.origin}/app/requests/${result.id}`,
+          // Opened by Dr. Rahil from the message, this records that it arrived (the time is held from then)
+          link: `${window.location.origin}/app/requests/${result.id}/received`,
         })
         const url = clinicWhatsappLink(message)
         // Saved. Open WhatsApp with the message ready; keep a button in case it doesn't open.

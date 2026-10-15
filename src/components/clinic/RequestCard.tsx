@@ -23,7 +23,8 @@ type Props = {
   callBack?: boolean
   phone?: string | null
   // "Time passed" or "No longer held, asked 2 days ago": shown on the card, with Decline right there
-  notice?: string | null
+  // How the asked time stands (held, not held yet, passed); stale ones offer Decline
+  notice?: { text: string; stale: boolean } | null
 }
 
 type Done = { declined: boolean; whatsappUrl?: string; when: string | null }
@@ -122,7 +123,7 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
 
       {notice && (
         <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-gray-700">
-          <Clock className="h-4 w-4 shrink-0" /> {notice}
+          <Clock className="h-4 w-4 shrink-0" /> {notice.text}
         </p>
       )}
 
@@ -159,7 +160,7 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
           className="flex min-h-12 flex-1 items-center justify-center rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-gray-900 ring-1 ring-gray-300">
           Other time
         </Link>
-        {notice && (
+        {notice?.stale && (
           <button type="button" onClick={decline} disabled={pending}
             className="min-h-12 flex-1 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60">
             Decline

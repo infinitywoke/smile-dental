@@ -349,9 +349,13 @@ create table if not exists public.booking_requests (
     check (status in ('new', 'contacted', 'booked', 'declined')),
   patient_id uuid references public.patients (id) on delete set null,
   appointment_id uuid references public.appointments (id) on delete set null,
+  -- When the request's WhatsApp reached the clinic (Dr. Rahil opened its link): the time is held from then
+  received_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.booking_requests add column if not exists received_at timestamptz;
 
 create index if not exists booking_requests_owner_status_idx on public.booking_requests (owner_id, status, created_at desc);
 create index if not exists booking_requests_phone_created_idx on public.booking_requests (phone, created_at desc);
@@ -528,7 +532,36 @@ create policy "Owner deletes own visit photos" on storage.objects
 -- Free blocks the website may offer -------------------------------------------------
 -- Rules: next 28 days; never Fridays; at least 2 hours from now; starts before 7 PM
 -- (evenings are by phone); not overlapping a booked appointment, time off, or a
--- request still waiting (held for 24 hours). Returns start times only: no names.
+-- request held after its WhatsApp reached the clinic (see request_hold_until). Start times only: no names.
+create or replace function public.request_hold_until(p_received timestamptz, p_start timestamptz)
+returns timestamptz
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_until timestamptz;
+  v_local timestamp;
+  v_day date;
+begin
+  if p_received is null or p_start is null then
+    return null;
+  end if;
+  v_until := p_received + interval '2 hours';
+  v_local := v_until at time zone 'Asia/Kolkata';
+  if to_char(v_local, 'HH24:MI') > '19:30' or to_char(v_local, 'HH24:MI') < '08:30' then
+    v_day := v_local::date + case when to_char(v_local, 'HH24:MI') > '19:30' then 1 else 0 end;
+    while extract(isodow from v_day) = 5 loop
+      v_day := v_day + 1;
+    end loop;
+    v_until := (v_day + time '10:30') at time zone 'Asia/Kolkata';
+  end if;
+  return least(v_until, p_start);
+end;
+$$;
+
+revoke all on function public.request_hold_until(timestamptz, timestamptz) from public, anon, authenticated;
+
 create or replace function public.get_open_slots(p_from date default null, p_days integer default 28)
 returns table (slot_start timestamptz)
 language sql
@@ -562,7 +595,8 @@ as $$
     and not exists (
       select 1 from public.booking_requests b
       where b.owner_id = cfg.owner_id and b.status = 'new' and b.requested_start is not null
-        and b.created_at > public.clinic_now() - interval '24 hours'
+        and b.received_at is not null
+        and public.request_hold_until(b.received_at, b.requested_start) > public.clinic_now()
         and tstzrange(b.requested_start, public.appointment_end(b.requested_start, 40))
             && tstzrange(s.slot, public.appointment_end(s.slot, 40)))
   order by s.slot

@@ -1,29 +1,49 @@
 import { describe, expect, it } from 'vitest'
-import { requestNotice } from './request-hold'
+import { holdUntil, requestNotice } from './request-hold'
+
+const ist = (date: string, hhmm: string) => `${date}T${hhmm}:00+05:30`
+const ms = (iso: string) => new Date(iso).getTime()
+// Wednesday 14 Oct 2026; Friday 16 Oct is closed
+const WED = '2026-10-14', THU = '2026-10-15', SAT = '2026-10-17'
+
+describe('how long a received request holds its time', () => {
+  it('2 hours from when its WhatsApp was received', () => {
+    expect(holdUntil(ist(WED, '10:00'), ist(SAT, '11:10'))).toBe(ms(ist(WED, '12:00')))
+  })
+  it('never past the appointment itself', () => {
+    expect(holdUntil(ist(WED, '10:00'), ist(WED, '11:10'))).toBe(ms(ist(WED, '11:10')))
+  })
+  it('until 10:30 AM on the next open day when 2 hours would run past closing', () => {
+    expect(holdUntil(ist(WED, '18:45'), ist(SAT, '11:10'))).toBe(ms(ist(THU, '10:30')))
+    // Thursday evening: Friday is closed, so Saturday
+    expect(holdUntil(ist(THU, '18:45'), ist('2026-10-18', '11:10'))).toBe(ms(ist(SAT, '10:30')))
+  })
+  it('until 10:30 AM the same day when received before opening', () => {
+    expect(holdUntil(ist(WED, '05:00'), ist(SAT, '11:10'))).toBe(ms(ist(WED, '10:30')))
+  })
+  it('nothing until received', () => {
+    expect(holdUntil(null, ist(SAT, '11:10'))).toBeNull()
+  })
+})
 
 describe('what a waiting request card says', () => {
-  const now = new Date('2026-10-14T10:00:00+05:30').getTime()
-  const hoursAgo = (h: number) => new Date(now - h * 60 * 60_000).toISOString()
-  const tomorrow = '2026-10-15T10:30:00+05:30'
+  const now = ms(ist(WED, '10:30'))
+  const created = ist(WED, '09:50')
+  const tomorrow = ist(THU, '10:30')
 
-  it('nothing while the time is ahead and the request is under 24 hours old', () => {
-    expect(requestNotice(tomorrow, hoursAgo(2), now)).toBeNull()
-    expect(requestNotice(tomorrow, hoursAgo(24), now)).toBeNull()
-    expect(requestNotice(null, hoursAgo(5), now)).toBeNull()
+  it('not held until its WhatsApp is received', () => {
+    expect(requestNotice(tomorrow, created, null, now)).toEqual({ text: 'Not held yet: open it from their WhatsApp, or confirm', stale: false })
   })
-
-  it('"Time passed" once the asked time has started, however new the request', () => {
-    expect(requestNotice('2026-10-14T09:50:00+05:30', hoursAgo(1), now)).toBe('Time passed')
-    expect(requestNotice('2026-10-14T10:00:00+05:30', hoursAgo(1), now)).toBe('Time passed')
-    expect(requestNotice('2026-10-13T10:30:00+05:30', hoursAgo(72), now)).toBe('Time passed')
+  it('held, with the time the hold ends', () => {
+    expect(requestNotice(tomorrow, created, ist(WED, '10:00'), now)?.text).toMatch(/^Held until 12:00\s?pm$/i)
   })
-
-  it('"No longer held" with how long ago it was asked, after 24 hours', () => {
-    expect(requestNotice(tomorrow, hoursAgo(25), now)).toBe('No longer held, asked 1 day ago')
-    expect(requestNotice(tomorrow, hoursAgo(49), now)).toBe('No longer held, asked 2 days ago')
+  it('no longer held once the 2 hours are over', () => {
+    expect(requestNotice(tomorrow, created, ist(WED, '08:00'), now)).toEqual({ text: 'No longer held: confirm if still free', stale: false })
   })
-
-  it('a request without a time just says how old it is', () => {
-    expect(requestNotice(null, hoursAgo(50), now)).toBe('Asked 2 days ago')
+  it('"Time passed" (Decline offered) once the asked time has started', () => {
+    expect(requestNotice(ist(WED, '10:30'), created, null, now)).toEqual({ text: 'Time passed', stale: true })
+  })
+  it('a day-old request that was never held offers Decline', () => {
+    expect(requestNotice(tomorrow, ist('2026-10-12', '09:00'), null, now)).toEqual({ text: 'No longer held, asked 2 days ago', stale: true })
   })
 })

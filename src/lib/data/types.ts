@@ -124,6 +124,8 @@ export type BookingRequest = {
   gender?: string | null
   medical_alerts: string | null
   heard_from: string | null
+  // When its WhatsApp reached the clinic (the asked time is held from then)
+  received_at?: string | null
   reason: string | null
   // The block the patient asked for (a moment in time)
   requested_start: string | null

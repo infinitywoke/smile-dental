@@ -130,7 +130,11 @@ let r = await expectOk('anon books Thursday 9:10 AM with full details', submit,
 const req1 = r?.rows?.[0]?.id
 check('request id returned', !!req1)
 s = await slotsAs('anon', THU, 1)
-check('booked-pending block disappears from the website', !s.map(istTime).includes('09:10'), JSON.stringify(s.map(istTime)))
+check('a new request holds nothing until its WhatsApp is received', s.map(istTime).includes('09:10'), JSON.stringify(s.map(istTime)))
+await as('authenticated', A)
+await db.query(`update public.booking_requests set received_at = public.clinic_now() where id = '${req1}'`)
+s = await slotsAs('anon', THU, 1)
+check('received: its block disappears from the website', !s.map(istTime).includes('09:10'), JSON.stringify(s.map(istTime)))
 await as('anon')
 await expectErr('same block cannot be requested twice', submit, ['Asha Rao', '9876543210', null, null, null, null, null, slot1], /no longer available/)
 await expectErr('same phone cannot hold two requests', submit, ['Prakash', '9845021763', null, null, null, null, null, at(THU, '09:50')], /already have a request waiting/)
@@ -236,14 +240,33 @@ await expectOk('adjacent block is fine (16:40)', `insert into public.appointment
 await db.query(`update public.appointments set status = 'cancelled' where starts_at = '${at(THU, '16:30')}'`)
 await expectOk('a cancelled appointment no longer blocks the block', `insert into public.appointments (patient_id, starts_at, duration_min) values ('${patient1}', '${at(THU, '16:30')}', 40)`)
 
-// a pending request holds its block for 24 h, then lets it go
+// a request holds its block only once its WhatsApp reached the clinic, for 2 hours (or until 10:30 AM
+// on the next open day when that would run past closing), then lets it go
 await as('anon')
 r = await expectOk('visitor requests 11:10 AM', submit, ['Divya Kamath', '9611122233', null, null, null, null, null, at(SAT, '11:10')])
+const divya = r?.rows?.[0]?.submit_booking_request ?? Object.values(r?.rows?.[0] ?? {})[0]
 s = await slotsAs('anon', SAT, 1)
-check('held block hidden', !s.map(istTime).includes('11:10'))
-await setNow('2026-10-15T11:00:00+05:30')
+check('a request not received yet holds nothing', s.map(istTime).includes('11:10'), JSON.stringify(s.map(istTime)))
+await as('authenticated', A)
+await db.query(`update public.booking_requests set received_at = public.clinic_now() where id = '${divya}'`)
 s = await slotsAs('anon', SAT, 1)
-check('hold released after 24 hours', s.map(istTime).includes('11:10'), JSON.stringify(s.map(istTime)))
+check('received: the block is held', !s.map(istTime).includes('11:10'))
+await setNow(at(WED, '11:59'))
+s = await slotsAs('anon', SAT, 1)
+check('still held just under 2 hours later', !s.map(istTime).includes('11:10'))
+await setNow(at(WED, '12:01'))
+s = await slotsAs('anon', SAT, 1)
+check('released after 2 hours', s.map(istTime).includes('11:10'), JSON.stringify(s.map(istTime)))
+// received at 6:45 PM: 2 hours would end after closing, so it is held until 10:30 AM the next open day
+await setNow(at(WED, '18:45'))
+await as('authenticated', A)
+await db.query(`update public.booking_requests set received_at = public.clinic_now() where id = '${divya}'`)
+await setNow(at(THU, '10:29'))
+s = await slotsAs('anon', SAT, 1)
+check('held overnight until 10:30 AM', !s.map(istTime).includes('11:10'))
+await setNow(at(THU, '10:31'))
+s = await slotsAs('anon', SAT, 1)
+check('released at 10:30 AM the next open day', s.map(istTime).includes('11:10'), JSON.stringify(s.map(istTime)))
 await setNow(at(WED, '10:00'))
 
 // deleting a patient removes their appointments; the request just loses its link
