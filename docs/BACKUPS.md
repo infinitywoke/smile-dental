@@ -24,7 +24,7 @@ You add four secrets in GitHub: **infinitywoke/smile-dental → Settings → Sec
    - On your PC, in PowerShell: `winget install Rclone.Rclone`, then close and reopen PowerShell.
    - Run: `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`
    - A browser opens: sign in with the Google account whose Drive should hold the backups, then **Allow**.
-   - PowerShell prints a token between two lines of dashes, starting `{"access_token":`. Copy that whole `{…}` line into the secret.
+   - PowerShell prints a token between "Paste the following" and "End paste" (a long line starting `eyJ` or `{"access_token":`). Copy that whole line into the secret.
    - The code in the command limits it to files the backup itself creates: it cannot see anything else in your Drive.
 4. **`BACKUP_PASSPHRASE`**
    - Make up a long passphrase (5–6 random words) and keep a copy somewhere safe away from the computer (a password manager, or paper in a safe place). **Without it nobody, including you, can open the backups.**
