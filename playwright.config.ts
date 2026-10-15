@@ -47,6 +47,7 @@ export default defineConfig({
           // Only the test account may sign in to this server
           ALLOWED_EMAIL: testLogin.email,
           E2E: '1',
+          GEMINI_FAKE: '1',
         },
       }
     : undefined,

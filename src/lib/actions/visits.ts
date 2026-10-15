@@ -34,7 +34,7 @@ export async function startVisit(patientId: string, visitId: string, appointment
   redirect(`/app/visits/${id}`, RedirectType.push)
 }
 
-// Notes save by themselves while the doctor types or dictates. Most saves don't refresh any screen
+// Notes save by themselves while the doctor types or records. Most saves don't refresh any screen
 // (the visit page already shows what was typed); `refresh` is asked for when other screens need the
 // change: the first note on an empty visit (it starts being listed) and when the doctor leaves the page.
 export async function saveVisitNotes(visitId: string, notes: string, options: { refresh?: boolean } = {}): Promise<Result> {

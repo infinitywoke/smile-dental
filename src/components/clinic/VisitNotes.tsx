@@ -3,8 +3,8 @@
 import { useEffect, useImperativeHandle, useState, type Ref } from 'react'
 import { AlertCircle, Check, CloudOff } from 'lucide-react'
 import { saveVisitNotes } from '@/lib/actions/visits'
-import { appendDictation } from '@/lib/dictation'
-import { MicButton } from './MicButton'
+import type { NoteSuggestions } from '@/lib/actions/smart-notes'
+import { RecordNotes } from './RecordNotes'
 
 // What the visit page asks of the notes: save anything typed, now (before another button acts)
 export type NotesHandle = { flush: () => Promise<void> }
@@ -146,17 +146,18 @@ export function VisitNotes({
   initialNotes,
   listed,
   handle,
+  onSuggestions,
 }: {
   visitId: string
   initialNotes: string
   // The visit already has photos, charges or payments, so it is listed on Today and the patient page
   listed: boolean
   handle?: Ref<NotesHandle>
+  // The charges and next visit Gemini suggested from a recording
+  onSuggestions?: (suggestions: NoteSuggestions) => void
 }) {
   const [notes, setNotes] = useState(initialNotes)
   const [state, setState] = useState<SaveState>('idle')
-  const [hearing, setHearing] = useState('')
-  const [listening, setListening] = useState(false)
   const [saver] = useState(() => createNotesSaver(visitId, initialNotes, listed, setState))
 
   useImperativeHandle(handle, () => ({ flush: () => saver.flush() }), [saver])
@@ -192,16 +193,13 @@ export function VisitNotes({
 
   return (
     <section className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <label htmlFor="notes" className="text-lg font-bold text-gray-900">Notes</label>
-        <MicButton onText={(t) => change(appendDictation(saver.latest(), t))} onInterim={setHearing} onListeningChange={setListening} />
-      </div>
-      {listening && (
-        <p className="min-h-10 rounded-lg bg-blue-50 px-3 py-2 text-base italic text-blue-900" aria-live="polite">
-          {hearing ? `${hearing}…` : 'Listening…'}
-          <span className="mt-1 block text-sm not-italic text-blue-700">You do not need to say the patient&apos;s name.</span>
-        </p>
-      )}
+      <label htmlFor="notes" className="block text-lg font-bold text-gray-900">Notes</label>
+      <RecordNotes visitId={visitId} onSorted={(result) => {
+        // Added below anything already typed; he can edit it like any note
+        const current = saver.latest()
+        if (result.notes) change(current.trim() ? `${current.replace(/\s+$/, '')}\n\n${result.notes}` : result.notes)
+        onSuggestions?.(result)
+      }} />
       <textarea id="notes" rows={8} value={notes} onChange={(e) => change(e.target.value)}
         placeholder="Complaint, findings, treatment done, plan, medicines…"
         className="block w-full rounded-xl border-0 px-4 py-3 text-base leading-relaxed text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
