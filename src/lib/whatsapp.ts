@@ -128,3 +128,43 @@ export function declineMessage(args: { name: string }): string {
     ...messageSignOff(),
   ].join('\n')
 }
+
+// Clinic -> patient, the day before (or before the weekend's Friday): the time, and how to change it
+export function reminderMessage(args: { name: string; startsAt: string; tomorrow: boolean }): string {
+  return [
+    ...messageHeader(args.name),
+    `A reminder of your appointment ${args.tomorrow ? 'tomorrow' : 'coming up'}:`,
+    '',
+    ...appointmentLines(args.startsAt),
+    SHORT_LOCATION,
+    '',
+    '_Please arrive 5 minutes early._',
+    `If you can't make it, please call or WhatsApp us on ${siteConfig.phone}, so we can give the time to someone else.`,
+    ...messageSignOff(),
+  ].join('\n')
+}
+
+// Clinic -> patient, after a missed appointment: kind, and an easy way back
+export function missedMessage(args: { name: string; startsAt: string }): string {
+  const { date } = inIndia(args.startsAt)
+  return [
+    ...messageHeader(args.name),
+    `We missed you at your appointment on ${formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}. We hope all is well.`,
+    '',
+    'Reply to this message and we will find a new time that suits you.',
+    ...messageSignOff(),
+  ].join('\n')
+}
+
+// Clinic -> patient, about six months after their last visit
+export function recallMessage(args: { name: string; lastVisit: string }): string {
+  return [
+    ...messageHeader(args.name),
+    `It has been about six months since your last visit (${formatDate(args.lastVisit, { day: 'numeric', month: 'long', year: 'numeric' })}).`,
+    '',
+    'A check-up and cleaning every six months keeps your teeth and gums healthy and catches small problems early.',
+    '',
+    'Reply to this message and we will book a time that suits you.',
+    ...messageSignOff(),
+  ].join('\n')
+}

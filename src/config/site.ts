@@ -42,6 +42,7 @@ export const siteConfig = {
     name: "Dr. Rahil Yusuf", // [VERIFIED]
     qualifications: "BDS, November 2020 - Yenapoya Deemed to be University", // [VERIFIED]
     experience: "5 Years across India & Middle East", // [VERIFIED]
+    registration: "", // [PLACEHOLDER] Dental Council registration number: printed on typed prescriptions once filled in
     bio: "Dr Rahil Yusuf is a caring and approachable dental professional who believes that every patient deserves to feel comfortable, heard, and confident about their dental care. He takes the time to understand each patient’s needs and explains treatment options in a simple and reassuring way. At Smile Dental Clinic, Katapady, Udupi, his goal is to make every dental visit a positive experience while helping patients achieve healthy, natural-looking smiles that they can be proud of. Your comfort, trust, and smile are always at the heart of our care.", // [VERIFIED]
     portraitPhoto: "/images/dr-rahil-front.jpg", // [VERIFIED]
     actionPhoto: "/images/clinical-procedure.jpg" // [VERIFIED]

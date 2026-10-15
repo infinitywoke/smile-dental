@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sumAmounts } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { PHOTO_BUCKET, isEmptyVisit, visitStatus } from '@/lib/visit-status'
+import { quickMedicines } from '@/lib/prescription'
 import { NO_ACCOUNT, getAccounts } from './billing'
 import type { Patient, Visit, VisitDetail, VisitStatus } from './types'
 
@@ -122,6 +123,20 @@ export async function getVisit(id: string): Promise<VisitPageData> {
 
 // The appointment a visit came from, and the patient's next future appointment (if any).
 // Used by the visit page and, read fresh at the tap, by the WhatsApp message.
+// The one-tap medicines on the visit: the ones he prescribed most in his recent notes
+export async function getQuickMedicines(): Promise<string[]> {
+  await getDoctor()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('visits')
+    .select('notes')
+    .or('notes.ilike.%prescription:%,notes.ilike.%rx:%')
+    .order('created_at', { ascending: false })
+    .limit(300)
+  if (error) return quickMedicines([])
+  return quickMedicines(data.map((v) => v.notes ?? ''))
+}
+
 export async function appointmentsOfVisit(visitId: string, patientId: string) {
   await getDoctor()
   const supabase = await createClient()

@@ -127,9 +127,12 @@ create table if not exists public.patients (
   address text,
   medical_alerts text,        -- allergies, conditions, regular medicines
   heard_from text,            -- how they heard about the clinic
+  recalled_at timestamptz,    -- the 6-month check-up reminder was sent (or skipped)
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.patients add column if not exists recalled_at timestamptz;
 
 create index if not exists patients_owner_phone_idx on public.patients (owner_id, phone);
 create index if not exists patients_owner_name_idx on public.patients (owner_id, lower(name));
@@ -276,14 +279,21 @@ create table if not exists public.appointments (
     check (status in ('booked', 'done', 'cancelled', 'no_show')),
   from_visit_id uuid references public.visits (id) on delete set null, -- visit where it was booked
   visit_id uuid references public.visits (id) on delete set null,      -- visit that happened at it
+  reminded_at timestamptz,    -- the day-before reminder WhatsApp was opened
+  followed_up_at timestamptz, -- a missed appointment was followed up from the call-back list
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.appointments add column if not exists reminded_at timestamptz;
+alter table public.appointments add column if not exists followed_up_at timestamptz;
 
 create index if not exists appointments_owner_starts_idx on public.appointments (owner_id, starts_at);
 create index if not exists appointments_patient_idx on public.appointments (patient_id, starts_at desc);
 create index if not exists appointments_from_visit_idx on public.appointments (from_visit_id);
 create index if not exists appointments_visit_idx on public.appointments (visit_id);
+create index if not exists appointments_owner_missed_idx
+  on public.appointments (owner_id, starts_at desc) where status = 'no_show';
 
 create or replace trigger appointments_set_updated_at
   before update on public.appointments

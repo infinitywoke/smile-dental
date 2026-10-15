@@ -6,8 +6,9 @@ import { saveVisitNotes } from '@/lib/actions/visits'
 import type { NoteSuggestions } from '@/lib/actions/smart-notes'
 import { RecordNotes } from './RecordNotes'
 
-// What the visit page asks of the notes: save anything typed, now (before another button acts)
-export type NotesHandle = { flush: () => Promise<void> }
+// What the visit page asks of the notes: save anything typed, now (before another button acts), and
+// change the text from elsewhere on the page (the prescription card adds and removes medicines)
+export type NotesHandle = { flush: () => Promise<void>; edit: (change: (text: string) => string) => void }
 
 // Notes save by themselves this long after typing stops
 const SAVE_AFTER_MS = 1500
@@ -147,6 +148,7 @@ export function VisitNotes({
   listed,
   handle,
   onSuggestions,
+  onText,
 }: {
   visitId: string
   initialNotes: string
@@ -155,24 +157,31 @@ export function VisitNotes({
   handle?: Ref<NotesHandle>
   // The charges and next visit Gemini suggested from a recording
   onSuggestions?: (suggestions: NoteSuggestions) => void
+  // The text as it changes (the prescription card reads the medicines from it)
+  onText?: (text: string) => void
 }) {
   const [notes, setNotes] = useState(initialNotes)
   const [state, setState] = useState<SaveState>('idle')
   const [saver] = useState(() => createNotesSaver(visitId, initialNotes, listed, setState))
 
-  useImperativeHandle(handle, () => ({ flush: () => saver.flush() }), [saver])
-
   const change = (next: string) => {
     setNotes(next)
+    onText?.(next)
     setState((s) => (s === 'offline' ? s : 'idle'))
     saver.change(next)
   }
 
+  useImperativeHandle(handle, () => ({ flush: () => saver.flush(), edit: (fn) => change(fn(saver.latest())) }))
+
   // Bring back notes that never reached the server
   useEffect(() => {
     const draft = saver.restore()
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the draft lives in browser storage, only readable after mount
-    if (draft !== null) setNotes(draft)
+    if (draft !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the draft lives in browser storage, only readable after mount
+      setNotes(draft)
+      onText?.(draft)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on opening the visit
   }, [saver])
 
   // Save at once when the doctor switches app (camera, WhatsApp) or leaves the page,

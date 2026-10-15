@@ -17,10 +17,15 @@ import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
 import { StartVisitButton } from '@/components/clinic/StartVisitButton'
 import { genderLabel } from '@/lib/gender'
 import { noteWithoutCallBack, wantsCallBack } from '@/lib/booking-contact'
+import { getMissed, getRecalls, getReminders, type Missed, type Recall } from '@/lib/data/follow-ups'
+import { DidntComeButton, MissedList, RecallCard, RemindersCard } from '@/components/clinic/FollowUps'
+import { UndoProvider } from '@/components/clinic/UndoBar'
+import { missedMessage, recallMessage, reminderMessage, whatsappLink } from '@/lib/whatsapp'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
 const DUES_SHOWN = 5
+const RECALLS_SHOWN = 10
 
 // Today is the day sheet: who needs a decision, who is coming and has been seen (one list), and what is free.
 async function TodayContent({ searchParams }: PageProps<'/app'>) {
@@ -31,14 +36,33 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   const date = typeof d === 'string' && DATE.test(d) ? d : today
   const isToday = date === today
 
-  const [schedule, appointments, visits, requests, busy, dues] = await Promise.all([
+  const [schedule, appointments, visits, requests, busy, dues, reminders, missed, recalls] = await Promise.all([
     getDaySchedule(date),
     getAppointmentsOn(date),
     getVisitsOn(date),
     getPendingRequests(),
     getBusyCounts(today, STRIP_DAYS),
     isToday ? getDues(DUES_SHOWN * 2) : Promise.resolve([] as Due[]),
+    isToday ? getReminders(today) : Promise.resolve(null),
+    isToday ? getMissed() : Promise.resolve([] as Missed[]),
+    isToday ? getRecalls(today) : Promise.resolve([] as Recall[]),
   ])
+  // A booked appointment whose time is over and that has no visit: the patient may not have come
+  const now = new Date().getTime()
+  const over = (startsAt: string, minutes: number) => new Date(startsAt).getTime() + minutes * 60_000 < now
+  const reminderItems = (reminders?.items ?? []).map((r) => ({
+    id: r.id, startsAt: r.starts_at, name: r.patient.name, patientId: r.patient.id, reminded: r.reminded,
+    href: r.patient.phone ? whatsappLink(r.patient.phone, reminderMessage({ name: r.patient.name, startsAt: r.starts_at, tomorrow: reminders!.tomorrow })) : null,
+  }))
+  const showReminders = reminderItems.some((r) => !r.reminded && r.href)
+  const missedItems = missed.map((m) => ({
+    id: m.id, startsAt: m.starts_at, name: m.patient.name, patientId: m.patient.id, phone: m.patient.phone,
+    href: m.patient.phone ? whatsappLink(m.patient.phone, missedMessage({ name: m.patient.name, startsAt: m.starts_at })) : null,
+  }))
+  const recallItems = recalls.slice(0, RECALLS_SHOWN).map((r) => ({
+    patientId: r.id, name: r.name, lastVisit: r.lastVisit, recalledAt: r.recalledAt,
+    href: whatsappLink(r.phone!, recallMessage({ name: r.name, lastVisit: r.lastVisit })),
+  }))
 
   const strip = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i))
   const poolBlocks = schedule.blocks.filter((b) => b.state === 'free' || b.state === 'blocked' || b.state === 'request')
@@ -60,6 +84,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   ].sort((x, y) => x.at - y.at)
 
   return (
+    <UndoProvider>
     <div className="space-y-6">
       {/* Day header and strip */}
       <div className="space-y-3">
@@ -95,7 +120,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
       </div>
 
       {/* Needs you */}
-      {(requests.length > 0 || showDues.length > 0) && (
+      {(requests.length > 0 || showDues.length > 0 || missedItems.length > 0 || showReminders || recallItems.length > 0) && (
         <section className="space-y-2">
           <h2 className="text-lg font-bold text-gray-900">Needs you</h2>
           {requests.map((request) => {
@@ -135,6 +160,9 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
               <span className="flex min-h-12 items-center rounded-full bg-red-600 px-5 text-base font-semibold text-white">Collect</span>
             </Link>
           ))}
+          <MissedList items={missedItems} />
+          {showReminders && <RemindersCard dayLabel={reminders!.tomorrow ? 'tomorrow' : formatDay(reminders!.date).split(',')[0]} items={reminderItems} />}
+          {recallItems.length > 0 && <RecallCard items={recallItems} />}
         </section>
       )}
 
@@ -164,10 +192,16 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                   )}
                 </span>
               </Link>
-              {isToday && (
-                <div className="shrink-0">
-                  <StartVisitButton patientId={row.appointment.patient_id} appointmentId={row.appointment.id} label="Start"
-                    className="flex min-h-12 min-w-20 items-center justify-center rounded-full bg-blue-600 px-5 text-base font-semibold text-white hover:bg-blue-700 disabled:opacity-70" />
+              {/* Start (today), and once the time is over, "Didn't come" under it */}
+              {(isToday || over(row.appointment.starts_at, row.appointment.duration_min)) && (
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {isToday && (
+                    <StartVisitButton patientId={row.appointment.patient_id} appointmentId={row.appointment.id} label="Start"
+                      className="flex min-h-12 min-w-20 items-center justify-center rounded-full bg-blue-600 px-5 text-base font-semibold text-white hover:bg-blue-700 disabled:opacity-70" />
+                  )}
+                  {over(row.appointment.starts_at, row.appointment.duration_min) && (
+                    <DidntComeButton appointmentId={row.appointment.id} name={row.appointment.patient.name} />
+                  )}
                 </div>
               )}
             </div>
@@ -221,6 +255,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
         )}
       </section>
     </div>
+    </UndoProvider>
   )
 }
 

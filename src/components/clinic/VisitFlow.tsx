@@ -20,6 +20,7 @@ import { VisitNotes, type NotesHandle } from './VisitNotes'
 import { MedicalAlert } from './ui'
 import { UndoProvider } from './UndoBar'
 import { NoteSuggestions } from './NoteSuggestions'
+import { PrescriptionCard } from './PrescriptionCard'
 import type { NoteSuggestions as Suggestions } from '@/lib/actions/smart-notes'
 
 // A visit is one page that saves by itself: notes, photos, bill, payment, next visit, WhatsApp.
@@ -27,17 +28,23 @@ export function VisitFlow({
   doctorId,
   visit,
   bill,
+  medicines,
   focus,
 }: {
   doctorId: string
   visit: VisitPageData
   bill: VisitBill
+  // One-tap medicines for the prescription
+  medicines: string[]
   // "payment": opened from a Collect link, so scroll to the payment card
   focus: 'payment' | null
 }) {
   const notesRef = useRef<NotesHandle>(null)
   // What Gemini suggested from a recording (charges, next visit), until tapped or dismissed
   const [suggestions, setSuggestions] = useState<Suggestions | null>(null)
+  // The notes as typed (the prescription card reads its medicines from them)
+  const [notesText, setNotesText] = useState(visit.notes ?? '')
+  const editNotes = useCallback((change: (text: string) => string) => notesRef.current?.edit(change), [])
   // Saves still on their way (a charge, a payment, the next visit, a photo's kind). Send on WhatsApp
   // waits for them, so the message always includes what was tapped just before.
   const pendingSaves = useRef(new Set<Promise<unknown>>())
@@ -106,7 +113,7 @@ export function VisitFlow({
 
       <VisitNotes handle={notesRef} visitId={visit.id} initialNotes={visit.notes}
         listed={visit.photos.length > 0 || bill.charges.length > 0 || bill.payments.length > 0}
-        onSuggestions={setSuggestions} />
+        onSuggestions={setSuggestions} onText={setNotesText} />
       {(visit.recordings ?? []).length > 0 && (
         <details className="rounded-xl bg-white px-3 py-1 ring-1 ring-gray-200">
           <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold text-gray-700">
@@ -129,6 +136,8 @@ export function VisitFlow({
         <NoteSuggestions visitId={visit.id} suggestions={suggestions} hasNextVisit={!!visit.next_appointment}
           save={save} onDismiss={() => setSuggestions(null)} />
       )}
+
+      <PrescriptionCard notes={notesText} edit={editNotes} patientName={visit.patient.name} visitDate={visit.visit_date} medicines={medicines} />
 
       <div className="space-y-2">
         <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} onKind={markKind} onUploads={setUploads} />

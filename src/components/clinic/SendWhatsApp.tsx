@@ -46,7 +46,7 @@ function canShareFilesNow(): boolean {
   return shareFilesSupport
 }
 const noSubscribe = () => () => {}
-const useCanShareFiles = () => useSyncExternalStore(noSubscribe, canShareFilesNow, () => false)
+export const useCanShareFiles = () => useSyncExternalStore(noSubscribe, canShareFilesNow, () => false)
 
 // A ticked photo, fetched ahead of the tap: Android opens the share sheet only within a few seconds
 // of the tap, so the files must be ready before it
