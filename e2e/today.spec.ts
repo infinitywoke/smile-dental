@@ -1,7 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
-import { cleanRun, createAppointment, createPatient, createVisit, newPhone, newRunId, openDay, signIn, testDb, visible } from './helpers'
-import { addDays, inIndia } from '../src/lib/schedule'
+import {
+  blocksLeftToday, cleanRun, createAppointment, createAppointmentAtFirstFree, createPatient, createVisit, newPhone, newRunId, openDay, signIn, testDb, visible,
+} from './helpers'
+import { addDays, formatBlock, inIndia } from '../src/lib/schedule'
 
 // Today (one list, Start buttons, seen rows, money owed), finding patients (and a failed search),
 // the New patient form (age, Back, Start fresh, errors), the patient page, and Sign out.
@@ -19,15 +21,24 @@ const owesName = `${runId} Owes`
 test.describe.configure({ mode: 'serial' })
 test.skip(!testLogin, NO_TEST_LOGIN)
 
+const bothName = `${runId} Both`
+
 let page: Page
 let bookedId = ''
+// The 7:00 PM booking today: the database refuses it once that time is over (or on a Friday)
+let bookedToday = false
+// A visit listed today plus a later booking the same day
+let bothBookedAt: string | null = null
 
 test.beforeAll(async ({ browser }) => {
   await createPatient(patientName, phone)
   bookedId = await createPatient(bookedName, bookedPhone)
-  // Booked today (when the clinic is open) and again in two days
-  if (openDay(0) === today) await createAppointment(bookedId, today, '19:00')
+  // Booked today (while 7:00 PM is still ahead on an open day) and again in two days
+  if (openDay(0) === today) bookedToday = !!(await createAppointmentAtFirstFree(bookedId, today, ['19:00']))
   await createAppointment(bookedId, openDay(2), '12:30')
+  const bothId = await createPatient(bothName, newPhone('5'))
+  await createVisit(bothId, today, 500)
+  bothBookedAt = (await createAppointmentAtFirstFree(bothId, today, blocksLeftToday(10).filter((t) => t !== '19:00')))?.time ?? null
   await createVisit(await createPatient(seenName, newPhone('7')), today, 80_000, 20_000)
   await createVisit(await createPatient(owesName, newPhone('6')), addDays(today, -1), 90_000)
   page = await browser.newPage()
@@ -73,8 +84,20 @@ test('a seen patient shows the whole name, with the time and badges under it, an
   await expect(visible(page.locator('#payment-amount'))).toHaveValue('90000')
 })
 
+test("a patient's visit is listed and their later booking that day still shows, each once", async () => {
+  test.skip(!bothBookedAt, 'No clinic time is left today to book')
+  await page.goto('/app')
+  const seen = visible(page.getByRole('link').filter({ hasText: bothName }).filter({ hasText: '₹500 due' }))
+  await expect(seen).toHaveCount(1)
+  const booked = visible(page.locator('div.rounded-2xl').filter({ hasText: bothName }).filter({ has: page.getByRole('button', { name: 'Start', exact: true }) }))
+  await expect(booked).toHaveCount(1)
+  await expect(booked).toContainText(formatBlock(bothBookedAt!))
+  // The row shows the whole amount owed, so Needs you doesn't repeat it
+  await expect(visible(page.getByRole('link').filter({ hasText: bothName }).filter({ hasText: 'Collect' }))).toHaveCount(0)
+})
+
 test('a booked patient has a Start button that opens the visit', async () => {
-  test.skip(openDay(0) !== today, 'The clinic is closed today, so nothing can be booked for today')
+  test.skip(!bookedToday, 'Nothing could be booked for 7:00 PM today (the clinic is closed, or that time is over)')
   await page.goto('/app')
   const row = visible(page.locator('div.rounded-2xl').filter({ hasText: bookedName }))
   await expect(row).toHaveCount(1)

@@ -7,7 +7,9 @@ import type { VisitPhoto } from '@/lib/data/types'
 import type { VisitBill } from '@/lib/data/billing'
 import type { VisitPageData } from '@/lib/data/visits'
 import { deleteVisit, setPhotoKind } from '@/lib/actions/visits'
+import { paymentsHeldMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
+import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { photoKind, type PhotoKind } from '@/lib/visit-status'
 import { BillSection, type Save } from './BillTools'
 import { NextVisit } from './NextVisit'
@@ -80,7 +82,8 @@ export function VisitFlow({
     return () => clearTimeout(timer)
   }, [focus])
 
-  const hasBill = bill.charges.length > 0 || bill.payments.length > 0
+  // The payment card shows with a bill on this visit, or whenever the patient owes something
+  const showPayment = bill.charges.length > 0 || bill.payments.length > 0 || bill.summary.due > 0
 
   return (
     <div className="space-y-7 pb-4">
@@ -109,9 +112,9 @@ export function VisitFlow({
 
       <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} save={save} />
 
-      {hasBill && (
+      {showPayment && (
         <PaymentCard
-          key={`${bill.payments.length}-${bill.summary.balance}`}
+          key={`${bill.payments.length}-${bill.summary.due}`}
           visitId={visit.id}
           patientName={visit.patient.name}
           bill={bill}
@@ -124,20 +127,33 @@ export function VisitFlow({
 
       <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} />
 
-      <DeleteVisit visitId={visit.id} />
+      <DeleteVisit visit={visit} payments={bill.payments} />
     </div>
   )
 }
 
-// Rare, so small and at the very bottom
-function DeleteVisit({ visitId }: { visitId: string }) {
+// Rare, so small and at the very bottom. A visit that holds payments can't be deleted (the money is
+// removed one payment at a time, on purpose); the question says what stays.
+function DeleteVisit({ visit, payments }: { visit: VisitPageData; payments: VisitBill['payments'] }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   function remove() {
-    if (!window.confirm('Delete this whole visit, with its notes, photos, bill and payments? This cannot be undone.')) return
+    setError(null)
+    if (payments.length > 0) {
+      setError(paymentsHeldMessage(payments))
+      return
+    }
+    const next = visit.next_booked_here && visit.next_appointment ? inIndia(visit.next_appointment.starts_at) : null
+    const question = [
+      'Delete this visit, with its notes, photos and bill?',
+      next && `The next visit on ${formatDay(next.date)}, ${formatBlock(next.time)} stays booked.`,
+      visit.closed_at && 'This bill was sent on WhatsApp.',
+    ].filter(Boolean).join('\n\n')
+    if (!window.confirm(question)) return
     startTransition(async () => {
-      const result = await deleteVisit(visitId)
+      // On success this opens the patient page
+      const result = await deleteVisit(visit.id, visit.patient.id)
       if (result?.error) setError(result.error)
     })
   }

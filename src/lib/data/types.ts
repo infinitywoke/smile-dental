@@ -22,19 +22,24 @@ export type Visit = {
   patient_id: string
   visit_date: string
   notes: string
-  // When the WhatsApp message for this visit was sent (null: not sent)
+  // When the WhatsApp message for this visit was last sent (null: not sent)
   closed_at?: string | null
+  // Set by the database when a sent visit's charges or payments change; cleared by the next send
+  resend_needed?: boolean
   created_at: string
   updated_at: string
 }
 
 // Two plain facts shown wherever a visit is listed (see src/lib/visit-status.ts)
 export type VisitStatus = {
-  money: 'none' | 'paid' | 'due'
-  // Still owed on this visit (0 unless money is 'due')
+  // 'ahead': money paid, nothing charged
+  money: 'none' | 'paid' | 'due' | 'ahead'
+  // This visit's part of what the patient owes (0 unless money is 'due')
   due: number
   // The WhatsApp message was sent
   sent: boolean
+  // Sent, but the bill changed since: send again
+  resend: boolean
 }
 
 export type VisitPhoto = {
@@ -72,7 +77,8 @@ export type Payment = {
   id: string
   owner_id: string
   patient_id: string
-  visit_id: string | null
+  // Every payment belongs to a visit; a visit that holds payments can't be deleted
+  visit_id: string
   amount: number
   method: PaymentMethod
   received_at: string

@@ -8,10 +8,11 @@ import { createClient } from '@/lib/supabase/server'
 import { SHARE_LINK_SECONDS, appointmentsOfVisit, findOrCreateTodaysVisit, indiaDayBounds } from '@/lib/data/visits'
 import { getVisitBill, type VisitBill } from '@/lib/data/billing'
 import { getNextVisitSuggestion } from '@/lib/data/next-visit'
-import { MAX_PHOTOS_TO_SEND } from '@/lib/billing'
+import { MAX_PHOTOS_TO_SEND, paymentsHeldMessage } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { BLOCK_MINUTES, clinicBlockOf } from '@/lib/schedule'
 import { PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
+import { confirmationMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_NOTES = 20_000
@@ -40,8 +41,10 @@ export async function saveVisitNotes(visitId: string, notes: string, options: { 
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
   const supabase = await createClient()
-  const { error } = await supabase.from('visits').update({ notes: notes.slice(0, MAX_NOTES) }).eq('id', visitId)
+  const { data, error } = await supabase.from('visits').update({ notes: notes.slice(0, MAX_NOTES) }).eq('id', visitId).select('id')
   if (error) return { error: 'Could not save the notes.' }
+  // Nothing changed: the visit was deleted (in another tab, say), so nothing was saved
+  if (data.length === 0) return { error: "Couldn't save the note." }
   if (options.refresh) refreshClinicScreens()
   return {}
 }
@@ -65,19 +68,27 @@ export async function setPhotoKind(photoId: string, kind: PhotoKind): Promise<Re
   await getDoctor()
   if (!UUID.test(photoId) || !PHOTO_KINDS.includes(kind)) return { error: 'Invalid photo.' }
   const supabase = await createClient()
-  const { error } = await supabase.from('visit_photos').update({ caption: kind }).eq('id', photoId)
-  if (error) return { error: 'Could not save that. Please try again.' }
+  const { data, error } = await supabase.from('visit_photos').update({ caption: kind }).eq('id', photoId).select('id')
+  if (error || data.length === 0) return { error: 'Could not save that. Please try again.' }
   refreshClinicScreens()
   return {}
 }
 
+// The file goes first, then the row: if storage fails, the photo stays on the visit (and can be
+// deleted again) rather than leaving a file nobody can see but a sent link can still open.
+// Removing a file that is already gone succeeds, so a retry is safe.
 export async function deleteVisitPhoto(photoId: string): Promise<Result> {
   await getDoctor()
   if (!UUID.test(photoId)) return { error: 'Invalid photo.' }
   const supabase = await createClient()
-  const { data, error } = await supabase.from('visit_photos').delete().eq('id', photoId).select('storage_path').maybeSingle()
-  if (error) return { error: 'Could not delete the photo.' }
-  if (data) await supabase.storage.from(PHOTO_BUCKET).remove([data.storage_path])
+  const { data: photo, error: readError } = await supabase.from('visit_photos').select('storage_path').eq('id', photoId).maybeSingle()
+  if (readError) return { error: 'Could not delete the photo.' }
+  if (photo) {
+    const { error: removeError } = await supabase.storage.from(PHOTO_BUCKET).remove([photo.storage_path])
+    if (removeError) return { error: 'Could not delete the photo.' }
+    const { error } = await supabase.from('visit_photos').delete().eq('id', photoId)
+    if (error) return { error: 'Could not delete the photo.' }
+  }
   refreshClinicScreens()
   return {}
 }
@@ -90,7 +101,9 @@ export async function suggestNextVisit(visitId: string): Promise<string | null> 
 }
 
 // Books the next visit, only when the doctor taps a time. Choosing again moves the same booking.
-export async function bookNextVisit(visitId: string, startsAt: string): Promise<Result> {
+// Once the visit's WhatsApp has gone, the patient has the old time (or none), so the reply carries
+// the message to send: "moved to" for a moved booking, "confirmed" for a new one.
+export async function bookNextVisit(visitId: string, startsAt: string): Promise<Result & { whatsappUrl?: string }> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
   const block = clinicBlockOf(startsAt)
@@ -98,7 +111,11 @@ export async function bookNextVisit(visitId: string, startsAt: string): Promise<
   if (block.date < todayInIndia()) return { error: 'That time has already passed.' }
 
   const supabase = await createClient()
-  const { data: visit } = await supabase.from('visits').select('patient_id').eq('id', visitId).maybeSingle()
+  const { data: visit } = await supabase
+    .from('visits')
+    .select('patient_id, closed_at, patient:patients!inner (name, phone)')
+    .eq('id', visitId)
+    .maybeSingle()
   if (!visit) return { error: 'That visit was not found.' }
 
   const { data: existing } = await supabase
@@ -119,10 +136,24 @@ export async function bookNextVisit(visitId: string, startsAt: string): Promise<
       })
   const { error } = await write
   if (error) {
-    return { error: error.code === '23P01' ? 'That time was just taken. Please choose another.' : 'Could not book the next visit. Please try again.' }
+    // The database's own messages (a time already over, or blocked off) are written for the doctor
+    return {
+      error:
+        error.code === '23P01'
+          ? 'That time was just taken. Please choose another.'
+          : error.code === 'P0001'
+            ? error.message
+            : 'Could not book the next visit. Please try again.',
+    }
   }
   refreshClinicScreens()
-  return {}
+
+  const patient = visit.patient as unknown as { name: string; phone: string | null }
+  if (!visit.closed_at || !patient.phone) return {}
+  const message = existing
+    ? movedMessage({ name: patient.name, startsAt: block.iso })
+    : confirmationMessage({ name: patient.name, startsAt: block.iso })
+  return { whatsappUrl: whatsappLink(patient.phone, message) }
 }
 
 // What the WhatsApp message says, read fresh from the database at the tap
@@ -136,12 +167,10 @@ export type MessageData = {
 }
 
 // The doctor tapped Send on WhatsApp. Reads the bill and the next appointment fresh (server actions
-// run one after another, so a booking, charge or payment tapped just before is already saved), makes
-// the 30-day links for the ticked photos (only now, and only photos of this visit), then records the
-// visit as "WhatsApp sent" (closed_at keeps the first time) and today's appointment for it as done.
-// A visit dated today also marks the patient's other bookings today as done, so a second booking
-// on the same day never stays "booked" for ever.
-export async function markWhatsappSent(visitId: string, photoIds: string[] = []): Promise<Result & { message?: MessageData }> {
+// run one after another, so a booking, charge or payment tapped just before is already saved) and
+// makes the 30-day links for the ticked photos (only now, and only photos of this visit). Nothing is
+// recorded here: markWhatsappSent records the send once WhatsApp is actually opened.
+export async function prepareWhatsapp(visitId: string, photoIds: string[] = []): Promise<Result & { message?: MessageData }> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
   if (photoIds.length > MAX_PHOTOS_TO_SEND) return { error: `You can send up to ${MAX_PHOTOS_TO_SEND} photos at a time.` }
@@ -149,10 +178,8 @@ export async function markWhatsappSent(visitId: string, photoIds: string[] = [])
   const supabase = await createClient()
 
   let fresh: Omit<MessageData, 'links'>
-  let visitInfo: { patientId: string; date: string }
   try {
     const bill = await getVisitBill(visitId)
-    visitInfo = { patientId: bill.patient.id, date: bill.visit.visit_date }
     const { next } = await appointmentsOfVisit(visitId, bill.patient.id)
     fresh = {
       charges: bill.charges,
@@ -180,40 +207,82 @@ export async function markWhatsappSent(visitId: string, photoIds: string[] = [])
     if (Object.keys(links).length !== photos.length) return { error: 'Could not prepare the photo links. Please try again.' }
   }
 
-  const { error } = await supabase.from('visits').update({ closed_at: new Date().toISOString() }).eq('id', visitId).is('closed_at', null)
-  if (error) return { error: 'Could not record the message.' }
-  await supabase.from('appointments').update({ status: 'done' }).eq('visit_id', visitId).eq('status', 'booked')
-  const today = todayInIndia()
-  if (visitInfo.date === today) {
-    const { start, end } = indiaDayBounds(today)
-    await supabase
-      .from('appointments')
-      .update({ status: 'done' })
-      .eq('patient_id', visitInfo.patientId)
-      .eq('status', 'booked')
-      // A next visit booked from this visit for later today is still to come
-      .or(`from_visit_id.is.null,from_visit_id.neq.${visitId}`)
-      .gte('starts_at', start)
-      .lte('starts_at', end)
-  }
-  refreshClinicScreens()
   return { message: { ...fresh, links } }
 }
 
-export async function deleteVisit(visitId: string): Promise<Result> {
+// WhatsApp is opening with the message: records every send as "WhatsApp sent" (the latest time) and
+// clears "bill changed". The appointment the visit came from is done, and so are the patient's other
+// bookings today that have already started; a booking later today is still to come, so it stays.
+export async function markWhatsappSent(visitId: string): Promise<Result> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
   const supabase = await createClient()
-  // Find the photo files first; if that fails, stop rather than leave orphaned patient images in Storage
-  const { data: photos, error: photosError } = await supabase.from('visit_photos').select('storage_path').eq('visit_id', visitId)
-  if (photosError) return { error: 'Could not delete the visit.' }
+
+  const now = new Date().toISOString()
+  const { data: visit, error } = await supabase
+    .from('visits')
+    .update({ closed_at: now, resend_needed: false })
+    .eq('id', visitId)
+    .select('patient_id, visit_date')
+    .maybeSingle()
+  if (error) return { error: 'Could not record the message.' }
+  if (!visit) return { error: 'That visit was not found.' }
+
+  await supabase.from('appointments').update({ status: 'done' }).eq('visit_id', visitId).eq('status', 'booked')
+  const today = todayInIndia()
+  if (visit.visit_date === today) {
+    await supabase
+      .from('appointments')
+      .update({ status: 'done' })
+      .eq('patient_id', visit.patient_id)
+      .eq('status', 'booked')
+      .gte('starts_at', indiaDayBounds(today).start)
+      .lte('starts_at', now)
+  }
+  refreshClinicScreens()
+  return {}
+}
+
+// Delete visit, in this order, so nothing is lost by accident and nothing is left behind:
+// 1. a visit that holds payments is refused, naming the amounts (money is removed one payment at a time);
+// 2. every photo file in the visit's folder goes (rows and stray uploads); if storage fails, stop;
+// 3. the visit goes, with its notes, charges and photo rows;
+// 4. the appointment it came from, marked done by the send, is booked again (unless that time was
+//    taken since), so the patient shows on that day again.
+// A retry after a lost reply finds the visit already gone: that is success.
+export async function deleteVisit(visitId: string, patientId: string): Promise<Result> {
+  const doctor = await getDoctor()
+  if (!UUID.test(visitId) || !UUID.test(patientId)) return { error: 'Invalid visit.' }
+  const supabase = await createClient()
+
+  const { data: payments, error: paymentsError } = await supabase.from('payments').select('amount, method').eq('visit_id', visitId)
+  if (paymentsError) return { error: 'Could not delete the visit.' }
+  if (payments.length > 0) return { error: paymentsHeldMessage(payments.map((p) => ({ amount: Number(p.amount), method: p.method }))) }
+
+  const folder = `${doctor.id}/${visitId}`
+  const [rows, files, linked] = await Promise.all([
+    supabase.from('visit_photos').select('storage_path').eq('visit_id', visitId),
+    supabase.storage.from(PHOTO_BUCKET).list(folder, { limit: 1000 }),
+    supabase.from('appointments').select('id').eq('visit_id', visitId).eq('status', 'done'),
+  ])
+  if (rows.error || files.error || linked.error) return { error: 'Could not delete the visit. Please try again.' }
+  const paths = new Set([...rows.data.map((p) => p.storage_path as string), ...files.data.map((f) => `${folder}/${f.name}`)])
+  if (paths.size > 0) {
+    const { error: removeError } = await supabase.storage.from(PHOTO_BUCKET).remove([...paths])
+    if (removeError) return { error: "Could not delete the visit's photos. Please try again." }
+  }
 
   const { data, error } = await supabase.from('visits').delete().eq('id', visitId).select('patient_id').maybeSingle()
-  if (error || !data) return { error: 'Could not delete the visit.' }
-  if (photos.length > 0) {
-    await supabase.storage.from(PHOTO_BUCKET).remove(photos.map((p) => p.storage_path))
+  if (error) {
+    // A payment recorded in another tab meanwhile: the database refuses too
+    return { error: error.code === '23503' ? 'This visit holds payments. Remove them in Payment first, then delete the visit.' : 'Could not delete the visit.' }
+  }
+
+  // Booked again; if the time has been taken since (23P01), it stays as it is
+  for (const appointment of linked.data) {
+    await supabase.from('appointments').update({ status: 'booked' }).eq('id', appointment.id).eq('status', 'done')
   }
   refreshClinicScreens()
   // Replace, so Back doesn't return to the deleted visit
-  redirect(`/app/patients/${data.patient_id}`, RedirectType.replace)
+  redirect(`/app/patients/${data?.patient_id ?? patientId}`, RedirectType.replace)
 }

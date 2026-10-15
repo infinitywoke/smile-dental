@@ -40,10 +40,12 @@ export type AppointmentRow = {
   duration_min: number
   reason: string
   status: string
+  // The visit started from this appointment, if any
+  visit_id: string | null
   patient: { id: string; name: string; phone: string | null; medical_alerts: string | null }
 }
 
-const APPOINTMENT_SELECT = 'id, patient_id, starts_at, duration_min, reason, status, patient:patients!inner (id, name, phone, medical_alerts)'
+const APPOINTMENT_SELECT = 'id, patient_id, starts_at, duration_min, reason, status, visit_id, patient:patients!inner (id, name, phone, medical_alerts)'
 
 function dayRange(date: string) {
   const start = new Date(blockInstant(date, '00:00'))

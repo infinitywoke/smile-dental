@@ -27,8 +27,11 @@ export function PaymentCard({
   bill: VisitBill
   save: Save
 }) {
-  const { payments, summary } = bill
-  const due = Math.max(summary.balance, 0)
+  const { charges, payments, summary } = bill
+  // What the patient owes, all visits together (one money rule, src/lib/billing.ts): the bottom
+  // line and the amount box use it, so the box never asks for more than is owed
+  const due = Math.max(summary.due, 0)
+  const hasBill = charges.length > 0 || payments.length > 0
   const [amount, setAmount] = useState(due > 0 ? String(due) : '')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -69,7 +72,7 @@ export function PaymentCard({
       <h2 className="text-lg font-bold text-gray-900">Payment</h2>
       <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
         <div className="space-y-1 text-base">
-          <Row label="Total" value={formatRupees(summary.total)} />
+          {hasBill && <Row label="Total" value={formatRupees(summary.total)} />}
           {payments.map((payment) => (
             <div key={payment.id} className="-my-1 flex items-center gap-2">
               <p className="min-w-0 flex-1 text-gray-700">
@@ -81,27 +84,29 @@ export function PaymentCard({
                 onRemove={() => save(() => removePayment(payment.id))} />
             </div>
           ))}
+          {/* The patient's other visits, in one line, whichever way it goes */}
+          {summary.earlier > 0 ? (
+            <Row label="Due from other visits" value={formatRupees(summary.earlier)} muted />
+          ) : summary.earlier < 0 ? (
+            <Row label="Advance from other visits" value={formatRupees(-summary.earlier)} muted />
+          ) : null}
           <div className="flex items-center justify-between border-t border-gray-100 pt-2">
-            {summary.balance > 0 ? (
+            {summary.due > 0 ? (
               <>
                 <p className="font-semibold text-gray-900">Still due</p>
-                <p className="text-xl font-bold tabular-nums text-red-700">{formatRupees(summary.balance)}</p>
+                <p className="text-xl font-bold tabular-nums text-red-700">{formatRupees(summary.due)}</p>
               </>
-            ) : summary.balance < 0 ? (
+            ) : summary.due < 0 ? (
               <>
                 <p className="font-semibold text-gray-900">Advance with us</p>
-                <p className="text-xl font-bold tabular-nums text-green-700">{formatRupees(-summary.balance)}</p>
+                <p className="text-xl font-bold tabular-nums text-green-700">{formatRupees(-summary.due)}</p>
               </>
+            ) : summary.total === 0 && summary.paid === 0 ? (
+              <p className="text-lg font-bold text-gray-700">No charge</p>
             ) : (
               <p className="flex items-center gap-1.5 text-lg font-bold text-green-700"><Check className="h-5 w-5" /> Paid in full</p>
             )}
           </div>
-          {summary.earlier > 0 && (
-            <div className="space-y-1 pt-1 text-sm text-gray-600">
-              <Row label="Other visits" value={formatRupees(summary.earlier)} />
-              <Row label="Total due" value={formatRupees(summary.due)} strong />
-            </div>
-          )}
         </div>
 
         {due > 0 && (
@@ -206,9 +211,9 @@ function UpiScreen({
   )
 }
 
-function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+function Row({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
   return (
-    <div className={`flex items-center justify-between ${strong ? 'font-semibold text-gray-900' : ''}`}>
+    <div className={`flex items-center justify-between ${muted ? 'text-gray-600' : ''}`}>
       <p>{label}</p>
       <p className="tabular-nums">{value}</p>
     </div>

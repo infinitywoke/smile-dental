@@ -1,7 +1,7 @@
 import 'server-only'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { sumAmounts } from '@/lib/billing'
+import { newestVisitOwing, patientAccount, sumAmounts, type VisitMoney } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
 import { isEmptyVisit, visitStatus } from '@/lib/visit-status'
@@ -15,7 +15,6 @@ export type HubVisit = {
   photo_count: number
   status: VisitStatus
   total: number
-  balance: number
 }
 
 export type HubAppointment = { id: string; starts_at: string; reason: string }
@@ -30,7 +29,7 @@ export type PatientHub = {
   todayVisitId: string | null
   // Booked for today with no visit started from it yet: the Start button passes it along
   appointmentTodayId: string | null
-  // The most recent visit that still has money owed, and how much to collect
+  // Only when something is owed: the newest visit with a part owed, and the whole amount to collect
   due: { visitId: string; amount: number } | null
 }
 
@@ -42,10 +41,10 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
   const today = todayInIndia()
   const startOfToday = new Date(`${today}T00:00:00+05:30`)
 
-  const [visitRows, appointmentRows, standalonePayments] = await Promise.all([
+  const [visitRows, appointmentRows] = await Promise.all([
     supabase
       .from('visits')
-      .select('id, visit_date, notes, closed_at, created_at, visit_photos (count), visit_charges (amount), payments (amount)')
+      .select('id, visit_date, notes, closed_at, resend_needed, created_at, visit_photos (count), visit_charges (amount), payments (amount)')
       .eq('patient_id', id)
       .order('visit_date', { ascending: false })
       .order('created_at', { ascending: false }),
@@ -57,12 +56,20 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
       .gte('starts_at', startOfToday.toISOString())
       .order('starts_at', { ascending: true })
       .limit(10),
-    // Money received that belongs to no visit (an advance)
-    supabase.from('payments').select('amount').eq('patient_id', id).is('visit_id', null),
   ])
   if (visitRows.error) throw visitRows.error
   if (appointmentRows.error) throw appointmentRows.error
-  if (standalonePayments.error) throw standalonePayments.error
+
+  // The one money rule over every visit (every payment belongs to a visit)
+  const money: VisitMoney[] = visitRows.data.map((row) => ({
+    id: row.id,
+    date: row.visit_date,
+    createdAt: row.created_at,
+    charged: sumAmounts((row.visit_charges ?? []).map((c) => ({ amount: Number(c.amount) }))),
+    paid: sumAmounts((row.payments ?? []).map((p) => ({ amount: Number(p.amount) }))),
+  }))
+  const account = patientAccount(money)
+  const moneyOf = new Map(money.map((m) => [m.id, m]))
 
   // A visit with nothing in it (started, then left) is not listed
   const filled = visitRows.data.filter(
@@ -75,16 +82,14 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
       }),
   )
   const visits: HubVisit[] = filled.map((row) => {
-    const total = sumAmounts((row.visit_charges ?? []).map((c) => ({ amount: Number(c.amount) })))
-    const paid = sumAmounts((row.payments ?? []).map((p) => ({ amount: Number(p.amount) })))
+    const { charged: total, paid } = moneyOf.get(row.id)!
     return {
       id: row.id,
       visit_date: row.visit_date,
       notes: row.notes,
       photo_count: row.visit_photos?.[0]?.count ?? 0,
-      status: visitStatus({ closedAt: row.closed_at, total, paid }),
+      status: visitStatus({ closedAt: row.closed_at, resendNeeded: row.resend_needed, total, paid, due: account.dueByVisit.get(row.id) ?? 0 }),
       total,
-      balance: Math.round((total - paid) * 100) / 100,
     }
   })
 
@@ -96,19 +101,16 @@ export async function getPatientHub(id: string): Promise<PatientHub> {
     .map(({ id: appointmentId, starts_at, reason }) => ({ id: appointmentId, starts_at, reason }))
   const appointmentToday = appointments.find((a) => !a.visit_id && inIndia(a.starts_at).date === today) ?? null
 
-  const advance = sumAmounts(standalonePayments.data.map((p) => ({ amount: Number(p.amount) })))
-  const balance = Math.round((sumAmounts(visits.map((v) => ({ amount: v.balance }))) - advance) * 100) / 100
-
   const todayVisit = visitRows.data.find((row) => row.visit_date === today) ?? null
-  const dueVisit = visits.find((v) => v.balance > 0) ?? null
+  const dueVisitId = account.owed > 0 ? newestVisitOwing(money, account) : null
 
   return {
     patient,
     visits,
     coming,
-    balance,
+    balance: account.owed,
     todayVisitId: todayVisit?.id ?? null,
     appointmentTodayId: appointmentToday?.id ?? null,
-    due: dueVisit ? { visitId: dueVisit.id, amount: balance > 0 ? Math.min(dueVisit.balance, balance) : dueVisit.balance } : null,
+    due: dueVisitId ? { visitId: dueVisitId, amount: account.owed } : null,
   }
 }

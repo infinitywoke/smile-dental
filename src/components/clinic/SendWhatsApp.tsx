@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { AlertCircle, Check, ImageIcon, Loader2, MessageCircle } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import type { VisitDetail, VisitPhoto } from '@/lib/data/types'
-import { markWhatsappSent, type MessageData } from '@/lib/actions/visits'
+import { markWhatsappSent, prepareWhatsapp, type MessageData } from '@/lib/actions/visits'
 import { MAX_PHOTOS_TO_SEND, visitMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
 import type { PhotoKind } from '@/lib/visit-status'
@@ -20,6 +20,8 @@ const TAP_WAIT_MS = 2000
 // Still preparing after this long: say so, and let him tap again (server actions run one after
 // another and every save is safe to repeat, so a second tap never doubles anything)
 const STILL_TRYING_MS = 15_000
+// Recording the send waits at most this long before WhatsApp opens, so the tap still counts
+const RECORD_WAIT_MS = 3000
 
 const labelOf = (kind: PhotoKind | null) => (kind === 'Prescription' || kind === 'X-ray' ? kind : 'Photo')
 const photos = (n: number) => (n === 1 ? '1 photo' : `${n} photos`)
@@ -85,6 +87,9 @@ export function SendWhatsApp({
   const ticked = (photo: VisitPhoto) => ticks[photo.id] ?? kindOf(photo) === 'Prescription'
   const tickedPhotos = visit.photos.filter(ticked)
   const sent = sentNow || !!visit.closed_at
+  // Sent, but a charge or payment changed since (the database sets this): the patient's message is out of date
+  const resend = sent && !!visit.resend_needed
+  const upToDate = sent && !resend
   const phone = visit.patient.phone
   const canShareFiles = useCanShareFiles()
   const router = useRouter()
@@ -124,7 +129,7 @@ export function SendWhatsApp({
   const [shareError, setShareError] = useState<string | null>(null)
   // After the message: the photo button, unless WhatsApp still has to be opened (or is being prepared)
   const showPhotoButton =
-    canShareFiles && sent && tickedPhotos.length > 0 && tickedPhotos.length <= MAX_PHOTOS_TO_SEND && sending.state !== 'ready' && sending.state !== 'waiting'
+    canShareFiles && upToDate && tickedPhotos.length > 0 && tickedPhotos.length <= MAX_PHOTOS_TO_SEND && sending.state !== 'ready' && sending.state !== 'waiting'
 
   // Straight from the tap, with nothing awaited first, so Android allows the share sheet
   function sharePhotos() {
@@ -197,6 +202,24 @@ export function SendWhatsApp({
       }),
     )
 
+  // WhatsApp is opening: record the send ("WhatsApp sent", "bill changed" cleared), then open it.
+  // A slow reply doesn't hold WhatsApp back (the tap only counts for a few seconds); it is recorded
+  // when the reply comes. A refusal from the server is shown instead of opening.
+  async function recordAndOpen(link: string, onOpen?: () => void) {
+    const recorded = markWhatsappSent(visit.id).then(
+      (r) => r.error ?? null,
+      () => "Couldn't reach the server. Check the internet and try again.",
+    )
+    const outcome = await Promise.race([recorded, new Promise<'slow'>((resolve) => setTimeout(() => resolve('slow'), RECORD_WAIT_MS))])
+    if (outcome !== null && outcome !== 'slow') {
+      setSending({ state: 'failed', message: outcome })
+      return
+    }
+    setSentNow(true)
+    onOpen?.()
+    openWhatsApp(link)
+  }
+
   async function send(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault()
     if (!phone || hold || busy) return
@@ -211,7 +234,7 @@ export function SendWhatsApp({
     try {
       await whenSaved()
       // Photos shared as files need no links, so none are made
-      const result = await markWhatsappSent(visit.id, canShareFiles ? [] : tickedPhotos.map((p) => p.id))
+      const result = await prepareWhatsapp(visit.id, canShareFiles ? [] : tickedPhotos.map((p) => p.id))
       clearTimeout(timer)
       clearTimeout(stillTrying)
       // He tapped again meanwhile: that try's reply is the one used
@@ -220,12 +243,12 @@ export function SendWhatsApp({
         setSending({ state: 'failed', message: result.error ?? 'Could not prepare the message. Please try again.' })
         return
       }
-      setSentNow(true)
       const link = linkWith(result.message, result.message.links)
-      // Quick enough: open WhatsApp now, still counted as the doctor's tap. Otherwise wait for his tap.
+      // Quick enough: open WhatsApp now, still counted as the doctor's tap. Otherwise "Message ready"
+      // waits for his tap, and only that tap records the send.
       if (!tooSlow) {
-        setSending({ state: 'idle' })
-        openWhatsApp(link)
+        // "Preparing…" stays until WhatsApp opens
+        await recordAndOpen(link, () => setSending({ state: 'idle' }))
       } else {
         setSending({ state: 'ready', link })
       }
@@ -256,9 +279,19 @@ export function SendWhatsApp({
         </div>
       )}
 
-      {sent && (
+      {resend ? (
+        <p className="flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900 ring-1 ring-amber-300">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" /> The bill changed after the WhatsApp was sent.
+        </p>
+      ) : sent ? (
         <p className="flex items-center gap-2 rounded-2xl bg-green-50 px-4 py-3 text-base font-semibold text-green-800 ring-1 ring-green-200">
           <Check className="h-5 w-5" /> WhatsApp sent
+        </p>
+      ) : null}
+
+      {sending.state === 'ready' && (
+        <p role="status" className="flex items-center gap-2 rounded-2xl bg-green-50 px-4 py-3 text-base font-semibold text-green-800 ring-1 ring-green-200">
+          <MessageCircle className="h-5 w-5" /> Message ready
         </p>
       )}
 
@@ -309,9 +342,13 @@ export function SendWhatsApp({
           <Link href={`/app/patients/${visit.patient.id}/edit`} className="font-semibold underline">Add it</Link> to send the bill.
         </p>
       ) : sending.state === 'ready' ? (
-        // The server took a while: a real link, opened by the doctor's own tap. It stays (no state change on
-        // the tap, which would swap the link before the browser follows it), so coming back he can tap again.
+        // The server took a while: "Message ready", and WhatsApp opens on the doctor's own tap, which is
+        // also when the send is recorded. It stays, so coming back he can tap again.
         <a key="open" href={sending.link}
+          onClick={(event) => {
+            event.preventDefault()
+            void recordAndOpen(sending.link)
+          }}
           className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700">
           <MessageCircle className="h-6 w-6" /> Open WhatsApp
         </a>

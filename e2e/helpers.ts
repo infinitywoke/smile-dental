@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { addDays, blockInstant, inIndia, isClosedDay } from '../src/lib/schedule'
+import { ALL_BLOCKS, addDays, blockInstant, inIndia, isClosedDay } from '../src/lib/schedule'
 import { appEnv, testLogin } from './env'
 
 // Shared by every spec file. Each spec signs in, makes its own data and cleans up after itself,
@@ -99,6 +99,33 @@ export async function createAppointment(patientId: string, day: string, hhmm: st
     .single()
   if (error) throw new Error(`creating appointment: ${error.message}`)
   return data.id as string
+}
+
+// Today's clinic blocks that start at least `leadMinutes` from now (HH:MM, India time); none on a Friday
+export function blocksLeftToday(leadMinutes = 5): string[] {
+  const today = inIndia(new Date()).date
+  if (isClosedDay(today)) return []
+  return ALL_BLOCKS.filter((hhmm) => new Date(blockInstant(today, hhmm)).getTime() > Date.now() + leadMinutes * 60_000)
+}
+
+// Books the first of `times` on `day` that is still free (other runs may hold some), or null
+export async function createAppointmentAtFirstFree(patientId: string, day: string, times: string[]): Promise<{ id: string; time: string } | null> {
+  for (const time of times) {
+    try {
+      return { id: await createAppointment(patientId, day, time), time }
+    } catch {
+      // Taken, or already over: try the next one
+    }
+  }
+  return null
+}
+
+// The files in a visit's photo folder (`<doctor>/<visit>/`)
+export async function photoFolderFiles(visitId: string): Promise<string[]> {
+  const { supabase, userId } = await testDb()
+  const { data, error } = await supabase.storage.from(PHOTO_BUCKET).list(`${userId}/${visitId}`)
+  if (error) throw new Error(`listing photos: ${error.message}`)
+  return (data ?? []).map((f) => f.name).filter((name) => name !== '.emptyFolderPlaceholder')
 }
 
 // A visit on `day` with one charge and, if `paid` is given, one cash payment
