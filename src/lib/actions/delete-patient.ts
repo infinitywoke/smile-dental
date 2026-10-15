@@ -56,6 +56,14 @@ export async function deletePatient(patientId: string, mode: DeleteMode, passwor
     if (removeError) return { error: 'Could not delete the photos. Please try again.' }
   }
 
+  // Their website requests' voice notes go first (private recordings of the patient)
+  const { data: voiced } = await supabase.from('booking_requests').select('voice_note').eq('patient_id', patientId).not('voice_note', 'is', null)
+  const voicePaths = (voiced ?? []).map((r) => r.voice_note as string)
+  if (voicePaths.length > 0) {
+    const { error: voiceError } = await supabase.storage.from('request-voice').remove(voicePaths)
+    if (voiceError) return { error: 'Could not delete the voice notes. Please try again.' }
+  }
+
   // Website requests carry the name, phone and medical alerts: they go in both cases
   const { error: requestsError } = await supabase.from('booking_requests').delete().eq('patient_id', patientId)
   if (requestsError) return { error: 'Could not delete the patient. Please try again.' }

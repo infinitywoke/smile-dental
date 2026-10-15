@@ -73,6 +73,11 @@ export default function PrivacyPage() {
             every note himself. When he dictates by voice, the speech recognition built into the
             phone&apos;s browser turns his words into text.
           </p>
+          <p className="mt-3">
+            When you book online you may record a short voice note about your problem (up to a minute), or send
+            one on WhatsApp. It is kept privately with your request, only the dentist can listen to it, and it
+            is deleted with your record.
+          </p>
         </Section>
 
         <Section title="4. Where your information is kept">

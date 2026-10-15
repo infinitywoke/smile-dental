@@ -21,6 +21,9 @@ type Props = {
   details: { age: string | null; address: string | null; heardFrom: string | null; notes: string | null }
   // Asked to be called (no WhatsApp)
   callBack?: boolean
+  // The patient's voice note (page version), or that they were asked for one on WhatsApp
+  voiceUrl?: string | null
+  voiceVariant?: string | null
   phone?: string | null
   // "Time passed" or "No longer held, asked 2 days ago": shown on the card, with Decline right there
   // How the asked time stands (held, not held yet, passed); stale ones offer Decline
@@ -30,7 +33,7 @@ type Props = {
 type Done = { declined: boolean; whatsappUrl?: string; when: string | null }
 
 // A website booking on Today: Confirm books the time asked for in one tap
-export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, otherTimeHref, details, notice = null, callBack = false, phone = null }: Props) {
+export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, otherTimeHref, details, notice = null, callBack = false, phone = null, voiceUrl = null, voiceVariant = null }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -126,6 +129,15 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
           <Clock className="h-4 w-4 shrink-0" /> {notice.text}
         </p>
       )}
+
+      {voiceUrl ? (
+        <div className="mt-2 space-y-1">
+          <p className="text-sm font-semibold text-gray-800">🎤 Voice note</p>
+          <audio src={voiceUrl} controls preload="none" className="w-full" aria-label={`Voice note from ${name}`} />
+        </div>
+      ) : voiceVariant === 'whatsapp' ? (
+        <p className="mt-2 text-sm text-gray-700">🎤 Asked to send a voice note on WhatsApp</p>
+      ) : null}
 
       {alerts && (
         <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-sm text-red-800 ring-1 ring-red-200">

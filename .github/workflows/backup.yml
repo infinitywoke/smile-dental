@@ -126,6 +126,10 @@ jobs:
           rclone sync supa:visit-photos vault:photos/current --backup-dir "vault:photos/removed/$day"
           prune delete --min-age 31d vault:photos/removed
           prune rmdirs --leave-root vault:photos/removed
+          # Patients' voice notes from the website (the bucket exists once voice-notes-2026-10.sql is applied)
+          prune sync supa:request-voice vault:voice/current --backup-dir "vault:voice/removed/$day"
+          prune delete --min-age 31d vault:voice/removed
+          prune rmdirs --leave-root vault:voice/removed
           echo "Backup sizes:"
           rclone size vault:database
           rclone size vault:photos/current

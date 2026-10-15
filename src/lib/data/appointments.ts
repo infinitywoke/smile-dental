@@ -177,7 +177,16 @@ export async function findAppointment(id: string | null): Promise<AppointmentRow
 
 // `confirmable`: the time asked for is still ahead, so one tap can book it.
 // `notice`: "Time passed" or "No longer held, asked 2 days ago" (null while the request is held).
-export type PendingRequest = BookingRequest & { confirmable: boolean; notice: RequestNotice | null }
+export type PendingRequest = BookingRequest & { confirmable: boolean; notice: RequestNotice | null; voice_url: string | null }
+
+// Patients' voice notes are private: they play through links that last an hour
+export const VOICE_BUCKET = 'request-voice'
+async function voiceNoteUrls(paths: string[]): Promise<Record<string, string>> {
+  if (paths.length === 0) return {}
+  const supabase = await createClient()
+  const { data } = await supabase.storage.from(VOICE_BUCKET).createSignedUrls(paths, 60 * 60)
+  return Object.fromEntries((data ?? []).flatMap((d) => (d.path && d.signedUrl ? [[d.path, d.signedUrl]] : [])))
+}
 
 export async function getPendingRequests(): Promise<PendingRequest[]> {
   await getDoctor()
@@ -189,19 +198,24 @@ export async function getPendingRequests(): Promise<PendingRequest[]> {
     .order('created_at', { ascending: true })
   if (error) throw error
   const now = Date.now()
-  return (data as BookingRequest[]).map((request) => ({
+  const requests = data as BookingRequest[]
+  const urls = await voiceNoteUrls(requests.flatMap((r) => (r.voice_note ? [r.voice_note] : [])))
+  return requests.map((request) => ({
     ...request,
+    voice_url: request.voice_note ? (urls[request.voice_note] ?? null) : null,
     confirmable: !!request.requested_start && new Date(request.requested_start).getTime() > now,
     notice: requestNotice(request.requested_start, request.created_at, request.received_at, now),
   }))
 }
 
-export async function getBookingRequest(id: string): Promise<BookingRequest> {
+export async function getBookingRequest(id: string): Promise<BookingRequest & { voice_url: string | null }> {
   await getDoctor()
   if (!UUID.test(id)) notFound()
   const supabase = await createClient()
   const { data, error } = await supabase.from('booking_requests').select('*').eq('id', id).maybeSingle()
   if (error) throw error
   if (!data) notFound()
-  return data as BookingRequest
+  const request = data as BookingRequest
+  const urls = request.voice_note ? await voiceNoteUrls([request.voice_note]) : {}
+  return { ...request, voice_url: request.voice_note ? (urls[request.voice_note] ?? null) : null }
 }

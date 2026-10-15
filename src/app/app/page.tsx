@@ -113,6 +113,8 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                 notice={request.notice}
                 callBack={wantsCallBack(request.notes)}
                 phone={request.phone}
+                voiceUrl={request.voice_url}
+                voiceVariant={request.voice_variant}
                 otherTimeHref={`/app/requests/${request.id}${wanted ? `?d=${wanted.date >= today ? wanted.date : today}` : ''}`}
                 details={{
                   age: [age !== null && `${age} yrs`, genderLabel(request.gender)].filter(Boolean).join(' · ') || null,

@@ -77,6 +77,15 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
         <p className="text-sm text-gray-700"><span className="text-gray-500">Heard from:</span> {request.heard_from || '—'}</p>
         <p className="text-sm text-gray-700"><span className="text-gray-500">Reason:</span> {request.reason || '—'}</p>
         {request.notes && <p className="text-sm text-gray-700"><span className="text-gray-500">Note:</span> {request.notes}</p>}
+        {request.voice_url && (
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-gray-800">🎤 Voice note</p>
+            <audio src={request.voice_url} controls preload="none" className="w-full" aria-label="Voice note" />
+          </div>
+        )}
+        {!request.voice_url && request.voice_variant === 'whatsapp' && (
+          <p className="text-sm text-gray-700">🎤 Asked to send a voice note on WhatsApp</p>
+        )}
         {requested && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
             Asked for {formatDay(requested.date)}, {formatBlock(requested.time)}

@@ -126,6 +126,9 @@ export type BookingRequest = {
   heard_from: string | null
   // When its WhatsApp reached the clinic (the asked time is held from then)
   received_at?: string | null
+  // The voice note test: which version the patient saw, and the recording (page version)
+  voice_variant?: 'page' | 'whatsapp' | null
+  voice_note?: string | null
   reason: string | null
   // The block the patient asked for (a moment in time)
   requested_start: string | null

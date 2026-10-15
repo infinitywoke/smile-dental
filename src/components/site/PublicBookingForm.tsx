@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertCircle, ArrowLeft, CalendarCheck, CalendarDays, Clock, MessageCircle, Phone, Sun, Sunrise, Sunset,
 } from 'lucide-react'
 import { siteConfig } from '@/config/site'
-import { submitBookingRequest } from '@/lib/actions/booking'
+import { attachVoiceNote, submitBookingRequest } from '@/lib/actions/booking'
+import { VoiceNoteRecorder, canRecordVoice } from './VoiceNoteRecorder'
 import { formatPhone, isValidPhone, normalizePhone } from '@/lib/phone'
 import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
@@ -57,6 +58,32 @@ function partOfDay(hhmm: string): 'Morning' | 'Afternoon' | 'Evening' {
   return hhmm < '18:00' ? 'Afternoon' : 'Evening'
 }
 
+// Which version of the voice note test this visitor sees (kept for the browser tab)
+const VOICE_KEY = 'smile_voice_variant'
+let voiceVariantCache: 'page' | 'whatsapp' | null = null
+function voiceVariantNow(): 'page' | 'whatsapp' {
+  if (voiceVariantCache) return voiceVariantCache
+  let chosen: 'page' | 'whatsapp' | null = null
+  try {
+    const kept = sessionStorage.getItem(VOICE_KEY)
+    if (kept === 'page' || kept === 'whatsapp') chosen = kept
+  } catch {
+    // Storage blocked: chosen for this page only
+  }
+  if (!chosen) chosen = Math.random() < 0.5 ? 'page' : 'whatsapp'
+  // A browser that can't record gets the WhatsApp version
+  if (chosen === 'page' && !canRecordVoice()) chosen = 'whatsapp'
+  try {
+    sessionStorage.setItem(VOICE_KEY, chosen)
+  } catch {
+    // fine
+  }
+  voiceVariantCache = chosen
+  return chosen
+}
+const noSubscribe = () => () => {}
+const useVoiceVariant = () => useSyncExternalStore(noSubscribe, voiceVariantNow, () => null)
+
 const PART_ICON = { Morning: Sunrise, Afternoon: Sun, Evening: Sunset } as const
 
 export function PublicBookingForm({ slots, promise, today, initialReason = '' }: Props) {
@@ -76,6 +103,9 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
   // Bot traps: a hidden field, and the details step open for at least a few seconds
   const [trap, setTrap] = useState('')
   const [humanPace, setHumanPace] = useState(false)
+  // The voice note test: each visitor sees one version (kept for the visit), stored on the request
+  const voiceVariant = useVoiceVariant()
+  const [voiceNote, setVoiceNote] = useState<Blob | null>(null)
   // "Google", "Instagram"... worked out from the link the visitor came from (see SourceTracker)
   const [guessed, setGuessed] = useState('')
   const [pending, startTransition] = useTransition()
@@ -187,6 +217,14 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
         website: trap,
         tooFast: !humanPace,
       })
+      // The voice note (or which version was shown) goes with the request; WhatsApp opens within 10 s regardless
+      if (result.ok && voiceVariant) {
+        const form = new FormData()
+        form.set('requestId', result.id)
+        form.set('variant', voiceVariant)
+        if (voiceVariant === 'page' && voiceNote) form.set('note', voiceNote)
+        await Promise.race([attachVoiceNote(form).catch(() => null), new Promise((resolve) => setTimeout(resolve, 10_000))])
+      }
       if (result.ok && contact === 'call') {
         // No WhatsApp: the clinic calls to confirm
         setSent({ url: null })
@@ -200,6 +238,7 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
           reason: details.reason,
           // Opened by Dr. Rahil from the message, this records that it arrived (the time is held from then)
           link: `${window.location.origin}/app/requests/${result.id}/received`,
+          voiceNote: voiceVariant === 'whatsapp' ? 'whatsapp' : voiceNote ? 'recorded' : null,
         })
         const url = clinicWhatsappLink(message)
         // Saved. Open WhatsApp with the message ready; keep a button in case it doesn't open.
@@ -421,6 +460,26 @@ export function PublicBookingForm({ slots, promise, today, initialReason = '' }:
                 ))}
               </div>
             </div>
+
+            {voiceVariant === 'page' && (
+              <div className="space-y-2">
+                <p className={labelClass}>🎤 Tell Dr. Rahil what&apos;s bothering you <span className="font-normal text-gray-400">(optional)</span></p>
+                <p className="text-sm text-gray-600">
+                  Which tooth or side? Since when? Does it hurt with hot, cold or sweet things, when biting, or at night? Any swelling?
+                  It helps him plan the right amount of time for you.
+                </p>
+                <VoiceNoteRecorder onChange={setVoiceNote} />
+              </div>
+            )}
+            {voiceVariant === 'whatsapp' && (
+              <div className="rounded-2xl bg-blue-50 p-4 text-sm text-blue-900 ring-1 ring-blue-100">
+                <p className="font-semibold">🎤 Tell Dr. Rahil what&apos;s bothering you, in a voice note</p>
+                <p className="mt-1">
+                  After you tap Send in WhatsApp, hold the microphone button and tell him: which tooth or side, since when, and
+                  what makes it hurt (hot, cold, biting, at night, swelling). It helps him plan the right amount of time for you.
+                </p>
+              </div>
+            )}
 
             <p className="border-t border-gray-100 pt-5 text-sm font-bold uppercase tracking-wide text-gray-500">Optional</p>
 
