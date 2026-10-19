@@ -112,3 +112,25 @@ test('check-ups due: a patient last seen 7 months ago, sent once, back after und
   await expect.poll(() => wa.url).toContain('wa.me')
   await expect.poll(recalled).not.toBeNull()
 })
+
+test('Google review request: one tap after the bill is sent, then the date shows instead', async () => {
+  const name = `${runId} Review`
+  const patientId = await createPatient(name, newPhone('6'))
+  const visitId = await createVisit(patientId, today, 500, 500)
+  const { supabase } = await testDb()
+  await supabase.from('visits').update({ closed_at: new Date().toISOString() }).eq('id', visitId)
+  const asked = async () => (await supabase.from('patients').select('review_asked_at').eq('id', patientId).single()).data!.review_asked_at
+
+  await page.goto(`/app/visits/${visitId}`)
+  const ask = visible(page.getByRole('link', { name: 'Ask for a Google review' }))
+  const text = whatsappText((await ask.getAttribute('href'))!)
+  expect(text).toContain('a short Google review')
+  expect(text).toContain(`Dear ${runId},`)
+  const wa = await captureWhatsapp(page)
+  await ask.click()
+  await expect.poll(() => wa.url).toContain('wa.me')
+  await expect.poll(asked).not.toBeNull()
+  await page.goto(`/app/visits/${visitId}`)
+  await expect(visible(page.getByText(/Google review asked on/))).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Ask for a Google review' })).toHaveCount(0)
+})

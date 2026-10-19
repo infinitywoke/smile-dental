@@ -128,11 +128,13 @@ create table if not exists public.patients (
   medical_alerts text,        -- allergies, conditions, regular medicines
   heard_from text,            -- how they heard about the clinic
   recalled_at timestamptz,    -- the 6-month check-up reminder was sent (or skipped)
+  review_asked_at timestamptz, -- the Google review request was sent on WhatsApp
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 alter table public.patients add column if not exists recalled_at timestamptz;
+alter table public.patients add column if not exists review_asked_at timestamptz;
 
 create index if not exists patients_owner_phone_idx on public.patients (owner_id, phone);
 create index if not exists patients_owner_name_idx on public.patients (owner_id, lower(name));

@@ -81,3 +81,16 @@ export async function setRecalled(patientId: string, recalledAt: 'now' | string 
   refresh()
   return {}
 }
+
+// The Google review request was sent ("now"); undo puts back what was there before
+export async function setReviewAsked(patientId: string, askedAt: 'now' | string | null): Promise<Result> {
+  await getDoctor()
+  if (!UUID.test(patientId)) return { error: 'Something went wrong.' }
+  if (askedAt !== null && askedAt !== 'now' && Number.isNaN(Date.parse(askedAt))) return { error: 'Something went wrong.' }
+  const supabase = await createClient()
+  const value = askedAt === 'now' ? new Date().toISOString() : askedAt
+  const { error } = await supabase.from('patients').update({ review_asked_at: value }).eq('id', patientId)
+  if (error) return { error: TRY_AGAIN }
+  refresh()
+  return {}
+}

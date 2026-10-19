@@ -20,7 +20,7 @@ const whenLabel = (iso: string) => {
 // The tap is saved first (briefly: Android lets a tap open WhatsApp only for a few seconds), so leaving
 // the page for WhatsApp can't cut the save off
 const RECORD_WAIT_MS = 1500
-function saveThenOpen(event: React.MouseEvent<HTMLAnchorElement>, href: string, save: () => Promise<unknown>) {
+export function saveThenOpen(event: React.MouseEvent<HTMLAnchorElement>, href: string, save: () => Promise<unknown>) {
   event.preventDefault()
   const saved = save().catch(() => {})
   void Promise.race([saved, new Promise((resolve) => setTimeout(resolve, RECORD_WAIT_MS))]).then(() => openWhatsApp(href))

@@ -13,6 +13,7 @@ import type { PhotoKind } from '@/lib/visit-status'
 import { firstName, whatsappLink } from '@/lib/whatsapp'
 import type { UploadCounts } from './PhotoGallery'
 import { openWhatsApp } from '@/lib/whatsapp-business'
+import { ReviewRequest } from './ReviewRequest'
 
 // WhatsApp opens by itself only within this time of the tap: Android keeps a tap's "opened by the
 // user" for about 5 seconds, so WhatsApp itself opens. Slower than this, a big button is shown instead.
@@ -291,6 +292,10 @@ export function SendWhatsApp({
           <Check className="h-5 w-5" /> WhatsApp sent
         </p>
       ) : null}
+
+      {sent && phone && (
+        <ReviewRequest patientId={visit.patient.id} name={visit.patient.name} phone={phone} askedAt={visit.patient.review_asked_at ?? null} />
+      )}
 
       {sending.state === 'ready' && (
         <p role="status" className="flex items-center gap-2 rounded-2xl bg-green-50 px-4 py-3 text-base font-semibold text-green-800 ring-1 ring-green-200">

@@ -20,6 +20,9 @@ export const siteConfig = {
   address: "1st Floor, YM Zohara Building, Shirva Rd, near Bank of Baroda (formerly Vijaya Bank), Yenna Gudde, Katapadi - 574105", // [VERIFIED]
   mapEmbedLink: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3690.9245645463925!2d74.7497085!3d13.2845037!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bbcbba33e21b099%3A0xcafb512227026d47!2sSmile%20Dental%20Clinic%20-%20Katapady!5e1!3m2!1sen!2sin!4v1789624673623!5m2!1sen!2sin", // [VERIFIED]
   googleReviewsLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED]
+  // [PLACEHOLDER] The "write a review" link from Google Business Profile (Ask for reviews). Until it is
+  // filled in, review requests use the Maps link above (the patient then taps Reviews, Write a review).
+  reviewRequestLink: "",
   googlePhotosLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED]
   
   // --- Payments (Clinic OS shows a UPI QR for this payee) ---

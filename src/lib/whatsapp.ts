@@ -168,3 +168,16 @@ export function recallMessage(args: { name: string; lastVisit: string }): string
     ...messageSignOff(),
   ].join('\n')
 }
+
+// Clinic -> patient: a Google review request, the same words for every patient (Google does not allow
+// asking only happy patients, or offering anything in return)
+export function reviewMessage(args: { name: string }): string {
+  return [
+    ...messageHeader(args.name),
+    `Thank you for visiting ${siteConfig.name}.`,
+    '',
+    'If you have a minute, a short Google review helps other people in the area find the clinic:',
+    siteConfig.reviewRequestLink || siteConfig.googleReviewsLink,
+    ...messageSignOff(),
+  ].join('\n')
+}
