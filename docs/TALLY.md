@@ -7,7 +7,8 @@
 - **New payments:** the file holds only payments recorded since the last file (by when they were recorded, so a mid-day file is fine), so nothing is imported twice. The first file can start on a chosen day, to leave out days already typed into Tally. **Download again** repeats the last file. **A whole month** (for the accountant) changes nothing.
 - **Format:** Tally XML receipt vouchers (`src/lib/tally.ts`): Dr the cash ledger (cash) or the bank ledger (UPI), Cr the income ledger, dated in India time. TallyPrime: Import → Transactions. Tally.ERP 9: Gateway of Tally → Import of Data → Vouchers.
 - **Not covered:** bills (sales vouchers), dues, expenses, GST. A payment removed in Clinic OS after its file was imported must also be removed in Tally.
-- **Before relying on it:** import one day's file into a test or backup company first. Confirm with Dr. Rahil and his accountant: the ledger names, and each payment or daily totals.
+- **Dr. Rahil's answers (owner, 19 Oct):** Tally.ERP 9; ledgers "Cash" and "Bank of Baroda" (filled in for him, from `siteConfig.tally`); the accountant needs nothing else each month; lab bills and other expenses stay in Tally only. Still open: the income ledger's name, and each payment or one total per day.
+- **Before relying on it:** import one day's file into a test or backup company first.
 
 ## The original proposal (12 Oct)
 

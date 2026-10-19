@@ -45,14 +45,16 @@ test('Money today leads to Send to Tally: ledger names first, then a file of the
   await expect(page).toHaveURL(/\/app\/tally$/)
 
   const form = visible(page.getByRole('form', { name: 'Tally ledger names' }))
-  await form.getByLabel('Bank ledger (where UPI payments arrive)').fill('HDFC Bank')
+  // His cash and bank ledger names come filled in
+  await expect(form.getByLabel('Cash ledger')).toHaveValue('Cash')
+  await expect(form.getByLabel('Bank ledger (where UPI payments arrive)')).toHaveValue('Bank of Baroda')
   await form.getByLabel('Income ledger (treatment fees)').fill('Professional Fees')
   await form.getByRole('button', { name: 'Save' }).click()
-  await expect(visible(page.getByText(/Ledgers: Cash · HDFC Bank · Professional Fees/))).toBeVisible()
+  await expect(visible(page.getByText(/Ledgers: Cash · Bank of Baroda · Professional Fees/))).toBeVisible()
 
   const file = await fileFrom(() => visible(page.getByRole('button', { name: 'Download for Tally' })).click())
   expect(file).toContain(`<NARRATION>${runId} Tally &amp; Co - Cash - visit`)
-  expect(file).toMatch(new RegExp(String.raw`${runId} Tally &amp; Co - UPI - visit [^<]+</NARRATION>\s*<ALLLEDGERENTRIES.LIST>\s*<LEDGERNAME>HDFC Bank</LEDGERNAME>\s*<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\s*<AMOUNT>-700.00</AMOUNT>`))
+  expect(file).toMatch(new RegExp(String.raw`${runId} Tally &amp; Co - UPI - visit [^<]+</NARRATION>\s*<ALLLEDGERENTRIES.LIST>\s*<LEDGERNAME>Bank of Baroda</LEDGERNAME>\s*<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\s*<AMOUNT>-700.00</AMOUNT>`))
   expect(file).toContain(`<DATE>${today.replace(/-/g, '')}</DATE>`)
   await expect(visible(page.getByRole('status'))).toContainText('Downloaded')
   if (process.env.E2E_SHOTS) await page.screenshot({ path: `${process.env.E2E_SHOTS}/tally.png`, fullPage: true })

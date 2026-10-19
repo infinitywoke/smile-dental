@@ -31,6 +31,14 @@ export const siteConfig = {
     payeeName: "Smile Dental Clinic", // [VERIFIED]
   },
 
+  // --- Tally (Send to Tally fills these in; the dentist can change them on the screen) ---
+  tally: {
+    version: "Tally.ERP 9", // [VERIFIED] owner, 19 Oct 2026
+    cashLedger: "Cash", // [VERIFIED]
+    bankLedger: "Bank of Baroda", // [VERIFIED] where UPI payments arrive
+    incomeLedger: "", // [PLACEHOLDER] the ledger his treatment fees are credited to
+  },
+
   operatingHours: [
     { day: "Everyday (Fridays Off)", hours: ["8:30 AM - 1:00 PM", "2:30 PM - 7:30 PM"] }, // [VERIFIED] matches Google Business Profile
   ],

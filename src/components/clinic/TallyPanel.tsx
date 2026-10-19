@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Check, Download, Loader2 } from 'lucide-react'
+import { siteConfig } from '@/config/site'
 import { saveTallySettings } from '@/lib/actions/tally'
 import type { TallyOverview, TallySettings } from '@/lib/data/tally'
 import { formatDate } from '@/lib/dates'
@@ -15,7 +16,8 @@ const monthName = (month: string) => formatDate(`${month}-01`, { month: 'long', 
 const input = 'block min-h-12 w-full rounded-xl border-0 px-3 text-base text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-600'
 const button = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold disabled:opacity-60'
 
-// Send to Tally: his ledger names once, then a file Tally imports in one step (Import → Transactions).
+// Send to Tally: his ledger names once, then a file Tally imports in one step (Tally.ERP 9: Import of
+// Data → Vouchers; TallyPrime: Import → Transactions).
 // "New payments" holds only what no earlier file had, so nothing is imported twice.
 export function TallyPanel({ settings, overview }: { settings: TallySettings | null; overview: TallyOverview }) {
   const router = useRouter()
@@ -81,7 +83,7 @@ export function TallyPanel({ settings, overview }: { settings: TallySettings | n
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Send to Tally</h1>
         <p className="mt-1 text-base text-gray-600">
-          A file Tally imports in one step, so payments are not typed twice. On the computer with Tally: Import → Transactions, then choose the file.
+          A file Tally imports in one step, so payments are not typed twice. Download it on the computer with Tally (open Clinic OS there), then in Tally.ERP 9: Gateway of Tally → Import of Data → Vouchers, and give the file&apos;s location (usually the Downloads folder).
         </p>
       </div>
 
@@ -93,15 +95,15 @@ export function TallyPanel({ settings, overview }: { settings: TallySettings | n
           </div>
           <label className="block space-y-1">
             <span className="text-sm font-semibold text-gray-700">Cash ledger</span>
-            <input name="cash" defaultValue={settings?.cash_ledger ?? 'Cash'} className={input} />
+            <input name="cash" defaultValue={settings?.cash_ledger ?? (siteConfig.tally.cashLedger || 'Cash')} className={input} />
           </label>
           <label className="block space-y-1">
             <span className="text-sm font-semibold text-gray-700">Bank ledger (where UPI payments arrive)</span>
-            <input name="bank" defaultValue={settings?.bank_ledger ?? ''} placeholder="For example: HDFC Bank" className={input} />
+            <input name="bank" defaultValue={settings?.bank_ledger ?? siteConfig.tally.bankLedger} placeholder="For example: Bank of Baroda" className={input} />
           </label>
           <label className="block space-y-1">
             <span className="text-sm font-semibold text-gray-700">Income ledger (treatment fees)</span>
-            <input name="income" defaultValue={settings?.income_ledger ?? ''} placeholder="For example: Professional Fees" className={input} />
+            <input name="income" defaultValue={settings?.income_ledger ?? siteConfig.tally.incomeLedger} placeholder="For example: Professional Fees" className={input} />
           </label>
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold text-gray-700">Entries in Tally</legend>
