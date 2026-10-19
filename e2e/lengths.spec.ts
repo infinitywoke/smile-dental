@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
-import { cleanRun, createPatient, createVisit, newPhone, newRunId, openDay, signIn, testDb, visible } from './helpers'
+import { captureWhatsapp, cleanRun, createPatient, createVisit, newPhone, newRunId, openDay, signIn, testDb, visible } from './helpers'
 import { blockInstant } from '../src/lib/schedule'
 
 // Appointment lengths: Dr. Rahil chooses 20, 40, 60, 80 or 120 minutes; Move keeps the length; a start
@@ -53,7 +53,10 @@ test('Move keeps the appointment its own length', async () => {
   // Another free time that fits 80 minutes
   const other = visible(page.getByRole('button', { name: time })).filter({ hasNotText: 'Booked' })
   await other.last().click()
+  // The moved message opens WhatsApp: wait for it, so it can't land in the next test
+  const wa = await captureWhatsapp(page)
   await visible(page.getByRole('button', { name: 'Move appointment' })).click()
+  await expect.poll(() => wa.url).toContain('wa.me')
   await expect.poll(async () => (await durationOf(longId)).starts_at).not.toBe(before.starts_at)
   expect((await durationOf(longId)).duration_min).toBe(80)
 })

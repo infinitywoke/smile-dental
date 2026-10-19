@@ -6,6 +6,7 @@ import { setReviewAsked } from '@/lib/actions/follow-ups'
 import { formatDate } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
 import { firstName, reviewMessage, whatsappLink } from '@/lib/whatsapp'
+import { markSent } from '@/lib/mark-sent'
 import { saveThenOpen } from './FollowUps'
 import { useUndo } from './UndoBar'
 
@@ -32,7 +33,7 @@ export function ReviewRequest({ patientId, name, phone, askedAt }: { patientId: 
           setAsked(askedAt)
           return setReviewAsked(patientId, askedAt)
         })
-        saveThenOpen(event, href, () => setReviewAsked(patientId, 'now'))
+        saveThenOpen(event, href, () => markSent('review', patientId))
       }}
       className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-green-700 ring-1 ring-green-600 hover:bg-green-50">
       <Star className="h-5 w-5" /> Ask for a Google review

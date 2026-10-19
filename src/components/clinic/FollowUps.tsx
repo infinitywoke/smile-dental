@@ -8,6 +8,7 @@ import { formatDate } from '@/lib/dates'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { firstName } from '@/lib/whatsapp'
 import { openWhatsApp } from '@/lib/whatsapp-business'
+import { markSent } from '@/lib/mark-sent'
 import { useUndo } from './UndoBar'
 
 // Today's lists that empty themselves as he taps. A WhatsApp tap counts as done (the message is in
@@ -64,7 +65,7 @@ export function RemindersCard({ dayLabel, items }: { dayLabel: string; items: Re
 
   const mark = (r: ReminderItem, value: boolean) => {
     setSent((s) => ({ ...s, [r.id]: value }))
-    return setReminded(r.id, value)
+    return value ? markSent('reminded', r.id) : setReminded(r.id, false)
   }
 
   return (
@@ -108,7 +109,7 @@ export function MissedList({ items }: { items: MissedItem[] }) {
   const [done, setDone] = useState<Record<string, boolean>>({})
   const mark = (m: MissedItem, value: boolean) => {
     setDone((d) => ({ ...d, [m.id]: value }))
-    return setFollowedUp(m.id, value)
+    return value ? markSent('followed-up', m.id) : setFollowedUp(m.id, false)
   }
   const finish = (m: MissedItem, label: string) => {
     offerUndo(label, () => mark(m, false))
@@ -156,7 +157,7 @@ export function RecallCard({ items }: { items: RecallItem[] }) {
       setDone((d) => ({ ...d, [r.patientId]: false }))
       return setRecalled(r.patientId, r.recalledAt)
     })
-    return setRecalled(r.patientId, 'now')
+    return markSent('recalled', r.patientId)
   }
   return (
     <details className="rounded-2xl bg-white shadow-sm ring-1 ring-teal-200">
