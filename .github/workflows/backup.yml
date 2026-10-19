@@ -34,7 +34,7 @@ jobs:
     env:
       PG: /usr/lib/postgresql/17/bin
       SCRATCH: postgresql://postgres:scratch@localhost:5433/postgres
-      TABLES: patients visits visit_charges payments visit_photos visit_recordings appointments booking_requests time_off app_config share_links
+      TABLES: patients visits visit_charges payments visit_photos visit_recordings appointments booking_requests time_off app_config share_links tally_settings
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
       # Supabase Storage, through its S3-compatible endpoint (read)

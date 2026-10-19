@@ -1012,3 +1012,30 @@ drop policy if exists "Owner deletes own visit recordings" on storage.objects;
 create policy "Owner deletes own visit recordings" on storage.objects
   for delete to authenticated
   using (bucket_id = 'visit-audio' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Send to Tally: the dentist's ledger names and what the last file covered ---------------------------
+create table if not exists public.tally_settings (
+  owner_id uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  cash_ledger text not null check (char_length(cash_ledger) between 1 and 100),
+  bank_ledger text not null check (char_length(bank_ledger) between 1 and 100),
+  income_ledger text not null check (char_length(income_ledger) between 1 and 100),
+  entries text not null default 'payment' check (entries in ('payment', 'day')),
+  sent_from timestamptz,  -- the last "new payments" file: payments recorded after this…
+  sent_until timestamptz, -- …up to this moment
+  updated_at timestamptz not null default now()
+);
+
+alter table public.tally_settings enable row level security;
+
+drop policy if exists "Owner full access" on public.tally_settings;
+create policy "Owner full access" on public.tally_settings
+  for all to authenticated
+  using (owner_id = (select auth.uid()))
+  with check (owner_id = (select auth.uid()));
+
+revoke all on public.tally_settings from anon;
+grant select, insert, update, delete on public.tally_settings to authenticated;
+
+create or replace trigger tally_settings_set_updated_at
+  before update on public.tally_settings
+  for each row execute function public.set_updated_at();

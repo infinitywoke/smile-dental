@@ -107,3 +107,7 @@ One rule: **every screen has one obvious next action.** Six screens, one phone, 
   - **"Didn't come".** The button appears on a booked appointment whose time is over. The patient then goes on a call-back list in Needs you (Call / WhatsApp / Done) until followed up, rebooked or seen (`appointments.followed_up_at`, 30 days).
   - **Check-ups due.** Patients last seen 6+ months ago with nothing booked appear in a folded card; Send or Skip removes them until after their next visit (`patients.recalled_at`).
   - The **Google review request** is next (needs the review link).
+- 2026-10-19 **Google review request and Send to Tally (owner):**
+  - **Review request.** After a visit's bill is sent on WhatsApp, one tap asks for a Google review. The same words go to every patient, with nothing offered in return (Google's rules); it is asked once per patient.
+  - **Send to Tally.** Tally stays the book of accounts. Clinic OS writes Tally's XML import file of receipts (cash to the cash ledger, UPI to the bank ledger, credited to the income ledger). The file holds only payments not in an earlier file, plus a whole month on demand. Ledger names are typed once by the dentist.
+  - **Not done.** Native Google booking (Reserve with Google) is not possible for us: it needs a Google booking partner, and dentists may not qualify. The profile's appointment link should point at `/book`.

@@ -20,6 +20,7 @@ import { noteWithoutCallBack, wantsCallBack } from '@/lib/booking-contact'
 import { getMissed, getRecalls, getReminders, type Missed, type Recall } from '@/lib/data/follow-ups'
 import { DidntComeButton, MissedList, RecallCard, RemindersCard } from '@/components/clinic/FollowUps'
 import { UndoProvider } from '@/components/clinic/UndoBar'
+import { getMoneyOn } from '@/lib/data/tally'
 import { missedMessage, recallMessage, reminderMessage, whatsappLink } from '@/lib/whatsapp'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -36,7 +37,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   const date = typeof d === 'string' && DATE.test(d) ? d : today
   const isToday = date === today
 
-  const [schedule, appointments, visits, requests, busy, dues, reminders, missed, recalls] = await Promise.all([
+  const [schedule, appointments, visits, requests, busy, dues, reminders, missed, recalls, money] = await Promise.all([
     getDaySchedule(date),
     getAppointmentsOn(date),
     getVisitsOn(date),
@@ -46,6 +47,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     isToday ? getReminders(today) : Promise.resolve(null),
     isToday ? getMissed() : Promise.resolve([] as Missed[]),
     isToday ? getRecalls(today) : Promise.resolve([] as Recall[]),
+    isToday ? getMoneyOn(today) : Promise.resolve(null),
   ])
   // A booked appointment whose time is over and that has no visit: the patient may not have come
   const now = new Date().getTime()
@@ -254,6 +256,22 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
           </>
         )}
       </section>
+
+      {/* The day's money, and the way to send it to Tally */}
+      {money && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-bold text-gray-900">Money today</h2>
+          <Link href="/app/tally" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 hover:ring-blue-400">
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-semibold text-gray-900">
+                {money.count === 0 ? 'No payments yet' : `${formatRupees(money.cash)} cash · ${formatRupees(money.upi)} UPI`}
+              </span>
+              <span className="block text-sm text-gray-500">{money.count} payment{money.count === 1 ? '' : 's'} · Send to Tally</span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
+          </Link>
+        </section>
+      )}
     </div>
     </UndoProvider>
   )
