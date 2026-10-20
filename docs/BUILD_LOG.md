@@ -102,7 +102,13 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 - [ ] 12. Website overhaul, next: the owner picks one of three directions (A Tide, B Fresh Mint, C Tooth World) on the design canvas https://claude.ai/artifact/LeMtkwrePYruX3L65EdDX1; then build it on a preview link. Photos to come from the shot list. The owner is buying a domain (smiledentalkatapady .com/.in were free on 20 Oct); then switch `siteConfig.url` and the Google profile's appointment link.
 - Outside the repo (20 Oct):
     - Rahil meeting pack https://claude.ai/artifact/GJGMstZ5ucUZvkuiUmzdS7.
-    - 2-minute product demo video `../commercialisation/demo/clinic-os-demo.webm`, recorded on a production build from `demo-tour.spec.ts` beside it, test account and made-up patients only.
+    - **90-second commercial** `../commercialisation/demo/clinic-os-commercial.mp4` (1080×1920, H.264 + AAC, 58 MB).
+        - Gemini voice-over: one read, split into its lines, words checked by transcription.
+        - The tour runs inside a phone with words on screen; the music and sound effects are synthesised in the browser.
+        - Remake: `../commercialisation/demo/commercial-tools/README.md`.
+    - **Silent demo** `../commercialisation/demo/clinic-os-demo.mp4`, from `demo-tour.spec.ts`, then re-cut.
+        - The old `.webm` had grey padding: Playwright records at the page's CSS size inside the larger frame.
+    - Both videos: production build, test account, made-up patients only.
     - Rahil's user guide rewritten for the current app: `../for-dr-rahil/Clinic-OS-User-Guide.pdf` (the old one is in `old-2026-10-10/`).
 - Plan: `docs/build/PLAN-2026-10-next.md` (backups to Google Drive, delete patient, undo/remove, website wording + fallback + abuse guards, WhatsApp-verified holds, patient voice note test, appointment lengths, smart voice notes, extras). Waiting for the owner's go-ahead; built directly by the orchestrator, one item at a time, pushed after each.
 
