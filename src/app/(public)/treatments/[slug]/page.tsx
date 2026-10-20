@@ -89,7 +89,7 @@ export default async function TreatmentDetailPage({ params }: Props) {
 
       <div className="bg-white p-8 rounded-3xl shadow-sm ring-1 ring-gray-200 text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Book your {treatment.name.toLowerCase()} consultation</h2>
-        <p className="text-gray-600 mb-8">Our specialists are ready to help you achieve your best smile.</p>
+        <p className="text-gray-600 mb-8">Dr. Rahil will explain your options and the cost before any treatment.</p>
         <Link 
           href={`/book?reason=${encodeURIComponent(treatment.name)}`}
           className="inline-flex justify-center items-center rounded-full bg-blue-600 px-8 py-4 text-lg font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"

@@ -55,8 +55,8 @@ export default function HomePage() {
               Your Smile,<br className="hidden sm:block" /> Our Priority.
             </h1>
             <p className="text-lg sm:text-xl text-gray-600 mb-8 leading-relaxed">
-              Experience the highest standard of dental care in a comfortable, relaxing environment.{" "}
-              {siteConfig.dentist.name} and our expert team are dedicated to your long-term oral health.
+              Check-ups, cleaning, fillings, root canals, crowns and braces in Katapadi, Udupi.{" "}
+              {siteConfig.dentist.name} sees every patient himself and explains each step simply.
             </p>
 
             {/* Mobile Photo - Shows above CTA buttons on mobile */}
@@ -117,9 +117,9 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { title: "Expert Care", desc: "Highly qualified specialists using the latest dental technology." },
-              { title: "Pain-Free Approach", desc: "Gentle techniques ensuring your comfort throughout the procedure." },
-              { title: "Transparent Pricing", desc: "Clear treatment plans with no hidden costs or surprises." }
+              { title: "Your dentist, every visit", desc: "Dr. Rahil sees every patient himself, from the first check-up to the last sitting." },
+              { title: "Explained simply", desc: "Your options and what to expect, explained clearly before anything is done." },
+              { title: "Prices you can see", desc: "Every treatment's price is on this website, so you know before you come." }
             ].map((feature, i) => (
               <div key={i} className="flex gap-4">
                 <div className="flex-shrink-0 mt-1">
@@ -200,10 +200,10 @@ export default function HomePage() {
               
               <div className="bg-white p-6 rounded-2xl shadow-sm ring-1 ring-gray-200">
                 <div className="flex items-center gap-2 mb-4">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="w-5 h-5 text-yellow-400 fill-yellow-400" />)}
-                  <span className="font-bold text-gray-900 ml-2">5.0 on Google</span>
+                  <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                  <span className="font-bold text-gray-900">Reviews on Google</span>
                 </div>
-                <p className="text-gray-600 mb-6 italic">&quot;Excellent service and care. Dr. Rahil is very professional.&quot;</p>
+                <p className="text-gray-600 mb-6">Read what patients say about {siteConfig.name} on Google.</p>
                 <a 
                   href={siteConfig.googleReviewsLink} 
                   target="_blank"

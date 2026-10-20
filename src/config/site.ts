@@ -10,8 +10,9 @@
 export const siteConfig = {
   // --- Clinic Identity ---
   name: "Smile Dental Clinic", // [VERIFIED]
-  description: "Modern, professional, and pain-free dental care in your locality.", // [GENERATED]
-  url: "https://smiledental.test", // [PLACEHOLDER]
+  description: "Dental clinic in Katapadi, Udupi, run by Dr. Rahil Yusuf, BDS: check-ups, cleaning, fillings, root canals, crowns and braces.", // [VERIFIED facts]
+  // [VERIFIED] The live address. Switch to the clinic's own domain once it is connected in Vercel.
+  url: "https://smile-dental-hin3.vercel.app",
   
   // --- Contact Information ---
   phone: "+91 6361816711", // [VERIFIED]
@@ -218,13 +219,13 @@ export const faqs = [
     isVerified: true
   },
   {
-    question: "Who is the best dentist in Katapadi, Udupi?",
-    answer: "Dr. Rahil Yusuf is a highly rated, 5-star dentist in Katapadi, Udupi, with over 5 years of clinical experience across India and the Middle East. He is known for providing gentle, pain-free, and affordable dental care.",
+    question: "Who is the dentist at Smile Dental Clinic?",
+    answer: "Dr. Rahil Yusuf, BDS (Yenepoya Deemed to be University, 2020), with 5 years of experience across India and the Middle East. He sees every patient himself and explains the options and the cost before any treatment.",
     isVerified: true
   },
   {
     question: "What dental treatments do you offer at your Katapadi clinic?",
-    answer: "We offer a complete range of professional dental treatments including teeth cleaning (scaling), orthodontics (metal/ceramic braces and aligners), root canal treatments (RCT), painless tooth extractions, tooth-colored composite fillings, complete dentures, and premium Zirconia crowns.",
+    answer: "We offer a complete range of professional dental treatments including teeth cleaning (scaling), orthodontics (metal/ceramic braces and aligners), root canal treatments (RCT), tooth extractions, tooth-colored composite fillings, complete dentures, and zirconia crowns.",
     isVerified: true
   },
   {

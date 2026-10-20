@@ -26,7 +26,7 @@ export default function FAQPage() {
 
       <div className="mt-16 p-8 bg-blue-50 rounded-2xl text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Still have questions?</h2>
-        <p className="text-gray-600 mb-8">Our team is happy to help with any specific concerns you might have.</p>
+        <p className="text-gray-600 mb-8">Dr. Rahil is happy to help with any specific question you have.</p>
         <Link 
           href="/contact"
           className="inline-flex justify-center items-center rounded-full bg-blue-600 px-8 py-3.5 text-base font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"

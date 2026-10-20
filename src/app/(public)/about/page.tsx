@@ -4,7 +4,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: `About Us - ${siteConfig.name}`,
-  description: `Learn more about ${siteConfig.name} and our expert team.`,
+  description: `About ${siteConfig.name} and ${siteConfig.dentist.name}.`,
 }
 
 export default function AboutPage() {
@@ -19,7 +19,7 @@ export default function AboutPage() {
         
         <h2 className="text-2xl font-bold text-gray-900 mt-12 mb-4">Our Philosophy</h2>
         <p>
-          At {siteConfig.name}, we believe that visiting the dentist shouldn&apos;t be stressful. We&apos;ve built our practice around patient comfort, transparent communication, and advanced, pain-free dental techniques.
+          At {siteConfig.name}, we believe that visiting the dentist shouldn&apos;t be stressful. The practice is built around patient comfort and clear communication: every step is explained before it is done.
         </p>
 
         <h2 className="text-3xl font-bold text-gray-900 mt-16 mb-8">Meet {siteConfig.dentist.name}</h2>
@@ -48,11 +48,11 @@ export default function AboutPage() {
             </p>
             
             <p className="leading-relaxed">
-              He takes the time to understand your unique needs, carefully explaining treatment options in a simple and reassuring way. Leading the team at {siteConfig.name} in Katapadi, Udupi, he strives to transform every dental visit into a positive experience.
+              He takes the time to understand your unique needs, carefully explaining treatment options in a simple and reassuring way. At {siteConfig.name} in Katapadi, Udupi, he sees every patient himself and works to make every visit a positive experience.
             </p>
 
             <p className="leading-relaxed">
-              A firm believer in continuous education, {siteConfig.dentist.name} actively pursues the latest advancements in dental science to ensure you receive the highest standard of care. He helps you achieve a healthy, natural-looking smile you can truly be proud of.
+              He helps you achieve a healthy, natural-looking smile you can be proud of.
             </p>
           </div>
         </div>
