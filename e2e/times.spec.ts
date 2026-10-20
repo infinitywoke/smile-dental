@@ -19,10 +19,13 @@ let page: Page
 let patientId = ''
 // Days whose time off the specs touch, cleared at the end whatever happened
 const timeOffDays: string[] = []
+// The patient's coming visit. Its time is one no request in this file asks for: when a Friday folds
+// two "days ahead" into the same Saturday, the two must not want the same time.
+const COMING_AT = '12:30'
 
 test.beforeAll(async ({ browser }) => {
   patientId = await createPatient(patientName, newPhone())
-  await createAppointment(patientId, openDay(4), '10:30')
+  await createAppointment(patientId, openDay(4), COMING_AT)
   page = await browser.newPage()
   await signIn(page)
 })
@@ -118,7 +121,7 @@ test('cancels the coming visit from the patient page, offers to tell them, then 
   expect(text).toContain(`Dear ${runId},`)
   expect(text).not.toContain(patientName)
   expect(text).toContain('has been *cancelled*:')
-  expect(text).toContain(`🕗 *${formatBlock('10:30')}*`)
+  expect(text).toContain(`🕗 *${formatBlock(COMING_AT)}*`)
   expect(text).toContain('Warm regards,')
 
   await visible(page.getByRole('link', { name: `Back to ${patientName}` })).click()

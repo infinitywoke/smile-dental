@@ -32,16 +32,17 @@ const fileFrom = async (click: () => Promise<void>) => {
   return readFileSync((await download.path())!, 'utf8')
 }
 
-test('Money today leads to Send to Tally: ledger names first, then a file of the new payments', async () => {
+test('Money today, then Send to Tally: ledger names first, then a file of the new payments', async () => {
   const patientId = await createPatient(`${runId} Tally & Co`, newPhone('7'))
   const visitId = await createVisit(patientId, today, 1200, 500)
   const { supabase } = await testDb()
   await supabase.from('payments').insert({ visit_id: visitId, patient_id: patientId, amount: 700, method: 'upi' })
 
   await page.goto('/app')
-  const money = visible(page.getByRole('link', { name: /Send to Tally/ }))
+  const money = visible(page.getByRole('link', { name: /This month's numbers/ }))
   await expect(money).toContainText('UPI')
   await money.click()
+  await visible(page.getByRole('link', { name: 'Send to Tally' })).click()
   await expect(page).toHaveURL(/\/app\/tally$/)
 
   const form = visible(page.getByRole('form', { name: 'Tally ledger names' }))

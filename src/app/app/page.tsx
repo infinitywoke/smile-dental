@@ -257,16 +257,16 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
         )}
       </section>
 
-      {/* The day's money, and the way to send it to Tally */}
+      {/* The day's money; this month's numbers and Send to Tally are one tap away */}
       {money && (
         <section className="space-y-2">
           <h2 className="text-lg font-bold text-gray-900">Money today</h2>
-          <Link href="/app/tally" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 hover:ring-blue-400">
+          <Link href="/app/insights" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 hover:ring-blue-400">
             <span className="min-w-0 flex-1">
               <span className="block text-base font-semibold text-gray-900">
                 {money.count === 0 ? 'No payments yet' : `${formatRupees(money.cash)} cash · ${formatRupees(money.upi)} UPI`}
               </span>
-              <span className="block text-sm text-gray-500">{money.count} payment{money.count === 1 ? '' : 's'} · Send to Tally</span>
+              <span className="block text-sm text-gray-500">{money.count} payment{money.count === 1 ? '' : 's'} · This month&apos;s numbers</span>
             </span>
             <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
           </Link>
