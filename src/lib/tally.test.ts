@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanLedger, tallyTotals, tallyVouchers, tallyXml, type TallyPayment } from './tally'
+import { cleanLedger, tallyGroupNamed, tallyTotals, tallyVouchers, tallyXml, type TallyPayment } from './tally'
 
 const ledgers = { cash: 'Cash', bank: 'HDFC Bank', income: 'Professional Fees' }
 const payments: TallyPayment[] = [
@@ -49,5 +49,14 @@ describe('send to Tally', () => {
     expect(cleanLedger('  HDFC   Bank ')).toBe('HDFC Bank')
     expect(cleanLedger('   ')).toBeNull()
     expect(cleanLedger('x'.repeat(101))).toBeNull()
+  })
+
+  it("knows Tally's own groups, which are not ledgers", () => {
+    expect(tallyGroupNamed('Direct Incomes')).toBe('Direct Incomes')
+    expect(tallyGroupNamed('direct income')).toBe('Direct Incomes')
+    expect(tallyGroupNamed('Bank Accounts')).toBe('Bank Accounts')
+    expect(tallyGroupNamed('Cash')).toBeNull()
+    expect(tallyGroupNamed('Bank of Baroda')).toBeNull()
+    expect(tallyGroupNamed('Professional Fees')).toBeNull()
   })
 })

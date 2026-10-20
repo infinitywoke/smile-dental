@@ -36,7 +36,7 @@ export const siteConfig = {
     version: "Tally.ERP 9", // [VERIFIED] owner, 19 Oct 2026
     cashLedger: "Cash", // [VERIFIED]
     bankLedger: "Bank of Baroda", // [VERIFIED] where UPI payments arrive
-    incomeLedger: "", // [PLACEHOLDER] the ledger his treatment fees are credited to
+    incomeLedger: "", // [PLACEHOLDER] the ledger under his Direct Incomes group that fees are credited to
   },
 
   operatingHours: [

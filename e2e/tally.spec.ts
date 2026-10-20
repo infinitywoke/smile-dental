@@ -48,6 +48,10 @@ test('Money today leads to Send to Tally: ledger names first, then a file of the
   // His cash and bank ledger names come filled in
   await expect(form.getByLabel('Cash ledger')).toHaveValue('Cash')
   await expect(form.getByLabel('Bank ledger (where UPI payments arrive)')).toHaveValue('Bank of Baroda')
+  // A Tally group is not a ledger: the screen says so instead of saving a name Tally would refuse
+  await form.getByLabel('Income ledger (treatment fees)').fill('Direct Incomes')
+  await form.getByRole('button', { name: 'Save' }).click()
+  await expect(visible(page.getByRole('alert').filter({ hasText: 'is a group in Tally' }))).toContainText('"Direct Incomes" is a group in Tally, not a ledger')
   await form.getByLabel('Income ledger (treatment fees)').fill('Professional Fees')
   await form.getByRole('button', { name: 'Save' }).click()
   await expect(visible(page.getByText(/Ledgers: Cash · Bank of Baroda · Professional Fees/))).toBeVisible()

@@ -104,6 +104,7 @@ export function TallyPanel({ settings, overview }: { settings: TallySettings | n
           <label className="block space-y-1">
             <span className="text-sm font-semibold text-gray-700">Income ledger (treatment fees)</span>
             <input name="income" defaultValue={settings?.income_ledger ?? siteConfig.tally.incomeLedger} placeholder="For example: Professional Fees" className={input} />
+            <span className="block text-xs text-gray-500">The ledger inside Direct Incomes that fees go to, not Direct Incomes itself (that is a group).</span>
           </label>
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold text-gray-700">Entries in Tally</legend>

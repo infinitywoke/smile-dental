@@ -109,3 +109,17 @@ export function cleanLedger(value: unknown): string | null {
   const text = String(value ?? '').replace(/\s+/g, ' ').trim()
   return text.length >= 1 && text.length <= 100 ? text : null
 }
+
+// Tally's own groups: headings that ledgers sit under. A voucher must name a ledger, so a group typed as
+// a ledger name (often "Direct Incomes" for fees) would make Tally refuse the file.
+const TALLY_GROUPS = [
+  'Branch / Divisions', 'Capital Account', 'Current Assets', 'Current Liabilities', 'Direct Expenses', 'Direct Incomes',
+  'Fixed Assets', 'Indirect Expenses', 'Indirect Incomes', 'Investments', 'Loans (Liability)', 'Misc. Expenses (ASSET)',
+  'Purchase Accounts', 'Sales Accounts', 'Suspense A/c', 'Bank Accounts', 'Bank OD A/c', 'Cash-in-Hand', 'Deposits (Asset)',
+  'Duties & Taxes', 'Loans & Advances (Asset)', 'Provisions', 'Reserves & Surplus', 'Secured Loans', 'Stock-in-Hand',
+  'Sundry Creditors', 'Sundry Debtors', 'Unsecured Loans',
+]
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '').replace(/s$/, '')
+export function tallyGroupNamed(name: string): string | null {
+  return TALLY_GROUPS.find((g) => squash(g) === squash(name)) ?? null
+}
