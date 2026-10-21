@@ -257,7 +257,14 @@ The multi-clinic foundation comes after this. New tables follow the existing own
 - [ ] **P3b, part 3:**
     - **Pause online booking**: needs a small SQL, a flag that `get_open_slots` and `submit_booking_request` respect, plus the Cockpit control;
     - optimistic Send and payments.
-- [ ] **P4. Stock and costs:**
+- [x] **P4, part 1: the database (21 Oct)** (`supabase/stock-costs-2026-10.sql`, folded into `schema.sql`; the owner runs it after the notifications SQL):
+    - **Tables:** `stock_items` (unit, low level, supplier, last price, archive) and `stock_moves` (in / use / count / waste, unit cost, expiry, the bill it came on).
+    - **Materials per treatment:** `treatment_materials`, keyed by the price-list charge exactly as the sheet names it ("Fillings – 3M Z350 Composite"). The trigger `visit_charges_use_materials` takes them off stock when that charge is added; removing the charge cascades the use away, so the stock comes back (this covers Undo too).
+    - **Costs:** `costs` (category, paid by, payee, bill photo, optional visit for a lab fee) and `fixed_costs` (monthly or yearly). A regular bill can be marked paid only once a month.
+    - **Also:** the `stock_levels` view (on hand, next expiry); the private `cost-bills` folder with per-account access; and the morning brief now lists up to five low items ("Low: Composite A2").
+    - **Names:** chosen so they don't bring back the removed `expenses`, `recurring_expenses` and `treatment_items`.
+    - **Checks:** `supabase/tests/stock.check.mjs` 18/18 (notify 31/31, booking 133/133 and logic 35/35 still pass).
+- [ ] **P4, part 2: the screens:**
     - stock items, bills in, use and counts;
     - materials per treatment (optional: deducts stock automatically, with Undo);
     - fixed and variable costs with bill photos;

@@ -25,7 +25,7 @@ export const DEFAULT_NOTIFY_SETTINGS: NotifySettings = {
 // What the database says is due (notify_new_request, notify_due)
 export type NotifyItem =
   | { kind: 'new_request' | 'waiting_request'; ref: string; name: string; reason: string | null; starts_at: string | null; created_at?: string }
-  | { kind: 'morning_brief'; ref: string; booked: number; first_at: string | null; waiting: number }
+  | { kind: 'morning_brief'; ref: string; booked: number; first_at: string | null; waiting: number; low?: string[] }
 
 export type PushMessage = { title: string; body: string; url: string; tag: string }
 
@@ -60,7 +60,8 @@ export function messageFor(item: NotifyItem, settings: NotifySettings, now: Date
       ? `${item.booked} booked, first at ${formatBlock(inIndia(item.first_at).time)}`
       : 'Nothing booked yet'
     const waiting = item.waiting > 0 ? ` · ${plural(item.waiting, 'request', 'requests')} waiting` : ''
-    return { title: 'Today at the clinic', body: `${booked}${waiting}`, url: '/app', tag: 'morning-brief' }
+    const low = item.low?.length ? ` · Low: ${item.low.join(', ')}` : ''
+    return { title: 'Today at the clinic', body: `${booked}${waiting}${low}`, url: '/app', tag: 'morning-brief' }
   }
   if (inQuietHours(settings, now)) return null
   const what = item.reason?.trim() || 'Reason not given'

@@ -46,5 +46,7 @@ describe('what the phone shows', () => {
       title: 'Today at the clinic', body: '3 booked, first at 8:30 AM · 1 request waiting', url: '/app', tag: 'morning-brief',
     })
     expect(messageFor({ ...brief, booked: 0, first_at: null, waiting: 2 }, settings, ist('2026-10-22', '08:15'))?.body).toBe('Nothing booked yet · 2 requests waiting')
+    expect(messageFor({ ...brief, waiting: 0, low: ['Composite A2', 'Gloves M'] }, settings, ist('2026-10-22', '08:15'))?.body)
+      .toBe('3 booked, first at 8:30 AM · Low: Composite A2, Gloves M')
   })
 })
