@@ -216,7 +216,11 @@ The multi-clinic foundation comes after this. New tables follow the existing own
         3. Run `npx web-push generate-vapid-keys` and add `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in Vercel.
         4. Redeploy.
         5. On Rahil's phone, in Clinic OS: Patients → Notifications → Turn on → Send a test.
-- [ ] **P3a. HUD design board:** 3 directions for Today and the Visit screen in navy and amber; the owner picks.
+- [x] **P3a. HUD design board (21 Oct), waiting for the owner's pick:** https://claude.ai/artifact/G9pvj8k1PDagP239oaVn9D, phone-size Today and Visit screens for each direction, with made-up patients.
+    - **A · Cockpit:** dark navy with amber instruments (day ring, next patient, gauges, alerts, day timeline, controls). Manrope with JetBrains Mono readouts.
+    - **B · Mission control:** dense tiles with status lights, an appointment ticker and an event log. IBM Plex Sans Condensed and Mono.
+    - **C · Daylight:** light panels with the website's crisp outlines and offset shadows, readable in a bright surgery. Instrument Serif and Manrope.
+    - Every direction has the new bottom bar (Today · Patients · + · Stock · Money) and the quick controls (block time, pause online booking, running late, walk-in).
 - [ ] **P3b. HUD design system, with Today as the cockpit:**
     - clock, open status, next-patient countdown, day ring, money today, requests, alerts, timeline and quick controls;
     - responses: instant taps, haptics, optimistic actions;
