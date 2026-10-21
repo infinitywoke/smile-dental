@@ -562,7 +562,7 @@ create policy "Owner deletes own visit photos" on storage.objects
   using (bucket_id = 'visit-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
 
 -- Free blocks the website may offer -------------------------------------------------
--- Rules: next 28 days; never Fridays; at least 2 hours from now; starts before 7 PM
+-- Rules: next 28 days; never Fridays; not started yet (no notice needed since 21 Oct 2026); starts before 7 PM
 -- (evenings are by phone); not overlapping a booked appointment, time off, or a
 -- request held after its WhatsApp reached the clinic (see request_hold_until). Start times only: no names.
 create or replace function public.request_hold_until(p_received timestamptz, p_start timestamptz)
@@ -613,7 +613,7 @@ as $$
   )
   select s.slot as slot_start
   from cfg, days, lateral public.clinic_slots(days.d) as s(slot)
-  where s.slot >= public.clinic_now() + interval '2 hours'
+  where s.slot > public.clinic_now()
     and (s.slot at time zone 'Asia/Kolkata')::time < time '19:00'
     and not exists (
       select 1 from public.appointments a

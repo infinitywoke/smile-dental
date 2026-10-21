@@ -38,7 +38,7 @@ export type BookingInput = {
 
 export type BookingResult = { ok: true; id: string } | { ok: false; error: string }
 
-// Public: saves the request. The database re-checks every rule (free block, 2 hours' notice,
+// Public: saves the request. The database re-checks every rule (free block, not started yet,
 // before 7 PM, limits per phone and device), so nothing here is trusted.
 export async function submitBookingRequest(input: BookingInput): Promise<BookingResult> {
   // A bot: answer as if saved, so it learns nothing, but save nothing

@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, CalendarCheck, CalendarDays, MessageCircle } from 'lucide-react'
-import { bookingReasons } from '@/config/site'
+import { AlertCircle, CalendarCheck, CalendarDays, MessageCircle, Phone, Zap } from 'lucide-react'
+import { bookingReasons, homeServices, siteConfig } from '@/config/site'
 import { submitBookingRequest } from '@/lib/actions/booking'
-import { checkOtherDate, daysWithSlots, otherTimeMessage, partOfDay, preferredTimeOptions, slotsOn } from '@/lib/booking-days'
+import { checkOtherDate, dayLabel, daysWithSlots, otherTimeMessage, partOfDay, preferredTimeOptions, slotsOn } from '@/lib/booking-days'
 import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { formatPhone, isValidPhone, normalizePhone } from '@/lib/phone'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
@@ -22,6 +22,8 @@ type Props = {
 }
 
 const PARTS = ['Morning', 'Afternoon', 'Evening'] as const
+const TEL = `tel:${siteConfig.phone.replace(/[^\d+]/g, '')}`
+const CHECKUP_PRICE = homeServices.find((s) => s.id === 'checkup')?.price ?? ''
 
 // The homepage booking card: what you need, a day, a free time, a name and a WhatsApp number. The
 // request is the same one the /book page sends; WhatsApp then opens with it written for the clinic.
@@ -72,6 +74,24 @@ export function BookingCard({ slots, today, promise }: Props) {
   const mustAsk = days.length === 0 || (other !== null && !other.ok && (other.reason === 'beyond' || other.reason === 'full'))
   const showAsk = askOther || mustAsk
   const timeGroups = showAsk ? preferredTimeOptions(chosenDate, today, new Date()) : []
+
+  // The earliest free time, one tap away; "Today, 4:30 PM"
+  const earliest = slots.length > 0 ? [...slots].sort()[0] : null
+  const when = (iso: string) => `${dayLabel(inIndia(iso).date, today)}, ${formatBlock(inIndia(iso).time)}`
+  function takeEarliest() {
+    if (!earliest) return
+    setDay(inIndia(earliest).date)
+    setPicked(earliest)
+    setAskOther(false)
+    setError(null)
+  }
+  // A line that fits the reason: its price, or for pain the earliest time
+  const service = homeServices.find((s) => s.id === choice.reason)
+  const hint = choice.reason === 'toothache'
+    ? earliest ? { text: `In pain? The earliest free time is ${when(earliest)}.`, offer: true } : { text: 'In pain? Call the clinic for the soonest time.', offer: false }
+    : choice.reason === 'unsure'
+      ? { text: `No problem: Dr. Rahil examines first and explains the options. Consultation ${CHECKUP_PRICE}.`, offer: false }
+      : service ? { text: `${service.name} · ${service.price}`, offer: false } : null
 
   const reasonLabel = bookingReasons.find((r) => r.id === choice.reason)?.label ?? null
   const reasonText = reasonLabel ? `${reasonLabel}${choice.note ? ` (${choice.note})` : ''}`.slice(0, 200) : ''
@@ -190,16 +210,30 @@ export function BookingCard({ slots, today, promise }: Props) {
             </button>
           ))}
         </div>
+        {hint && (
+          <p className="h-reason-hint">
+            {hint.text}
+            {hint.offer && picked !== earliest && <button type="button" className="h-hint-btn" onClick={takeEarliest}>Take it</button>}
+          </p>
+        )}
       </div>
 
       <div className="h-step">
-        <p className="h-label"><span className="h-num">2</span>Pick a day</p>
+        <div className="h-label-row">
+          <p className="h-label"><span className="h-num">2</span>Pick a day</p>
+          {earliest && picked !== earliest && (
+            <button type="button" className="h-earliest" onClick={takeEarliest}>
+              <Zap className="h-icon-sm" aria-hidden="true" /> Earliest: {when(earliest)}
+            </button>
+          )}
+        </div>
         <div role="group" aria-label="Pick a day" className="h-row">
           {days.map((d) => (
             <button key={d.date} type="button" className={`h-day${activeDay === d.date ? ' on' : ''}`}
               aria-pressed={activeDay === d.date} onClick={() => chooseDay(d.date)}>
               <span>{d.label}</span>
               <span className="h-day-sub">{d.short}</span>
+              <span className="h-day-free">{d.slots.length} free</span>
             </button>
           ))}
           <button type="button" className={`h-day${activeDay === 'other' ? ' on' : ''}`}
@@ -241,6 +275,11 @@ export function BookingCard({ slots, today, promise }: Props) {
           )
         })}
         {activeDay === 'other' && !otherDate && !askOther && <p className="h-hint">Choose a date to see its free times.</p>}
+        {(activeDay === today || (activeDay === 'other' && otherDate === today)) && (
+          <p className="h-hint">
+            Coming in right now? <a href={TEL} className="h-inline-call"><Phone className="h-icon-sm" aria-hidden="true" /> Call the clinic</a>
+          </p>
+        )}
         {!mustAsk && (daySlots.length > 0 || askOther) && (
           <button type="button" className="h-linkbtn" onClick={() => { setAskOther(!askOther); setPicked(null) }}>
             {askOther ? 'Back to the free times' : 'None of these work? Ask for another time'}

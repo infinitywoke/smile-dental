@@ -4,14 +4,18 @@ import { Suspense } from 'react'
 import { connection } from 'next/server'
 import { cacheLife } from 'next/cache'
 import type { Metadata } from 'next'
-import { CalendarDays, Check, Globe, GraduationCap, Phone } from 'lucide-react'
-import { homeServices, siteConfig } from '@/config/site'
+import { Check, ChevronDown, Globe, GraduationCap } from 'lucide-react'
+import { faqs, homeServices, siteConfig } from '@/config/site'
 import { getOpenSlots } from '@/lib/actions/booking'
+import { OPEN_SESSIONS } from '@/lib/clinic-hours'
 import { todayInIndia } from '@/lib/dates'
 import { formatPhone, normalizePhone } from '@/lib/phone'
-import { confirmationPromise } from '@/lib/schedule'
+import { confirmationPromise, formatBlock } from '@/lib/schedule'
 import { BookingCard } from '@/components/home/BookingCard'
 import { BookLink } from '@/components/home/BookLink'
+import { MobileBar } from '@/components/home/MobileBar'
+import { OpenStatus } from '@/components/home/OpenStatus'
+import { SiteHeader } from '@/components/home/SiteHeader'
 import { ToothChart } from '@/components/home/ToothChart'
 import { Waves } from '@/components/home/Waves'
 
@@ -25,7 +29,42 @@ export const metadata: Metadata = {
 const tel = `tel:${siteConfig.phone.replace(/[^\d+]/g, '')}`
 const phoneShown = `+91 ${formatPhone(normalizePhone(siteConfig.phone) ?? siteConfig.phone)}`
 const whatsapp = `https://wa.me/${siteConfig.whatsapp.replace(/\D/g, '')}`
-const hours = siteConfig.operatingHours[0].hours.map((h) => h.replace(' - ', ' – '))
+const hours = OPEN_SESSIONS.map(([from, until]) => `${formatBlock(from)} – ${formatBlock(until)}`)
+const questions = faqs.filter((f) => f.isVerified)
+
+// What search engines read: the clinic, its hours and place, and the questions below
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Dentist',
+  name: siteConfig.name,
+  description: siteConfig.description,
+  url: siteConfig.url,
+  telephone: siteConfig.phone,
+  image: `${siteConfig.url}${siteConfig.dentist.portraitPhoto}`,
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: siteConfig.address,
+    addressLocality: 'Katapadi',
+    addressRegion: 'Karnataka',
+    postalCode: '574105',
+    addressCountry: 'IN',
+  },
+  // From the clinic's Google Maps place
+  geo: { '@type': 'GeoCoordinates', latitude: 13.2845037, longitude: 74.7497085 },
+  hasMap: siteConfig.directionsLink,
+  openingHoursSpecification: OPEN_SESSIONS.map(([opens, closes]) => ({
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday', 'Sunday'],
+    opens,
+    closes,
+  })),
+  employee: { '@type': 'Person', name: siteConfig.dentist.name, jobTitle: 'Dentist (BDS)' },
+}
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: questions.map((f) => ({ '@type': 'Question', name: f.question, acceptedAnswer: { '@type': 'Answer', text: f.answer } })),
+}
 
 // The free times come from the clinic's calendar at the moment the page is opened
 async function Booking() {
@@ -49,87 +88,70 @@ async function Year() {
   return new Date().getFullYear()
 }
 
-// Directions, WhatsApp and the treatments: in the header on a wide screen, in a row under it on a phone
-function QuickLinks({ wideOnly }: { wideOnly: boolean }) {
-  const cls = `h-btn small glass${wideOnly ? ' h-wide-only' : ''}`
-  return (
-    <>
-      <a href="#treatments" className={cls}>Treatments and prices</a>
-      <a href="#doctor" className={cls}>Dr. Rahil</a>
-      <a href={siteConfig.directionsLink} target="_blank" rel="noopener noreferrer" className={cls}>Get directions</a>
-      <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={cls}>WhatsApp the clinic</a>
-    </>
-  )
-}
-
 export default function HomePreview() {
   return (
     <div id="top" className="h-root">
-      <section className="h-tide h-hero-section">
-        <header className="h-wrap h-header">
-          <a href="#top" className="h-brand">
-            <Image src={siteConfig.media.logo} alt="Smile Dental Clinic logo" width={44} height={44} className="h-brand-logo" priority />
-            <span className="h-brand-text">
-              <span className="h-brand-name">{siteConfig.name}</span>
-              <span className="h-brand-place">Katapadi, Udupi</span>
-            </span>
-          </a>
-          <nav aria-label="Main" className="h-nav">
-            <QuickLinks wideOnly />
-            <a href={tel} className="h-btn small glass icon" aria-label={`Call the clinic, ${phoneShown}`}>
-              <Phone className="h-icon" aria-hidden="true" />
-            </a>
-            <a href="#book" className="h-btn small amber on-dark">Book appointment</a>
-          </nav>
-          <nav aria-label="Quick links" className="h-quick">
-            <QuickLinks wideOnly={false} />
-          </nav>
-        </header>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <SiteHeader name={siteConfig.name} place="Katapadi, Udupi" logo={siteConfig.media.logo} tel={tel}
+        phoneShown={phoneShown} whatsapp={whatsapp} directions={siteConfig.directionsLink} />
 
+      <section className="h-tide h-hero-section">
         <div className="h-wrap h-hero">
+          {/* Dr. Rahil as a player card: his photo in a three-part ring, years as a level, his record as badges */}
+          <div className="h-player">
+            <div className="h-player-photo">
+              <svg className="h-ring" viewBox="0 0 120 120" aria-hidden="true">
+                <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-track" />
+                <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a1" />
+                <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a2" />
+                <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a3" />
+              </svg>
+              <Image src={siteConfig.dentist.portraitPhoto} alt={siteConfig.dentist.name} width={96} height={96}
+                className="h-player-img" priority />
+              <span className="h-level" aria-label="5 years of practice"><b>5</b><small>yrs</small></span>
+            </div>
+            <div className="h-player-body">
+              <p className="h-player-role">Your dentist</p>
+              <h2 className="h-player-name">{siteConfig.dentist.name}, BDS</h2>
+              <ul className="h-badges">
+                <li><GraduationCap aria-hidden="true" />Yenepoya, 2020</li>
+                <li><Globe aria-hidden="true" />India and the Middle East</li>
+                <li><Check aria-hidden="true" />Sees every patient himself</li>
+              </ul>
+            </div>
+          </div>
+
           <div className="h-hero-text">
-            <p className="h-eyebrow amber">{siteConfig.dentist.name}, BDS</p>
             <h1 className="h-serif h-h1">A dentist who takes the time to <em>explain</em>.</h1>
             <p className="h-hero-lead">
-              Check-ups, cleaning, fillings, root canals, crowns, braces and dentures on Shirva Road, Katapadi. See the
-              price, pick a free time, and the clinic confirms it on WhatsApp.
+              Check-ups, cleaning, fillings, root canals, crowns, braces and dentures on Shirva Road, Katapadi. Every
+              price is on this page.
             </p>
+            <OpenStatus />
           </div>
-          {/* Dr. Rahil as a player card: his photo in a three-part ring, years as a level, his record as badges.
-              Under the headline on a wide screen; after the booking card on a phone. */}
-          <div className="h-player">
-              <div className="h-player-photo">
-                <svg className="h-ring" viewBox="0 0 120 120" aria-hidden="true">
-                  <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-track" />
-                  <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a1" />
-                  <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a2" />
-                  <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a3" />
-                </svg>
-                <Image src={siteConfig.dentist.portraitPhoto} alt={siteConfig.dentist.name} width={112} height={112}
-                  className="h-player-img" priority />
-                <span className="h-level" aria-label="5 years of practice"><b>5</b><small>yrs</small></span>
-              </div>
-              <div className="h-player-body">
-                <p className="h-player-role">Your dentist</p>
-                <p className="h-player-name">{siteConfig.dentist.name}</p>
-                <ul className="h-badges">
-                  <li><GraduationCap aria-hidden="true" />BDS, Yenepoya, 2020</li>
-                  <li><Globe aria-hidden="true" />India and the Middle East</li>
-                  <li><Check aria-hidden="true" />Sees every patient himself</li>
-                  <li><CalendarDays aria-hidden="true" />Open daily except Friday</li>
-                </ul>
-              </div>
+
+          <div id="book-zone" className="h-book-zone">
+            <Suspense fallback={<BookingLoading />}>
+              <Booking />
+            </Suspense>
           </div>
-          <Suspense fallback={<BookingLoading />}>
-            <Booking />
-          </Suspense>
+
+          <div className="h-how">
+            <p className="h-how-title">How booking works</p>
+            <ol>
+              <li><span>1</span><p><b>Pick a free time</b> from Dr. Rahil&apos;s own calendar.</p></li>
+              <li><span>2</span><p><b>WhatsApp opens</b> with your request written. Tap Send.</p></li>
+              <li><span>3</span><p><b>Dr. Rahil confirms</b> your time on WhatsApp.</p></li>
+            </ol>
+          </div>
         </div>
         <Waves fill="#FFFFFF" />
       </section>
 
       <section id="treatments" className="h-section first">
         <div className="h-wrap">
-          <div className="h-section-head">
+          <div className="h-section-head" data-reveal>
             <div>
               <p className="h-eyebrow">Treatments and prices</p>
               <h2 className="h-serif h-h2">Everything the clinic does, with the price.</h2>
@@ -139,7 +161,7 @@ export default function HomePreview() {
               list shows every option.
             </p>
           </div>
-          <div className="h-menu">
+          <div className="h-menu" data-reveal>
             {homeServices.map((service) => (
               <div key={service.id} className="h-menu-row">
                 <div className="h-leader-row big">
@@ -159,11 +181,13 @@ export default function HomePreview() {
       </section>
 
       <section id="not-sure" className="h-section mist">
-        <ToothChart />
+        <div data-reveal>
+          <ToothChart />
+        </div>
       </section>
 
       <section id="doctor" className="h-section">
-        <div className="h-wrap h-split h-center-items">
+        <div className="h-wrap h-split h-center-items" data-reveal>
           <div className="h-portrait-wrap">
             <Image src={siteConfig.dentist.portraitPhoto} alt={siteConfig.dentist.name} width={380} height={475}
               className="h-portrait" sizes="(max-width: 700px) 90vw, 380px" />
@@ -185,32 +209,60 @@ export default function HomePreview() {
         </div>
       </section>
 
-      <section id="visit" className="h-tide h-visit">
-        <Waves fill="#FFFFFF" top />
+      <section id="questions" className="h-section mist">
         <div className="h-wrap h-split">
-          <div className="h-col" style={{ flex: '1 1 400px' }}>
+          <div className="h-col" style={{ flex: '1 1 300px' }} data-reveal>
+            <p className="h-eyebrow">Questions</p>
+            <h2 className="h-serif h-h2">What patients ask.</h2>
+            <p className="h-lead">
+              Anything else? <a href={whatsapp} target="_blank" rel="noopener noreferrer">WhatsApp the clinic</a> or{' '}
+              <a href={tel}>call {phoneShown}</a>.
+            </p>
+          </div>
+          <div className="h-col h-faq" style={{ flex: '1.5 1 460px' }} data-reveal>
+            {questions.map((f) => (
+              <details key={f.question} className="h-faq-item">
+                <summary><span>{f.question}</span><ChevronDown className="h-icon" aria-hidden="true" /></summary>
+                <p>{f.answer}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="visit" className="h-tide h-visit">
+        <Waves fill="#F3F6FB" top />
+        <div className="h-wrap h-split">
+          <div className="h-col" style={{ flex: '1 1 380px' }}>
             <p className="h-eyebrow amber">Visit</p>
             <h2 className="h-serif h-h2 light">Find us on Shirva Road.</h2>
             <p className="h-visit-address">{siteConfig.address}</p>
+            <OpenStatus />
+            <dl className="h-hours">
+              <dt>Every day</dt>
+              <dd>{hours[0]}<br />{hours[1]}</dd>
+              <dt>Friday</dt>
+              <dd>Closed</dd>
+              <dt>Phone</dt>
+              <dd><a href={tel}>{phoneShown}</a></dd>
+            </dl>
             <div className="h-btn-row">
               <a href="#book" className="h-btn amber on-dark">Book appointment</a>
               <a href={siteConfig.directionsLink} target="_blank" rel="noopener noreferrer" className="h-btn glass">Get directions</a>
               <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="h-btn glass">WhatsApp the clinic</a>
             </div>
           </div>
-          <dl className="h-hours">
-            <dt>Every day</dt>
-            <dd>{hours[0]}<br />{hours[1]}</dd>
-            <dt>Friday</dt>
-            <dd>Closed</dd>
-            <dt>Phone</dt>
-            <dd><a href={tel}>{phoneShown}</a></dd>
-          </dl>
+          <div className="h-col h-map-frame" style={{ flex: '1.2 1 420px' }}>
+            <iframe src={siteConfig.mapEmbedLink} title="Map of Smile Dental Clinic, Katapadi" className="h-map"
+              loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
+          </div>
         </div>
         <p className="h-wrap h-footer-line">
           © <Year /> {siteConfig.name}, Katapadi · <Link href="/privacy">Privacy</Link> · <Link href="/app">Clinic login</Link>
         </p>
       </section>
+
+      <MobileBar whatsapp={whatsapp} />
     </div>
   )
 }

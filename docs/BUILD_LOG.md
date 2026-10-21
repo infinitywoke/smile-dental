@@ -102,8 +102,21 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 - [x] 12. Website overhaul, phase 0 (21 Oct): the owner chose **D**, a combination: A's navy-and-amber colours and type (Instrument Serif headlines, Manrope text), B's crisp outlines and pressable buttons, and C's tooth chart. It was then made more professional, with booking first (design: board D on https://claude.ai/artifact/LeMtkwrePYruX3L65EdDX1).
     - **Built at `/preview`**, not linked and kept out of search (`robots: noindex`). The live homepage is unchanged until the owner and Rahil approve.
     - **Files:** `src/app/(home)/` (layout with the two fonts, `home.css` scoped under `.h-root`, `preview/page.tsx`) and `src/components/home/`.
-    - **Header:** glass buttons for treatments and prices, Dr. Rahil, Get directions, WhatsApp the clinic and a call icon, plus an amber Book appointment button. On a phone the four text buttons move to a scrolling row.
-    - **Dr. Rahil's player card** sits under the headline: his photo in a three-part amber ring, a "5 yrs" level badge and achievement-style badges. On a phone it comes after the booking card.
+    - **Header** (`SiteHeader.tsx`): one row on every screen, pinned to the top, solid once the page scrolls.
+        - At 1280px and wider: glass buttons for treatments and prices, Dr. Rahil, Get directions, WhatsApp the clinic, a call icon, and an amber Book appointment button.
+        - Narrower: call, Book and a menu.
+        - On a phone: call and the menu. A bar at the bottom offers WhatsApp and Book, and steps aside while the booking card is on screen (`MobileBar.tsx`).
+    - **Dr. Rahil's player card** leads the page, in place of the old "Dr. Rahil Yusuf, BDS" line: his photo in a three-part amber ring, a "5 yrs" level badge and achievement-style badges.
+    - **Smarter top section:**
+        - a live open or closed status in India time (`src/lib/clinic-hours.ts`, `OpenStatus.tsx`; for example "Closed for lunch · opens at 2:30 PM", with Friday skipped);
+        - "How booking works" in 3 steps.
+    - **Smarter booking card:**
+        - an "Earliest: Today, 4:30 PM" shortcut;
+        - "N free" on each day;
+        - a line that fits the reason (its price; for toothache, the earliest time with "Take it");
+        - "Coming in right now? Call the clinic" on today.
+    - **Lower sections:** a Questions section (verified FAQs, opening in place) and the Google map in Visit. Sections ease in as they scroll, in CSS only (`animation-timeline: view()`), so nothing is ever hidden without it, nor in print.
+    - **Search details** for when it becomes the homepage: Dentist with address, opening hours, map location and the dentist, plus an FAQ page.
     - **Booking card** (`BookingCard.tsx`):
         1. What do you need? (10 reasons, including Not sure).
         2. The next 6 days with free times, or Other date (that date's free times, or why there are none: past, Friday, beyond four weeks, full).
@@ -117,6 +130,11 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
     - **Tests:** `src/lib/booking-days.test.ts` and `e2e/home-preview.spec.ts`. The e2e test never sends a request, because public requests go to the clinic's own account.
     - **Next:** Rahil tries `/preview`. Then the other pages (treatments, about, FAQ, book, privacy) get the same style, and the homepage switches over. The voice-note test still runs on /book only.
     - **Domain:** the owner is buying one (smiledentalkatapady .com/.in were free on 20 Oct); then switch `siteConfig.url` and the Google profile's appointment link.
+- [ ] 14. No notice needed for online booking (21 Oct, the owner asked): any free block that hasn't started can be requested, and today's times offer "Coming in right now? Call the clinic".
+    - **Code (shipped):** `MIN_LEAD_MINUTES` is now 0 in `schedule.ts` (a block is bookable until it starts).
+    - **Database:** `supabase/no-notice-2026-10.sql` replaces `get_open_slots`. The 2-hour line becomes `s.slot > clinic_now()`; the 2-hour hold after a WhatsApp is a different rule and stays.
+    - **Checks:** booking 133/133 and logic 35/35. Live schema + this file = `schema.sql`, with no difference in columns or functions.
+    - **Waiting on the owner:** run `supabase/no-notice-2026-10.sql` once in the Supabase SQL editor. Until then, the database still hides times under 2 hours away, so nothing breaks in between.
 - Outside the repo (20 Oct):
     - Rahil meeting pack https://claude.ai/artifact/GJGMstZ5ucUZvkuiUmzdS7.
     - **90-second commercial** `../commercialisation/demo/clinic-os-commercial.mp4` (1080×1920, H.264 + AAC, 58 MB).

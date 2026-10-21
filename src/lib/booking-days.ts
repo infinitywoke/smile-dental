@@ -1,3 +1,4 @@
+import { OPEN_SESSIONS } from './clinic-hours'
 import { WINDOW_DAYS, addDays, formatBlock, formatDay, fromMinutes, inIndia, isClosedDay, toMinutes } from './schedule'
 
 // The booking card on the new homepage: the next open days with free times, any other date, and a
@@ -74,16 +75,13 @@ export function describePreferred(value: string): string {
 
 export type TimeGroup = { part: 'Morning' | 'Afternoon' | 'Evening'; times: string[] }
 
-// The clinic's opening hours. A visit can be asked for up to a quarter of an hour before each closing.
-const OPEN: [string, string][] = [['08:30', '13:00'], ['14:30', '19:30']]
-
-// Times to ask for when none of the free times suit: every 15 minutes while the clinic is open, none on
-// a Friday, and (today) none sooner than half an hour from now
+// Times to ask for when none of the free times suit: every 15 minutes while the clinic is open (up to a
+// quarter of an hour before each closing), none on a Friday, and (today) none sooner than half an hour away
 export function preferredTimeOptions(date: string | null, today: string, now: Date): TimeGroup[] {
   if (date && isClosedDay(date)) return []
   const earliest = date === today ? toMinutes(inIndia(now).time) + 30 : 0
   const times: string[] = []
-  for (const [from, until] of OPEN) {
+  for (const [from, until] of OPEN_SESSIONS) {
     for (let t = toMinutes(from); t <= toMinutes(until) - 15; t += 15) if (t >= earliest) times.push(fromMinutes(t))
   }
   return (['Morning', 'Afternoon', 'Evening'] as const)

@@ -44,18 +44,18 @@ describe('blocks', () => {
 })
 
 describe('online booking rules', () => {
-  it('needs at least 2 hours of notice', () => {
-    expect(openToday(at(WED, '10:00'))[0]).toBe('12:30')
-    expect(openToday(at(WED, '10:31'))[0]).toBe('14:30')
-    expect(openToday(at(WED, '12:30'))[0]).toBe('14:30')
-    expect(openToday(at(WED, '12:31'))[0]).toBe('15:10')
+  it('offers any block that has not started yet (no notice needed)', () => {
+    expect(openToday(at(WED, '10:00'))[0]).toBe('10:30')
+    expect(openToday(at(WED, '10:29'))[0]).toBe('10:30')
+    expect(openToday(at(WED, '10:30'))[0]).toBe('11:10')
+    expect(openToday(at(WED, '12:31'))[0]).toBe('14:30')
   })
 
-  it('leaves one block at 4:30 PM and none after (6:30 PM is the last block)', () => {
-    expect(openToday(at(WED, '16:00'))).toEqual(['18:30'])
-    expect(openToday(at(WED, '16:30'))).toEqual(['18:30'])
-    expect(openToday(at(WED, '16:31'))).toEqual([])
-    expect(openToday(at(WED, '17:30'))).toEqual([])
+  it('ends with the 6:30 PM block (evenings are by phone)', () => {
+    expect(openToday(at(WED, '16:00'))).toEqual(['16:30', '17:10', '17:50', '18:30'])
+    expect(openToday(at(WED, '17:30'))).toEqual(['17:50', '18:30'])
+    expect(openToday(at(WED, '18:29'))).toEqual(['18:30'])
+    expect(openToday(at(WED, '18:30'))).toEqual([])
   })
 
   it('offers tomorrow from 8:30 AM when asked at night', () => {
@@ -64,9 +64,10 @@ describe('online booking rules', () => {
     expect(openToday(night, THU)[0]).toBe('08:30')
   })
 
-  it('gives the early-morning boundary: 6:00 AM -> 8:30 AM is allowed', () => {
+  it('gives the early-morning boundary: 8:30 AM is offered until it starts', () => {
     expect(openToday(at(WED, '06:00'))[0]).toBe('08:30')
-    expect(openToday(at(WED, '06:31'))[0]).toBe('09:10')
+    expect(openToday(at(WED, '08:29'))[0]).toBe('08:30')
+    expect(openToday(at(WED, '08:30'))[0]).toBe('09:10')
   })
 
   it('never offers anything from 7 PM, or outside the opening hours', () => {

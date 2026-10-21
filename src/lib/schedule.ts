@@ -6,8 +6,9 @@ const TIME_ZONE = 'Asia/Kolkata'
 const IST_OFFSET = '+05:30'
 
 export const BLOCK_MINUTES = 40
-// A request must start at least this long after it is made, so Dr. Rahil has time to confirm
-export const MIN_LEAD_MINUTES = 120
+// How long before a block starts it can still be requested online. None (owner, 21 Oct 2026): any block
+// that hasn't started can be booked; someone coming in sooner can call the clinic.
+export const MIN_LEAD_MINUTES = 0
 // Blocks starting at or after this time are booked by phone, not online
 export const ONLINE_CUTOFF = '19:00'
 // How far ahead the website offers blocks, counting today
@@ -152,7 +153,7 @@ export function isOnlineBookable(date: string, hhmm: string, now: Date): boolean
   if (!blocksFor(date).includes(hhmm)) return false
   if (isEveningBlock(hhmm)) return false
   const start = new Date(blockInstant(date, hhmm)).getTime()
-  if (start < now.getTime() + MIN_LEAD_MINUTES * 60_000) return false
+  if (start <= now.getTime() + MIN_LEAD_MINUTES * 60_000) return false
   const today = inIndia(now).date
   return date >= today && date <= addDays(today, WINDOW_DAYS - 1)
 }
