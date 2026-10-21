@@ -8,7 +8,7 @@ async function NotificationsContent() {
   const { ready, settings, phones } = await getNotifications()
   return (
     <div className="space-y-4">
-      <BackLink href="/app/patients" label="Patients" />
+      <BackLink href="/app/settings" label="Settings" />
       <h1 className="text-2xl font-bold tracking-tight text-gray-900">Notifications</h1>
       <NotificationSettings
         ready={ready && pushKeysReady()}

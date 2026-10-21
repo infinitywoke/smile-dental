@@ -22,6 +22,9 @@ import { DidntComeButton, MissedList, RecallCard, RemindersCard } from '@/compon
 import { UndoProvider } from '@/components/clinic/UndoBar'
 import { getMoneyOn } from '@/lib/data/tally'
 import { missedMessage, recallMessage, reminderMessage, whatsappLink } from '@/lib/whatsapp'
+import { openStatus } from '@/lib/clinic-hours'
+import { nextAppointment, stripBlock } from '@/lib/cockpit'
+import { Cockpit } from '@/components/clinic/Cockpit'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
@@ -43,7 +46,8 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     getVisitsOn(date),
     getPendingRequests(),
     getBusyCounts(today, STRIP_DAYS),
-    isToday ? getDues(DUES_SHOWN * 2) : Promise.resolve([] as Due[]),
+    // Everyone who owes, for the Cockpit's total; Needs you shows the first few
+    isToday ? getDues(1000) : Promise.resolve([] as Due[]),
     isToday ? getReminders(today) : Promise.resolve(null),
     isToday ? getMissed() : Promise.resolve([] as Missed[]),
     isToday ? getRecalls(today) : Promise.resolve([] as Recall[]),
@@ -85,6 +89,36 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     ...visits.map((visit) => ({ kind: 'seen' as const, at: new Date(visit.created_at).getTime(), visit })),
   ].sort((x, y) => x.at - y.at)
 
+  // The Cockpit (today only): the same people and money as the lists below, at a glance
+  const at = new Date(now)
+  const booked = rows.flatMap((row) => (row.kind === 'booked' ? [row.appointment] : []))
+  const next = nextAppointment(booked, at)
+  const cockpit = isToday ? {
+    status: openStatus(at),
+    seen: visits.length,
+    total: rows.length,
+    marks: rows.map((row) => row.kind === 'seen'),
+    next: next && {
+      appointmentId: next.id,
+      patientId: next.patient_id,
+      name: next.patient.name,
+      startsAt: next.starts_at,
+      detail: [next.reason, lengthLabel(next.duration_min)].filter(Boolean).join(' · '),
+      alert: Boolean(next.patient.medical_alerts),
+    },
+    collected: (money?.cash ?? 0) + (money?.upi ?? 0),
+    requests: requests.length,
+    owed: dues.reduce((total, due) => total + due.amount, 0),
+    // Appointments where they were booked; a walk-in's visit where it began
+    strip: [
+      ...appointments.map((a) => stripBlock(a.starts_at, a.duration_min, at)),
+      ...visits.filter((v) => !appointments.some((a) => a.visit_id === v.id)).map((v) => stripBlock(v.created_at, DEFAULT_LENGTH, at)),
+    ],
+    late: booked
+      .filter((a) => new Date(a.starts_at).getTime() > now && a.patient.phone)
+      .map((a) => ({ id: a.id, name: a.patient.name, startsAt: a.starts_at, phone: a.patient.phone! })),
+  } : null
+
   return (
     <UndoProvider>
     <div className="space-y-6">
@@ -102,6 +136,8 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
             <ChevronRight className="h-6 w-6" />
           </Link>
         </div>
+
+        {cockpit && <Cockpit {...cockpit} />}
 
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
           {strip.map((day) => {
@@ -123,7 +159,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
 
       {/* Needs you */}
       {(requests.length > 0 || showDues.length > 0 || missedItems.length > 0 || showReminders || recallItems.length > 0) && (
-        <section className="space-y-2">
+        <section id="needs-you" className="scroll-mt-4 space-y-2">
           <h2 className="text-lg font-bold text-gray-900">Needs you</h2>
           {requests.map((request) => {
             const wanted = request.requested_start ? inIndia(request.requested_start) : null
@@ -232,7 +268,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
       </section>
 
       {/* Free times */}
-      <section className="space-y-3">
+      <section id="free-times" className="scroll-mt-4 space-y-3">
         <h2 className="text-lg font-bold text-gray-900">Free times</h2>
         {schedule.closed ? (
           <p className="rounded-xl bg-gray-100 p-4 text-center text-sm font-medium text-gray-600">The clinic is closed on Fridays.</p>

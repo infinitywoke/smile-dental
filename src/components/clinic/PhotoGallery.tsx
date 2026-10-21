@@ -240,7 +240,7 @@ function PhotoViewer({ photo, url, onClose }: { photo: VisitPhoto; url: string |
     <div className="fixed inset-0 z-[60] flex flex-col bg-black" role="dialog" aria-modal="true" aria-label="Photo">
       <div className="flex justify-end p-1">
         <button type="button" onClick={onClose} aria-label="Close"
-          className="flex h-12 w-12 items-center justify-center rounded-full text-white hover:bg-white/10">
+          className="flex h-12 w-12 items-center justify-center rounded-full text-[#fff] hover:bg-[#fff]/10">
           <X className="h-7 w-7" />
         </button>
       </div>
@@ -251,9 +251,10 @@ function PhotoViewer({ photo, url, onClose }: { photo: VisitPhoto; url: string |
         )}
       </div>
       <div className="space-y-2 p-4">
-        {error && <p className="text-sm text-red-300">{error}</p>}
+        {/* A black viewer in every theme, so its colours are fixed */}
+        {error && <p className="text-sm text-[#FCA5A5]">{error}</p>}
         <button type="button" onClick={remove} disabled={pending}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white/10 text-base font-semibold text-red-300 disabled:opacity-60">
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#fff]/10 text-base font-semibold text-[#FCA5A5] disabled:opacity-60">
           <Trash2 className="h-5 w-5" /> Delete photo
         </button>
       </div>

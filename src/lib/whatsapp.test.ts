@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookingRequestMessage, cancelledMessage, confirmationMessage, declineMessage, movedMessage } from './whatsapp'
+import { bookingRequestMessage, cancelledMessage, confirmationMessage, declineMessage, movedMessage, runningLateMessage } from './whatsapp'
 import { visitMessage } from './billing'
 
 // Messages to a patient carry the patient's first name and nothing else that identifies them:
@@ -22,6 +22,17 @@ describe('messages to the patient', () => {
     expect(text).toContain('📍 1st Floor, YM Zohara Building')
     expect(text).toContain('Directions: https://maps.app.goo.gl/')
     expect(text).toContain('_Please arrive 5 minutes early._')
+    expect(text).not.toContain('Shetty')
+    expect(text).not.toMatch(FORBIDDEN)
+  })
+
+  it('running late: how late, their time in bold, first name only', () => {
+    const text = runningLateMessage({ name: 'Prakash Shetty', startsAt: starts, minutes: 15 })
+    expect(text.startsWith(HEADER)).toBe(true)
+    expect(text.endsWith(SIGN_OFF)).toBe(true)
+    expect(text).toContain('running about 15 minutes late today')
+    expect(text).toContain('🕗 *6:00 PM*')
+    expect(text).toContain('come about 15 minutes after your time')
     expect(text).not.toContain('Shetty')
     expect(text).not.toMatch(FORBIDDEN)
   })

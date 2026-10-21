@@ -221,10 +221,27 @@ The multi-clinic foundation comes after this. New tables follow the existing own
     - **B · Mission control:** dense tiles with status lights, an appointment ticker and an event log. IBM Plex Sans Condensed and Mono.
     - **C · Daylight:** light panels with the website's crisp outlines and offset shadows, readable in a bright surgery. Instrument Serif and Manrope.
     - Every direction has the new bottom bar (Today · Patients · + · Stock · Money) and the quick controls (block time, pause online booking, running late, walk-in).
-- [ ] **P3b. HUD design system, with Today as the cockpit:**
-    - clock, open status, next-patient countdown, day ring, money today, requests, alerts, timeline and quick controls;
-    - responses: instant taps, haptics, optimistic actions;
-    - transitions, and game touches with an off switch.
+- [x] **P3b, part 1 (21 Oct): the owner chose A · Cockpit, following the phone's light or dark mode, with a switch in Settings.**
+    - **Theme for all of Clinic OS** (`globals.css`, `.hud`): the Tailwind colours the screens use are redefined for Cockpit light (mist, navy, amber) and dark (navy panels, amber primary, grays reversed), so every existing screen follows without being rewritten.
+        - `data-theme` on `#hud-root` is the choice from the `clinic-theme` cookie (`src/lib/theme.ts`): `system` follows the phone through `prefers-color-scheme`.
+        - Fonts: Manrope and JetBrains Mono (`hud-mono` for readouts). The status bar colour follows the theme (`ThemeColor.tsx`); the manifest is navy.
+        - The photo viewer keeps fixed colours (black in every theme). QR codes carry their own white.
+    - **Settings** (`/app/settings`, new tab): Look (Phone · Light · Dark; changes at once and is saved for this phone by `setThemePreference`), Notifications (moved here from Patients), and Sign out.
+    - **Bottom bar:** Today · Patients · + (amber in both themes) · Money (Insights) · Settings. Stock joins in P4.
+    - **Today's Cockpit** (`Cockpit.tsx`, `CockpitLive.tsx`, logic in `src/lib/cockpit.ts`, unit-tested), today only, under the Today heading:
+        - open status and a live clock;
+        - the seen ring (seen / everyone today, a mark per patient);
+        - the next patient with a countdown and **Start visit**;
+        - Collected, Requests and Owed (everyone who owes, from `getDues`);
+        - the day strip (8:30 AM to 7:50 PM, lunch hatched, a "now" line);
+        - controls: Walk-in, **Running late**, and Block time (jumps to Free times).
+        - Running late is a sheet: pick 10, 15, 20 or 30 minutes, then a written WhatsApp per patient still to come (`runningLateMessage`, first name only); he taps Send.
+    - **Tests:** `e2e/cockpit.spec.ts` (Cockpit, Running late, the theme switch and that dark is really navy), the notification test now goes through Settings, unit tests for the strip, ring, next patient and the message.
+- [ ] **P3b, part 2:**
+    - responses: haptics on key taps, optimistic Start, Send and payments;
+    - transitions between screens;
+    - game touches (day ring completion, streaks, milestones) with an off switch in Settings;
+    - **Pause online booking** (needs a small SQL: a flag that `get_open_slots` and `submit_booking_request` respect).
 - [ ] **P4. Stock and costs:**
     - stock items, bills in, use and counts;
     - materials per treatment (optional: deducts stock automatically, with Undo);

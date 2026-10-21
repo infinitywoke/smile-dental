@@ -6,9 +6,9 @@ import { signIn, visible } from './helpers'
 // door. A real notification needs a phone, so delivery is checked by hand on the phone.
 test.skip(!testLogin, NO_TEST_LOGIN)
 
-test('Patients leads to Notifications: what to hear about and quiet hours, kept after a reload', async ({ page }) => {
+test('Settings leads to Notifications: what to hear about and quiet hours, kept after a reload', async ({ page }) => {
   await signIn(page)
-  await page.goto('/app/patients')
+  await page.goto('/app/settings')
   await visible(page.getByRole('link', { name: 'Notifications' })).click()
   await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible()
   const brief = page.getByRole('switch', { name: /The morning brief/ })

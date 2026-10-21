@@ -156,6 +156,20 @@ export function missedMessage(args: { name: string; startsAt: string }): string 
   ].join('\n')
 }
 
+// Clinic -> patient, from the Cockpit's "Running late", to the patients still to come today
+export function runningLateMessage(args: { name: string; startsAt: string; minutes: number }): string {
+  return [
+    ...messageHeader(args.name),
+    `Dr. Rahil is running about ${args.minutes} minutes late today. Sorry to keep you waiting.`,
+    '',
+    'Your appointment:',
+    ...appointmentLines(args.startsAt),
+    '',
+    `You can come about ${args.minutes} minutes after your time. If that doesn't suit you, call or WhatsApp us on ${siteConfig.phone}.`,
+    ...messageSignOff(),
+  ].join('\n')
+}
+
 // Clinic -> patient, about six months after their last visit
 export function recallMessage(args: { name: string; lastVisit: string }): string {
   return [

@@ -1,9 +1,16 @@
 import { Suspense } from 'react'
+import { cookies } from 'next/headers'
 import type { Metadata, Viewport } from 'next'
+import { JetBrains_Mono, Manrope } from 'next/font/google'
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
+import { THEME_COOKIE, themeFrom } from '@/lib/theme'
 import { BottomNav } from '@/components/clinic/BottomNav'
+import { ThemeColor } from '@/components/clinic/ThemeColor'
 import { WhatsAppBusiness } from '@/components/clinic/WhatsAppBusiness'
+
+const body = Manrope({ subsets: ['latin'], variable: '--font-hud-body' })
+const mono = JetBrains_Mono({ subsets: ['latin'], weight: ['500', '700'], variable: '--font-hud-mono' })
 
 // The manifest is linked only here, so "Add to Home screen" installs Clinic OS, not the website.
 export const metadata: Metadata = {
@@ -18,12 +25,17 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#2563eb',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F3F6FC' },
+    { media: '(prefers-color-scheme: dark)', color: '#050D24' },
+  ],
 }
 
+// The Cockpit: until the session is checked it follows the phone's own mode; then the dentist's choice
+// for this phone (Settings) takes over
 export default function ClinicLayout({ children }: LayoutProps<'/app'>) {
   return (
-    <div className="flex min-h-dvh flex-col bg-gray-50">
+    <div className={`hud hud-grid flex min-h-dvh flex-col ${body.variable} ${mono.variable}`} data-theme="system">
       <Suspense fallback={<LoadingScreen />}>
         <DoctorGate>{children}</DoctorGate>
       </Suspense>
@@ -34,12 +46,14 @@ export default function ClinicLayout({ children }: LayoutProps<'/app'>) {
 // Nothing under /app renders until the session is verified.
 async function DoctorGate({ children }: { children: React.ReactNode }) {
   await getDoctor()
+  const theme = themeFrom((await cookies()).get(THEME_COOKIE)?.value)
   return (
-    <>
+    <div id="hud-root" className="hud hud-grid flex flex-1 flex-col text-gray-900" data-theme={theme}>
+      <ThemeColor />
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-28">{children}</main>
       <BottomNav />
       <WhatsAppBusiness />
-    </>
+    </div>
   )
 }
 
