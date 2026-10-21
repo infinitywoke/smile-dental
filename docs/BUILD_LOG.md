@@ -99,7 +99,24 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
     - A part with nothing recorded doesn't show.
     - Send to Tally is at the bottom.
     - Code: pure maths in `src/lib/insights.ts` (unit-tested), data in `src/lib/data/insights.ts`; tests in `e2e/insights.spec.ts`.
-- [ ] 12. Website overhaul, next: the owner picks one of three directions (A Tide, B Fresh Mint, C Tooth World) on the design canvas https://claude.ai/artifact/LeMtkwrePYruX3L65EdDX1; then build it on a preview link. Photos to come from the shot list. The owner is buying a domain (smiledentalkatapady .com/.in were free on 20 Oct); then switch `siteConfig.url` and the Google profile's appointment link.
+- [x] 12. Website overhaul, phase 0 (21 Oct): the owner chose **D**, a combination: A's navy-and-amber colours and type (Instrument Serif headlines, Manrope text), B's crisp outlines and pressable buttons, and C's tooth chart. It was then made more professional, with booking first (design: board D on https://claude.ai/artifact/LeMtkwrePYruX3L65EdDX1).
+    - **Built at `/preview`**, not linked and kept out of search (`robots: noindex`). The live homepage is unchanged until the owner and Rahil approve.
+    - **Files:** `src/app/(home)/` (layout with the two fonts, `home.css` scoped under `.h-root`, `preview/page.tsx`) and `src/components/home/`.
+    - **Header:** glass buttons for treatments and prices, Dr. Rahil, Get directions, WhatsApp the clinic and a call icon, plus an amber Book appointment button. On a phone the four text buttons move to a scrolling row.
+    - **Dr. Rahil's player card** sits under the headline: his photo in a three-part amber ring, a "5 yrs" level badge and achievement-style badges. On a phone it comes after the booking card.
+    - **Booking card** (`BookingCard.tsx`):
+        1. What do you need? (10 reasons, including Not sure).
+        2. The next 6 days with free times, or Other date (that date's free times, or why there are none: past, Friday, beyond four weeks, full).
+        3. A free time.
+        4. Name and WhatsApp number.
+    - **How it sends:** no gender is asked; `submitBookingRequest` now accepts a blank gender, and /book still asks for it. The request and WhatsApp flow are the same as /book, including "call me instead" and the bot traps.
+    - **Another time:** "None of these work? Ask for another time" offers a 12-hour list of times within opening hours, 15 minutes apart, with past times hidden today, plus Any time or Any time in the morning, afternoon or evening. It opens WhatsApp with the request written; nothing is saved, and the clinic replies.
+    - **Treatments and prices:** 8 rows from `homeServices` in `site.ts`. Each Book link picks that reason on the card (`book-events.ts` keeps a choice made while the card is still loading).
+    - **Not sure? tooth chart:** all 32 teeth with dental numbers, plus areas (front, back, wisdom, gums, missing). It picks the reason and notes the tooth, for example "Toothache (tooth 36, lower left first molar)".
+    - **Prices:** every homepage price is checked against the price list by `src/lib/home-content.test.ts`.
+    - **Tests:** `src/lib/booking-days.test.ts` and `e2e/home-preview.spec.ts`. The e2e test never sends a request, because public requests go to the clinic's own account.
+    - **Next:** Rahil tries `/preview`. Then the other pages (treatments, about, FAQ, book, privacy) get the same style, and the homepage switches over. The voice-note test still runs on /book only.
+    - **Domain:** the owner is buying one (smiledentalkatapady .com/.in were free on 20 Oct); then switch `siteConfig.url` and the Google profile's appointment link.
 - Outside the repo (20 Oct):
     - Rahil meeting pack https://claude.ai/artifact/GJGMstZ5ucUZvkuiUmzdS7.
     - **90-second commercial** `../commercialisation/demo/clinic-os-commercial.mp4` (1080×1920, H.264 + AAC, 58 MB).

@@ -21,6 +21,7 @@ export const siteConfig = {
   address: "1st Floor, YM Zohara Building, Shirva Rd, near Bank of Baroda (formerly Vijaya Bank), Yenna Gudde, Katapadi - 574105", // [VERIFIED]
   mapEmbedLink: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3690.9245645463925!2d74.7497085!3d13.2845037!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bbcbba33e21b099%3A0xcafb512227026d47!2sSmile%20Dental%20Clinic%20-%20Katapady!5e1!3m2!1sen!2sin!4v1789624673623!5m2!1sen!2sin", // [VERIFIED]
   googleReviewsLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED]
+  directionsLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED] the clinic on Google Maps, as sent in confirmations
   // [PLACEHOLDER] The "write a review" link from Google Business Profile (Ask for reviews). Until it is
   // filled in, review requests use the Maps link above (the patient then taps Reviews, Write a review).
   reviewRequestLink: "",
@@ -209,6 +210,87 @@ export const treatments: Treatment[] = [
     ]
   }
 ]
+
+// --- New homepage (website D, at /preview until approved) ---
+// Every price shown here is checked against the price list above by src/lib/home-content.test.ts.
+export type HomeService = {
+  id: string
+  name: string
+  line: string
+  price: string
+  // The price-list treatments it is drawn from
+  slugs: string[]
+}
+
+export const homeServices: HomeService[] = [
+  { id: 'checkup', name: 'Check-up and consultation', line: 'An examination by Dr. Rahil; an X-ray, if needed, is ₹350.', price: '₹200', slugs: ['consultation', 'x-ray'] },
+  { id: 'cleaning', name: 'Teeth cleaning', line: 'Scaling and polishing to remove tartar and stains.', price: '₹400 – ₹800', slugs: ['scaling-teeth-cleaning'] },
+  { id: 'filling', name: 'Fillings', line: 'Tooth-coloured fillings for cavities and small chips.', price: 'from ₹700', slugs: ['fillings'] },
+  { id: 'rootcanal', name: 'Root canal treatment', line: 'Saves a badly decayed or infected tooth.', price: '₹3,500', slugs: ['root-canal-treatment'] },
+  { id: 'crown', name: 'Crowns and bridges', line: 'Ceramic or zirconia crowns, and bridges for gaps.', price: 'from ₹3,499', slugs: ['crowns-bridges-ceramic', 'crowns-bridges-zirconia'] },
+  { id: 'braces', name: 'Braces and aligners', line: 'Metal or ceramic braces, or clear aligners.', price: 'from ₹25,000', slugs: ['orthodontics'] },
+  { id: 'removal', name: 'Tooth removal', line: 'Including wisdom teeth, after an X-ray.', price: 'from ₹500', slugs: ['tooth-extraction'] },
+  { id: 'dentures', name: 'Dentures', line: 'Partial or complete, to replace missing teeth.', price: 'from ₹1,200', slugs: ['removable-partial-dentures', 'complete-dentures'] },
+]
+
+// "What do you need?" on the booking card. A treatment's Book link picks the one with its id.
+export const bookingReasons = [
+  { id: 'checkup', label: 'Check-up' },
+  { id: 'cleaning', label: 'Cleaning' },
+  { id: 'toothache', label: 'Toothache' },
+  { id: 'filling', label: 'Filling' },
+  { id: 'rootcanal', label: 'Root canal' },
+  { id: 'crown', label: 'Crown or bridge' },
+  { id: 'braces', label: 'Braces or aligners' },
+  { id: 'removal', label: 'Tooth removal' },
+  { id: 'dentures', label: 'Dentures' },
+  { id: 'unsure', label: 'Not sure' },
+] as const
+
+export type ToothArea = {
+  label: string
+  title: string
+  body: string
+  items: [string, string][]
+  // The reason it picks on the booking card, and the button that books it
+  reason: (typeof bookingReasons)[number]['id']
+  cta: string
+  slugs: string[]
+}
+
+// "Not sure what you need?": what each area of the mouth usually needs, and what it costs
+export const toothAreas: Record<'front' | 'back' | 'wisdom' | 'gums' | 'missing', ToothArea> = {
+  front: {
+    label: 'Front teeth', title: 'A chipped, gapped or crooked front tooth',
+    body: 'A tooth-coloured filling or a crown repairs a chip. Braces or aligners straighten crowded or gapped teeth.',
+    items: [['Tooth-coloured filling', 'from ₹800'], ['Ceramic crown', 'from ₹3,499'], ['Metal braces', 'from ₹25,000'], ['Clear aligners', '₹45,000 – ₹65,000']],
+    reason: 'checkup', cta: 'Book a check-up for this', slugs: ['fillings', 'crowns-bridges-ceramic', 'orthodontics'],
+  },
+  back: {
+    label: 'Back teeth', title: 'Pain in a back tooth',
+    body: 'Usually a cavity. It may need a filling; if the nerve is affected, a root canal and then a crown.',
+    items: [['Check-up', '₹200'], ['Filling', 'from ₹700'], ['Root canal treatment', '₹3,500'], ['Ceramic crown', 'from ₹3,499']],
+    reason: 'toothache', cta: 'Book a check-up for this', slugs: ['consultation', 'fillings', 'root-canal-treatment', 'crowns-bridges-ceramic'],
+  },
+  wisdom: {
+    label: 'Wisdom teeth', title: 'A painful wisdom tooth',
+    body: 'An X-ray first shows how the tooth sits. Then removal, if it needs to come out.',
+    items: [['X-ray', '₹350'], ['Wisdom tooth removal', '₹800'], ['Difficult removal', '₹1,200']],
+    reason: 'toothache', cta: 'Book a check-up for this', slugs: ['x-ray', 'tooth-extraction'],
+  },
+  gums: {
+    label: 'Gums', title: 'Bleeding gums or tartar',
+    body: 'Usually fixed with scaling and polishing. The price depends on how much build-up there is.',
+    items: [['Cleaning, mild', '₹400'], ['Cleaning, moderate', '₹600'], ['Cleaning, severe', '₹800'], ['Polishing', '₹300']],
+    reason: 'cleaning', cta: 'Book a cleaning', slugs: ['scaling-teeth-cleaning'],
+  },
+  missing: {
+    label: 'Missing tooth', title: 'A missing tooth',
+    body: 'A removable partial denture, a fixed bridge, or complete dentures, chosen with you after a check-up.',
+    items: [['Partial denture, one tooth', '₹1,200'], ['Each extra tooth', '+ ₹400'], ['Ceramic bridge', 'from ₹3,499 a tooth'], ['Complete dentures', 'from ₹7,000']],
+    reason: 'dentures', cta: 'Book a check-up for this', slugs: ['removable-partial-dentures', 'crowns-bridges-ceramic', 'complete-dentures'],
+  },
+}
 
 // --- FAQs ---
 // [PLACEHOLDER] Awaiting verified clinic FAQs.

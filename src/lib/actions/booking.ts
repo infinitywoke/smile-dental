@@ -46,8 +46,9 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
   const phone = normalizePhone(input.phone)
   if (!isValidPhone(phone)) return { ok: false, error: 'Please enter a valid 10-digit mobile number.' }
   if (input.name.trim().length < 2) return { ok: false, error: 'Please enter your name.' }
-  const gender = parseGender(input.gender)
-  if (!gender) return { ok: false, error: 'Please choose female, male or other.' }
+  // The new homepage doesn't ask (the clinic adds it at the visit); the /book form still does
+  const gender = input.gender.trim() ? parseGender(input.gender) : null
+  if (input.gender.trim() && !gender) return { ok: false, error: 'Please choose female, male or other.' }
 
   let birthYear: number | null = null
   if (input.age.trim()) {
