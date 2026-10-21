@@ -271,7 +271,11 @@ The multi-clinic foundation comes after this. New tables follow the existing own
     - Money: monthly profit, costs by category and margins;
     - low-stock and expiry alerts;
     - bottom bar: Today · Patients · + · Stock · Money;
-    - import Rahil's spreadsheet of supplies, costs and lab fees.
+    - import Rahil's spreadsheet of supplies, costs and lab fees. The blank he fills in is `for-dr-rahil/Stock-and-costs-to-fill.xlsx` (outside the repo, made 21 Oct). Headers are in row 2 and data starts in row 3; skip rows starting "Example:".
+        - **Supplies:** Item, Kind (the `stock_items` categories), Counted in (unit), How many now (the first count), Warn me at (low level), Usual supplier, Price per unit (₹), Expiry date.
+        - **Regular bills:** Bill, Kind (Rent, Electricity, Internet and phone, Software, Equipment payment, Repairs, Other: the `fixed_costs` categories; no Salary, he works alone), Amount (₹), Every (Month or Year), Usually paid on (day of the month).
+        - **Lab fees:** Work, Lab, Fee (₹). No table holds these yet: decide whether they become a cost per visit or a fee per treatment for margins.
+        - **Materials per treatment:** the 35 price-list options, named exactly as the sheet names charges, then Item used and How much per treatment (extra rows for extra items).
 - [ ] **P3c. The HUD for Visit, Patients, Requests and Money.**
 
 ## Logic fixes (owner's bug: deleting a visit showed an advance)
