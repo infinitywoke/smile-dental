@@ -190,12 +190,32 @@ The multi-clinic foundation comes after this. New tables follow the existing own
         - Tests: `structured-data.test.ts` checks every amount against the price list; `e2e/site.spec.ts` reads it from the pages.
     - **Google profile sheet** (copy buttons, values exactly as on the site): https://claude.ai/artifact/SqhE9e6LoNz5wDwH8ncmHj. The owner or Rahil pastes it into the profile, then sends a screenshot to check. It notes that Google shows the name as "Smile Dental Clinic - Katapady"; the name should match the signboard.
     - The review link is skipped and the anti-bot rule is unchanged, as the owner asked.
-- [ ] **P2. Notifications on the installed Clinic OS:**
-    - a service worker for notifications only, and a "Turn on notifications" switch;
-    - a subscriptions table and a server sender (web-push; the owner adds the VAPID keys in Vercel);
-    - alerts: a new request (instant), a request still waiting after 30 min, and a morning brief at 8:15 AM on open days;
-    - settings: each alert type, quiet hours, names on the lock screen off by default;
-    - the timed alerts run from Supabase pg_cron every 5 min.
+- [x] **P2. Notifications on the installed Clinic OS (code shipped 21 Oct; waiting on the owner's setup below):**
+    - **Phone:**
+        - `public/sw.js` shows notifications and opens the right screen when one is tapped. It caches nothing and its scope is `/app/`, so the website is untouched.
+        - Patients → **Notifications** (`/app/notifications`, `NotificationSettings.tsx`): Turn on for this phone, Send a test, Turn off.
+        - Settings: a new request, a request still waiting, the morning brief, names on the lock screen (off by default), and quiet hours (default 9 PM to 8 AM).
+    - **Database** (`supabase/notifications-2026-10.sql`, folded into `schema.sql`):
+        - tables `push_subscriptions`, `notification_settings` and `notification_log` (each notification once);
+        - functions `notify_new_request`, `notify_due` and `notify_gone`, guarded by a secret in Supabase Vault (`clinic_os_cron`), so no admin key goes to the app;
+        - the live-only part enables pg_cron and pg_net, makes the secret inside the database, and schedules `clinic-os-notify` every 5 minutes to POST `/api/notify`.
+    - **Server:**
+        - `src/lib/push.ts` sends with web-push and forgets phones that are gone;
+        - `src/lib/notifications.ts` holds the wording and quiet hours (unit-tested);
+        - `/api/notify` checks the secret;
+        - `submitBookingRequest` sends the new-request notification with `after()`, so a notification never slows or breaks a booking.
+    - **What is sent:**
+        - "New booking request · Tomorrow, 5:10 PM · Toothache";
+        - "A request is still waiting" 30 minutes on, if WhatsApp hasn't arrived;
+        - "Today at the clinic: 3 booked, first at 8:30 AM · 1 request waiting" at 8:15 AM, not on Fridays or blocked-off mornings.
+        - The brief has no money owed yet: that waits until the money totals live in the database (HUD phase), so it always matches the screens.
+    - **Checks:** `supabase/tests/notify.check.mjs` 31/31 (booking 133/133 and logic 35/35 still pass), unit tests for the wording, and `e2e/notifications.spec.ts`.
+    - **Owner's setup, once:**
+        1. Run `supabase/notifications-2026-10.sql` in the Supabase SQL editor.
+        2. Run `select decrypted_secret from vault.decrypted_secrets where name = 'clinic_os_cron';` and add the value in Vercel as `CLINIC_OS_CRON_SECRET`.
+        3. Run `npx web-push generate-vapid-keys` and add `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in Vercel.
+        4. Redeploy.
+        5. On Rahil's phone, in Clinic OS: Patients → Notifications → Turn on → Send a test.
 - [ ] **P3a. HUD design board:** 3 directions for Today and the Visit screen in navy and amber; the owner picks.
 - [ ] **P3b. HUD design system, with Today as the cockpit:**
     - clock, open status, next-patient countdown, day ring, money today, requests, alerts, timeline and quick controls;

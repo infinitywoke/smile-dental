@@ -1,7 +1,9 @@
 'use server'
 
 import { headers } from 'next/headers'
+import { after } from 'next/server'
 import { createPublicClient } from '@/lib/supabase/public'
+import { notifyNewRequest } from '@/lib/push'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { isOnlineBookable, inIndia } from '@/lib/schedule'
 import type { SubmitBookingRequestArgs } from '@/lib/data/types'
@@ -86,7 +88,10 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
     const known = error?.code === 'P0001' ? error.message : null
     return { ok: false, error: known || 'Sorry, we could not save your request. Please call or WhatsApp the clinic.' }
   }
-  return { ok: true, id: String(data) }
+  // The dentist's phones hear about it once the visitor has their answer
+  const id = String(data)
+  after(() => notifyNewRequest(id))
+  return { ok: true, id }
 }
 
 // Which way the visitor was asked to describe their problem (the voice note test), and for the page
