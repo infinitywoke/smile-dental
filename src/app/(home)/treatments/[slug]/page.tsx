@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { homeServices, treatments } from '@/config/site'
 import { priceForPatients } from '@/lib/pricing'
+import { treatmentJsonLd } from '@/lib/structured-data'
 import { clinicWhatsappLink } from '@/lib/whatsapp'
+import { JsonLd } from '@/components/home/JsonLd'
 import { PageHead } from '@/components/home/PageHead'
 
 type Props = {
@@ -35,6 +37,7 @@ export default async function TreatmentPage({ params }: Props) {
 
   return (
     <>
+      <JsonLd data={treatmentJsonLd(treatment)} />
       <PageHead back={{ href: '/treatments', label: 'All treatments and prices' }} eyebrow={group?.name}
         title={treatment.name} lead={treatment.shortDescription} />
 

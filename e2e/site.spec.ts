@@ -20,6 +20,9 @@ test('the price list shows every treatment with its prices, and Book opens the b
   await expect(page.locator('#braces').getByText('₹45,000–₹65,000')).toBeVisible()
   await expect(page.locator('#dentures').getByText('₹1,200 + ₹400 each')).toBeVisible()
   await expect(page.locator('#rootcanal').getByRole('link', { name: 'Post and Core Build Up' })).toBeVisible()
+  // The same prices for search engines and AI assistants, under the same 8 headings
+  const catalog = JSON.parse((await page.locator('script[type="application/ld+json"]').first().textContent())!)
+  expect(catalog.hasOfferCatalog.itemListElement).toHaveLength(8)
 
   await page.getByRole('link', { name: 'Book Teeth cleaning' }).click()
   await expect(page).toHaveURL(/\/book\?reason=cleaning$/)
@@ -34,6 +37,11 @@ test('a treatment page shows its prices, books it or asks about it, and leads ba
   await expect(page.getByRole('link', { name: 'All treatments and prices' })).toHaveAttribute('href', '/treatments')
   await expect(page.getByRole('link', { name: 'Crowns & Bridges (Ceramic)' })).toHaveAttribute('href', '/treatments/crowns-bridges-ceramic')
   await expect(page.getByRole('link', { name: 'Ask about it on WhatsApp' })).toHaveAttribute('href', /^https:\/\/wa\.me\/916361816711\?text=/)
+  // Each option's price in rupees, readable by search engines and AI assistants
+  const service = JSON.parse((await page.locator('script[type="application/ld+json"]').first().textContent())!)
+  expect(service['@type']).toBe('Service')
+  expect(service.offers.map((o: { price: number }) => o.price)).toEqual([6499, 7499, 9999])
+  expect(service.offers[0].priceCurrency).toBe('INR')
 
   await page.locator('.h-side-card').getByRole('link', { name: 'Book appointment' }).click()
   await expect(page).toHaveURL(/\/book\?reason=crown$/)

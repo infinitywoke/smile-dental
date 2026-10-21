@@ -3,6 +3,8 @@ import type { Metadata } from 'next'
 import { ChevronRight } from 'lucide-react'
 import { homeServices, treatments } from '@/config/site'
 import { priceForPatients } from '@/lib/pricing'
+import { priceListJsonLd } from '@/lib/structured-data'
+import { JsonLd } from '@/components/home/JsonLd'
 import { PageHead } from '@/components/home/PageHead'
 
 export const metadata: Metadata = {
@@ -20,6 +22,7 @@ const groups = homeServices.map((service) => ({
 export default function TreatmentsPage() {
   return (
     <>
+      <JsonLd data={priceListJsonLd()} />
       <PageHead eyebrow="Treatments and prices" title="Every treatment, with the price."
         lead="The clinic's own price list. Some prices depend on the material or on how much work a tooth needs: Dr. Rahil examines first, and explains the options and the cost before any treatment." />
 

@@ -4,9 +4,10 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Check } from 'lucide-react'
 import { homeServices, siteConfig } from '@/config/site'
-import { OPEN_SESSIONS } from '@/lib/clinic-hours'
+import { clinicJsonLd, faqJsonLd } from '@/lib/structured-data'
 import { BookLink } from '@/components/home/BookLink'
 import { Booking, BookingLoading, HowBooking } from '@/components/home/BookingSection'
+import { JsonLd } from '@/components/home/JsonLd'
 import { OpenStatus } from '@/components/home/OpenStatus'
 import { Questions, questions } from '@/components/home/Questions'
 import { ToothChart } from '@/components/home/ToothChart'
@@ -18,45 +19,12 @@ export const metadata: Metadata = {
   description: siteConfig.description,
 }
 
-// What search engines read: the clinic, its hours and place, and the questions below
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'Dentist',
-  name: siteConfig.name,
-  description: siteConfig.description,
-  url: siteConfig.url,
-  telephone: siteConfig.phone,
-  image: `${siteConfig.url}${siteConfig.dentist.portraitPhoto}`,
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: siteConfig.address,
-    addressLocality: 'Katapadi',
-    addressRegion: 'Karnataka',
-    postalCode: '574105',
-    addressCountry: 'IN',
-  },
-  // From the clinic's Google Maps place
-  geo: { '@type': 'GeoCoordinates', latitude: 13.2845037, longitude: 74.7497085 },
-  hasMap: siteConfig.directionsLink,
-  openingHoursSpecification: OPEN_SESSIONS.map(([opens, closes]) => ({
-    '@type': 'OpeningHoursSpecification',
-    dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday', 'Sunday'],
-    opens,
-    closes,
-  })),
-  employee: { '@type': 'Person', name: siteConfig.dentist.name, jobTitle: 'Dentist (BDS)' },
-}
-const faqJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'FAQPage',
-  mainEntity: questions.map((f) => ({ '@type': 'Question', name: f.question, acceptedAnswer: { '@type': 'Answer', text: f.answer } })),
-}
-
 export default function HomePage() {
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      {/* What search engines and AI assistants read: the clinic, its hours, place and prices, and the questions below */}
+      <JsonLd data={clinicJsonLd()} />
+      <JsonLd data={faqJsonLd(questions)} />
 
       <section className="h-tide h-hero-section">
         <div className="h-wrap h-hero">

@@ -79,7 +79,7 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
 - [ ] Owner creates a server-only Supabase secret key and adds it in Vercel
 - [ ] Built, checked, pushed
 
-#### Next plan (15 Oct) — **resume here after the go-ahead**
+#### Next plan (15 Oct)
 - [x] Go-ahead given (15 Oct). Change: on-phone Whisper won't run well on Dr. Rahil's **Poco M2 Pro** (2020, Snapdragon 720G), so step 8 sends the recording to Gemini's free tier (transcribe + sort in one call; he doesn't say names) or uses Gboard voice typing + Gemini for text; owner chooses at step 8. Design for the Poco too (older, slower phone).
 - [x] 1. Backups: `.github/workflows/backup.yml` (nightly 2 AM IST: pg_dump public/auth/storage + CSVs, restored into a scratch Postgres and row-counted, then rclone crypt → owner's Google Drive; photos mirrored; 30 daily + 12 monthly), `scripts/backup/restore-stubs.sql`, `docs/BACKUPS.md`. [x] Owner added the 4 secrets; first manual run green on 15 Oct (fixes on the way: no brackets/special characters in the DB password, encoded rclone token unwrapped, missing folders skipped when pruning, checkout@v5). Note for owners: "Re-run jobs" repeats an old version; use "Run workflow".
 - [x] 2. Delete patient: patient page → "Delete patient" (bottom) → `/app/patients/[id]/delete` lists what goes, password re-checked on the server (separate sign-in, signed out at once); with payments: "keep ₹X in the books" (details, notes, photos, requests erased; record renamed "Deleted patient (date)"; money kept) or "delete everything"; photo files first; offers the cancellation WhatsApp for a coming appointment. `e2e/patients.spec.ts`. Gates: tsc, 162 unit, lint, build, e2e 41 passed + 2 time-of-day skips.
@@ -171,7 +171,47 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
     - Rahil's user guide rewritten for the current app: `../for-dr-rahil/Clinic-OS-User-Guide.pdf` (the old one is in `old-2026-10-10/`).
 - Plan: `docs/build/PLAN-2026-10-next.md` (backups to Google Drive, delete patient, undo/remove, website wording + fallback + abuse guards, WhatsApp-verified holds, patient voice note test, appointment lengths, smart voice notes, extras). Waiting for the owner's go-ahead; built directly by the orchestrator, one item at a time, pushed after each.
 
-## Logic fixes (owner's bug: deleting a visit showed an advance) — **resume here**
+#### Agent-ready, notifications, HUD, stock and costs (owner-approved 21 Oct) — **resume here**
+The owner said "Go" on 21 Oct, with one change: **the 3-second anti-bot rule stays for now.** The orchestrator builds one phase at a time and pushes after each step.
+
+Choices (the plan's recommendations, accepted):
+- the order below;
+- patient names off the lock screen by default;
+- Supabase's scheduler (pg_cron) for timed notifications;
+- stock starts with bills, counts, costs and monthly profit, and adds automatic use per treatment once Rahil lists his materials.
+
+The multi-clinic foundation comes after this. New tables follow the existing owner pattern, so its migration covers them.
+
+- [x] **P1. Agent-ready (21 Oct):**
+    - **Machine-readable prices:** schema.org JSON-LD from one module, `src/lib/structured-data.ts`, built from the price list and rendered by `JsonLd.tsx` with "<" escaped.
+        - Homepage: Dentist, with `@id`, price range ₹200–₹1,25,000, cash and UPI, hours, place and email.
+        - `/treatments`: an OfferCatalog under the 8 headings, every option once.
+        - Each treatment page: a Service with an Offer per option (fixed price, min–max range, or starting price with its rule in words).
+        - Tests: `structured-data.test.ts` checks every amount against the price list; `e2e/site.spec.ts` reads it from the pages.
+    - **Google profile sheet** (copy buttons, values exactly as on the site): https://claude.ai/artifact/SqhE9e6LoNz5wDwH8ncmHj. The owner or Rahil pastes it into the profile, then sends a screenshot to check. It notes that Google shows the name as "Smile Dental Clinic - Katapady"; the name should match the signboard.
+    - The review link is skipped and the anti-bot rule is unchanged, as the owner asked.
+- [ ] **P2. Notifications on the installed Clinic OS:**
+    - a service worker for notifications only, and a "Turn on notifications" switch;
+    - a subscriptions table and a server sender (web-push; the owner adds the VAPID keys in Vercel);
+    - alerts: a new request (instant), a request still waiting after 30 min, and a morning brief at 8:15 AM on open days;
+    - settings: each alert type, quiet hours, names on the lock screen off by default;
+    - the timed alerts run from Supabase pg_cron every 5 min.
+- [ ] **P3a. HUD design board:** 3 directions for Today and the Visit screen in navy and amber; the owner picks.
+- [ ] **P3b. HUD design system, with Today as the cockpit:**
+    - clock, open status, next-patient countdown, day ring, money today, requests, alerts, timeline and quick controls;
+    - responses: instant taps, haptics, optimistic actions;
+    - transitions, and game touches with an off switch.
+- [ ] **P4. Stock and costs:**
+    - stock items, bills in, use and counts;
+    - materials per treatment (optional: deducts stock automatically, with Undo);
+    - fixed and variable costs with bill photos;
+    - Money: monthly profit, costs by category and margins;
+    - low-stock and expiry alerts;
+    - bottom bar: Today · Patients · + · Stock · Money;
+    - import Rahil's spreadsheet of supplies, costs and lab fees.
+- [ ] **P3c. The HUD for Visit, Patients, Requests and Money.**
+
+## Logic fixes (owner's bug: deleting a visit showed an advance)
 - [x] Logic audit (Opus, max): `docs/build/review-logic.md` (25 findings, invariants 1-31, one migration)
 - [x] **Owner's OK, then apply `supabase/logic-fixes-2026-10.sql` live** (applied 15 Oct) (pre-checks done 12 Oct: it deletes 1 loose payment of ₹10,600, the owner's deleted test visit; nothing else to fix). Owner replies "apply the logic fixes". Run it with `npx supabase db query --linked --project-ref pmuecirfwmtsvojxleoq --file supabase/logic-fixes-2026-10.sql`, then verify with the read-only checks at the top of the file.
 - [x] **Finish L2** (merged 15 Oct) (calendar, requests, duplicate patients; `docs/build/L2-calendar-requests.md`): stopped by the usage limit. Work saved as **WIP commit b530d79 on branch `worktree-agent-af4eab21f0f61b7af` (pushed to GitHub)**: 17 files changed + `request-hold.ts`, `appointments/[id]/cancelled/`, `supabase/tests/logic.check.mjs`; it was adding the e2e tests to `times.spec.ts`. Nothing run yet (tsc, unit, lint, build, e2e, PGlite). It also edited `src/app/app/page.tsx` (L1's file): reconcile. To resume: new worktree from that branch (or merge it into a fresh builder's worktree), finish the tests, run every gate, then merge to `main`.
