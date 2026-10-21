@@ -2,15 +2,18 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, CalendarCheck, CalendarDays, MessageCircle, Phone, Zap } from 'lucide-react'
-import { bookingReasons, homeServices, siteConfig } from '@/config/site'
-import { submitBookingRequest } from '@/lib/actions/booking'
+import { AlertCircle, CalendarCheck, CalendarDays, MessageCircle, Mic, Phone, Zap } from 'lucide-react'
+import { bookingReasons, homeServices } from '@/config/site'
+import { attachVoiceNote, submitBookingRequest } from '@/lib/actions/booking'
 import { checkOtherDate, dayLabel, daysWithSlots, otherTimeMessage, partOfDay, preferredTimeOptions, slotsOn } from '@/lib/booking-days'
 import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { formatPhone, isValidPhone, normalizePhone } from '@/lib/phone'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
 import { SOURCE_KEY } from '@/components/site/SourceTracker'
+import { useVoiceVariant } from '@/components/site/voice-variant'
 import { BOOK_EVENT, takePendingBookFor, type BookFor } from './book-events'
+import { TEL } from './site-links'
+import { VoiceNote } from './VoiceNote'
 
 type Props = {
   // Free times from the clinic's calendar (ISO moments), four weeks ahead
@@ -19,19 +22,20 @@ type Props = {
   today: string
   // "Dr. Rahil will confirm your appointment on WhatsApp in under 15 minutes."
   promise: string
+  // A reason id already chosen by the link that opened the page ("Book" on a treatment page)
+  initialReason?: string | null
 }
 
 const PARTS = ['Morning', 'Afternoon', 'Evening'] as const
-const TEL = `tel:${siteConfig.phone.replace(/[^\d+]/g, '')}`
 const CHECKUP_PRICE = homeServices.find((s) => s.id === 'checkup')?.price ?? ''
 
-// The homepage booking card: what you need, a day, a free time, a name and a WhatsApp number. The
-// request is the same one the /book page sends; WhatsApp then opens with it written for the clinic.
-export function BookingCard({ slots, today, promise }: Props) {
+// The booking card: what you need, a day, a free time, a name and a WhatsApp number. The request is
+// saved for the clinic; WhatsApp then opens with it written, ready to send.
+export function BookingCard({ slots, today, promise, initialReason = null }: Props) {
   const router = useRouter()
   const days = useMemo(() => daysWithSlots(slots, today), [slots, today])
   // What the visit is for (a reason id), and a note such as which tooth, from the tooth chart
-  const [choice, setChoice] = useState<{ reason: string | null; note: string | null }>({ reason: null, note: null })
+  const [choice, setChoice] = useState<{ reason: string | null; note: string | null }>({ reason: initialReason, note: null })
   const [day, setDay] = useState<string>(days[0]?.date ?? 'other')
   const [otherDate, setOtherDate] = useState('')
   const [picked, setPicked] = useState<string | null>(null)
@@ -42,6 +46,9 @@ export function BookingCard({ slots, today, promise }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [tried, setTried] = useState(false)
   const [sent, setSent] = useState<{ url: string | null; at: string } | null>(null)
+  // The voice note test: each visitor sees one version (kept for the visit), stored on the request
+  const voiceVariant = useVoiceVariant()
+  const [voiceNote, setVoiceNote] = useState<Blob | null>(null)
   // Bot traps: a hidden field, and a card answered in under a few seconds
   const [trap, setTrap] = useState('')
   const [humanPace, setHumanPace] = useState(false)
@@ -146,6 +153,14 @@ export function BookingCard({ slots, today, promise }: Props) {
         }
         return
       }
+      // The voice note (or which version was shown) goes with the request; WhatsApp opens within 10 s regardless
+      if (voiceVariant) {
+        const form = new FormData()
+        form.set('requestId', result.id)
+        form.set('variant', voiceVariant)
+        if (voiceVariant === 'page' && voiceNote) form.set('note', voiceNote)
+        await Promise.race([attachVoiceNote(form).catch(() => null), new Promise((resolve) => setTimeout(resolve, 10_000))])
+      }
       if (contact === 'call') {
         setSent({ url: null, at: startsAt })
         return
@@ -157,6 +172,7 @@ export function BookingCard({ slots, today, promise }: Props) {
         reason: reasonText,
         // Opened by Dr. Rahil from the message, this records that it arrived (the time is held from then)
         link: `${window.location.origin}/app/requests/${result.id}/received`,
+        voiceNote: voiceVariant === 'whatsapp' ? 'whatsapp' : voiceNote ? 'recorded' : null,
       }))
       setSent({ url, at: startsAt })
       window.location.assign(url)
@@ -325,6 +341,25 @@ export function BookingCard({ slots, today, promise }: Props) {
               value={phone} onChange={(e) => setPhone(e.target.value)} />
           </label>
         </div>
+        {voiceVariant === 'page' && (
+          <div className="h-voice">
+            <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell Dr. Rahil what&apos;s bothering you <small>(optional)</small></span></p>
+            <p className="h-hint">
+              Which tooth or side? Since when? Does it hurt with hot, cold or sweet things, when biting, or at night? Any
+              swelling? It helps him plan the right amount of time for you.
+            </p>
+            <VoiceNote onChange={setVoiceNote} />
+          </div>
+        )}
+        {voiceVariant === 'whatsapp' && (
+          <div className="h-voice">
+            <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell Dr. Rahil what&apos;s bothering you, in a voice note</span></p>
+            <p className="h-hint">
+              After you tap Send in WhatsApp, hold the microphone button and tell him: which tooth or side, since when, and
+              what makes it hurt (hot, cold, biting, at night, swelling). It helps him plan the right amount of time for you.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="h-summary">

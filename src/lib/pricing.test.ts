@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { treatments } from '@/config/site'
-import { formatPrice, formatRupees, parsePrice, priceListOptions, type Price } from './pricing'
+import { formatPrice, formatRupees, parsePrice, priceForPatients, priceListOptions, type Price } from './pricing'
 
 // Expected parse for every cost string in the real price list. A new or changed string in
 // src/config/site.ts fails the "every cost string" test until it is added here.
@@ -140,5 +140,16 @@ describe('formatPrice', () => {
     expect(formatPrice({ kind: 'range', min: 45000, max: 65000 })).toBe('₹45,000–₹65,000')
     expect(formatPrice({ kind: 'formula', base: 1200, perUnit: 400, text: '' })).toBe('₹1,200 + ₹400 each')
     expect(formatPrice({ kind: 'unknown', text: 'On consultation' })).toBe('On consultation')
+  })
+})
+
+describe('priceForPatients', () => {
+  it('shows the short form, keeping a note such as per crown', () => {
+    expect(priceForPatients('200/-')).toBe('₹200')
+    expect(priceForPatients('3,499/- (Per Crown)')).toBe('₹3,499 per crown')
+    expect(priceForPatients('45,000/- to 65,000/-')).toBe('₹45,000–₹65,000')
+    expect(priceForPatients('1,25,000/-')).toBe('₹1,25,000')
+    expect(priceForPatients('1,200/- + 400/-* number of additional teeth.')).toBe('₹1,200 + ₹400 each')
+    expect(priceForPatients('On consultation')).toBe('On consultation')
   })
 })

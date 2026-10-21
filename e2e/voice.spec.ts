@@ -41,6 +41,31 @@ test('WhatsApp version: the page explains how to send a voice note after Send, w
   await expect(page.getByRole('button', { name: 'Tap to record (up to 1 minute)' })).toHaveCount(0)
 })
 
+// The new website's booking card (at /preview until it replaces the old pages) runs the same test
+test('new booking card, recorder version: the patient can record, hear and remove a voice note', async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem('smile_voice_variant', 'page'))
+  await page.goto('/preview/book')
+  const card = page.locator('#book')
+  await expect(card.getByText("Tell Dr. Rahil what's bothering you")).toBeVisible()
+  await card.getByRole('button', { name: 'Tap to record (up to 1 minute)' }).click()
+  const stop = card.getByRole('button', { name: /^Stop \(0:0\d of 1:00\)$/ })
+  await expect(stop).toBeVisible()
+  await page.waitForTimeout(2200)
+  await stop.click()
+  await expect(card.getByLabel('Your voice note')).toBeVisible()
+  await card.getByRole('button', { name: 'Remove' }).click()
+  await expect(card.getByRole('button', { name: 'Tap to record (up to 1 minute)' })).toBeVisible()
+})
+
+test('new booking card, WhatsApp version: how to send a voice note after Send, with no recorder', async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem('smile_voice_variant', 'whatsapp'))
+  await page.goto('/preview/book')
+  const card = page.locator('#book')
+  await expect(card.getByText("Tell Dr. Rahil what's bothering you, in a voice note")).toBeVisible()
+  await expect(card.getByText(/hold the microphone button/)).toBeVisible()
+  await expect(card.getByRole('button', { name: 'Tap to record (up to 1 minute)' })).toHaveCount(0)
+})
+
 test('Clinic OS plays a voice note on the request card, and says when one was asked for on WhatsApp', async ({ page }) => {
   const recorded = await makeRequest(runId, 'Voice', '12:30', 2)
   const asked = await makeRequest(runId, 'Asked', '14:30', 2)

@@ -32,4 +32,11 @@ describe('homepage prices', () => {
   it('has one row per kind of treatment, each id once', () => {
     expect(new Set(homeServices.map((s) => s.id)).size).toBe(homeServices.length)
   })
+
+  // The treatments page lists the price list under these rows, so nothing may be left out or shown twice
+  it('puts every price-list treatment under exactly one row', () => {
+    for (const t of treatments) {
+      expect(homeServices.filter((s) => s.slugs.includes(t.slug)).map((s) => s.id), t.slug).toHaveLength(1)
+    }
+  })
 })

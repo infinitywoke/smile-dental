@@ -17,6 +17,8 @@ const middle = async (l: Locator) => { const b = (await l.boundingBox())!; retur
 test.beforeEach(async ({ page }) => {
   await page.goto('/preview')
   await expect(page.getByRole('heading', { name: 'Book an appointment' })).toBeVisible()
+  // React is running once the open status (worked out in the browser) shows, so no tap is lost
+  await expect(page.locator('.h-status').first()).toHaveText(/\S/)
 })
 
 test('on a phone the header is one row (clinic, call, menu), the menu holds the rest, and a bar keeps Book close', async ({ page }) => {

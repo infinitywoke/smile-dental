@@ -1,36 +1,23 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { Suspense } from 'react'
-import { connection } from 'next/server'
-import { cacheLife } from 'next/cache'
 import type { Metadata } from 'next'
-import { Check, ChevronDown } from 'lucide-react'
-import { faqs, homeServices, siteConfig } from '@/config/site'
-import { getOpenSlots } from '@/lib/actions/booking'
+import { Check } from 'lucide-react'
+import { homeServices, siteConfig } from '@/config/site'
 import { OPEN_SESSIONS } from '@/lib/clinic-hours'
-import { todayInIndia } from '@/lib/dates'
-import { formatPhone, normalizePhone } from '@/lib/phone'
-import { confirmationPromise, formatBlock } from '@/lib/schedule'
-import { BookingCard } from '@/components/home/BookingCard'
 import { BookLink } from '@/components/home/BookLink'
-import { MobileBar } from '@/components/home/MobileBar'
+import { Booking, BookingLoading, HowBooking } from '@/components/home/BookingSection'
 import { OpenStatus } from '@/components/home/OpenStatus'
-import { SiteHeader } from '@/components/home/SiteHeader'
+import { Questions, questions } from '@/components/home/Questions'
 import { ToothChart } from '@/components/home/ToothChart'
 import { Waves } from '@/components/home/Waves'
+import { sitePath } from '@/components/home/site-links'
 
-// Website D, the new homepage, for Rahil to try before it replaces the current one. Kept out of search.
+// Website D, the new homepage, for Rahil to try before it replaces the current one
 export const metadata: Metadata = {
   title: 'Smile Dental Clinic, Katapadi',
   description: siteConfig.description,
-  robots: { index: false, follow: false },
 }
-
-const tel = `tel:${siteConfig.phone.replace(/[^\d+]/g, '')}`
-const phoneShown = `+91 ${formatPhone(normalizePhone(siteConfig.phone) ?? siteConfig.phone)}`
-const whatsapp = `https://wa.me/${siteConfig.whatsapp.replace(/\D/g, '')}`
-const hours = OPEN_SESSIONS.map(([from, until]) => `${formatBlock(from)} – ${formatBlock(until)}`)
-const questions = faqs.filter((f) => f.isVerified)
 
 // What search engines read: the clinic, its hours and place, and the questions below
 const jsonLd = {
@@ -66,35 +53,11 @@ const faqJsonLd = {
   mainEntity: questions.map((f) => ({ '@type': 'Question', name: f.question, acceptedAnswer: { '@type': 'Answer', text: f.answer } })),
 }
 
-// The free times come from the clinic's calendar at the moment the page is opened
-async function Booking() {
-  await connection()
-  const slots = await getOpenSlots()
-  return <BookingCard slots={slots} today={todayInIndia()} promise={confirmationPromise(new Date())} />
-}
-
-function BookingLoading() {
-  return (
-    <div id="book" className="h-card">
-      <h2 className="h-serif h-card-title">Book an appointment</h2>
-      <p className="h-sub">Loading free times…</p>
-    </div>
-  )
-}
-
-async function Year() {
-  'use cache'
-  cacheLife('days')
-  return new Date().getFullYear()
-}
-
 export default function HomePreview() {
   return (
-    <div id="top" className="h-root">
+    <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
-      <SiteHeader name={siteConfig.name} place="Katapadi, Udupi" logo={siteConfig.media.logo} tel={tel}
-        phoneShown={phoneShown} whatsapp={whatsapp} directions={siteConfig.directionsLink} />
 
       <section className="h-tide h-hero-section">
         <div className="h-wrap h-hero">
@@ -131,14 +94,7 @@ export default function HomePreview() {
             </Suspense>
           </div>
 
-          <div className="h-how">
-            <p className="h-how-title">How booking works</p>
-            <ol>
-              <li><span>1</span><p><b>Pick a free time</b> from Dr. Rahil&apos;s own calendar.</p></li>
-              <li><span>2</span><p><b>WhatsApp opens</b> with your request written. Tap Send.</p></li>
-              <li><span>3</span><p><b>Dr. Rahil confirms</b> your time on WhatsApp.</p></li>
-            </ol>
-          </div>
+          <HowBooking />
         </div>
         <Waves fill="#FFFFFF" />
       </section>
@@ -170,7 +126,7 @@ export default function HomePreview() {
               </div>
             ))}
           </div>
-          <Link href="/treatments" className="h-btn h-after">See the full price list</Link>
+          <Link href={sitePath('/treatments')} className="h-btn h-after">See the full price list</Link>
         </div>
       </section>
 
@@ -203,60 +159,7 @@ export default function HomePreview() {
         </div>
       </section>
 
-      <section id="questions" className="h-section mist">
-        <div className="h-wrap h-split">
-          <div className="h-col" style={{ flex: '1 1 300px' }} data-reveal>
-            <p className="h-eyebrow">Questions</p>
-            <h2 className="h-serif h-h2">What patients ask.</h2>
-            <p className="h-lead">
-              Anything else? <a href={whatsapp} target="_blank" rel="noopener noreferrer">WhatsApp the clinic</a> or{' '}
-              <a href={tel}>call {phoneShown}</a>.
-            </p>
-          </div>
-          <div className="h-col h-faq" style={{ flex: '1.5 1 460px' }} data-reveal>
-            {questions.map((f) => (
-              <details key={f.question} className="h-faq-item">
-                <summary><span>{f.question}</span><ChevronDown className="h-icon" aria-hidden="true" /></summary>
-                <p>{f.answer}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="visit" className="h-tide h-visit">
-        <Waves fill="#F3F6FB" top />
-        <div className="h-wrap h-split">
-          <div className="h-col" style={{ flex: '1 1 380px' }}>
-            <p className="h-eyebrow amber">Visit</p>
-            <h2 className="h-serif h-h2 light">Find us on Shirva Road.</h2>
-            <p className="h-visit-address">{siteConfig.address}</p>
-            <OpenStatus />
-            <dl className="h-hours">
-              <dt>Every day</dt>
-              <dd>{hours[0]}<br />{hours[1]}</dd>
-              <dt>Friday</dt>
-              <dd>Closed</dd>
-              <dt>Phone</dt>
-              <dd><a href={tel}>{phoneShown}</a></dd>
-            </dl>
-            <div className="h-btn-row">
-              <a href="#book" className="h-btn amber on-dark">Book appointment</a>
-              <a href={siteConfig.directionsLink} target="_blank" rel="noopener noreferrer" className="h-btn glass">Get directions</a>
-              <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="h-btn glass">WhatsApp the clinic</a>
-            </div>
-          </div>
-          <div className="h-col h-map-frame" style={{ flex: '1.2 1 420px' }}>
-            <iframe src={siteConfig.mapEmbedLink} title="Map of Smile Dental Clinic, Katapadi" className="h-map"
-              loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
-          </div>
-        </div>
-        <p className="h-wrap h-footer-line">
-          © <Year /> {siteConfig.name}, Katapadi · <Link href="/privacy">Privacy</Link> · <Link href="/app">Clinic login</Link>
-        </p>
-      </section>
-
-      <MobileBar whatsapp={whatsapp} />
-    </div>
+      <Questions />
+    </>
   )
 }

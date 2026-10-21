@@ -226,7 +226,7 @@ export const homeServices: HomeService[] = [
   { id: 'checkup', name: 'Check-up and consultation', line: 'An examination by Dr. Rahil; an X-ray, if needed, is ₹350.', price: '₹200', slugs: ['consultation', 'x-ray'] },
   { id: 'cleaning', name: 'Teeth cleaning', line: 'Scaling and polishing to remove tartar and stains.', price: '₹400 – ₹800', slugs: ['scaling-teeth-cleaning'] },
   { id: 'filling', name: 'Fillings', line: 'Tooth-coloured fillings for cavities and small chips.', price: 'from ₹700', slugs: ['fillings'] },
-  { id: 'rootcanal', name: 'Root canal treatment', line: 'Saves a badly decayed or infected tooth.', price: '₹3,500', slugs: ['root-canal-treatment'] },
+  { id: 'rootcanal', name: 'Root canal treatment', line: 'Saves a badly decayed or infected tooth.', price: '₹3,500', slugs: ['root-canal-treatment', 'post-and-core-build-up'] },
   { id: 'crown', name: 'Crowns and bridges', line: 'Ceramic or zirconia crowns, and bridges for gaps.', price: 'from ₹3,499', slugs: ['crowns-bridges-ceramic', 'crowns-bridges-zirconia'] },
   { id: 'braces', name: 'Braces and aligners', line: 'Metal or ceramic braces, or clear aligners.', price: 'from ₹25,000', slugs: ['orthodontics'] },
   { id: 'removal', name: 'Tooth removal', line: 'Including wisdom teeth, after an X-ray.', price: 'from ₹500', slugs: ['tooth-extraction'] },

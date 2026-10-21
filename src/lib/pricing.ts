@@ -103,3 +103,10 @@ export function formatPrice(price: Price): string {
       return price.text
   }
 }
+
+// The website's form of a price-list cost: the short form, with its note ("₹3,499 per crown")
+export function priceForPatients(cost: string): string {
+  const price = parsePrice(cost)
+  const note = price.kind === 'fixed' || price.kind === 'range' ? price.note : undefined
+  return note ? `${formatPrice(price)} ${note.toLowerCase()}` : formatPrice(price)
+}

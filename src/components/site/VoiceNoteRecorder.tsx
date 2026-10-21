@@ -8,7 +8,7 @@ import { Mic, RotateCcw, Square, Trash2 } from 'lucide-react'
 const MAX_SECONDS = 60
 const TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']
 
-type State =
+export type VoiceState =
   | { kind: 'idle' }
   | { kind: 'recording'; seconds: number }
   | { kind: 'recorded'; url: string; seconds: number }
@@ -18,10 +18,11 @@ export function canRecordVoice(): boolean {
   return typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
 }
 
-const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+export const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
-export function VoiceNoteRecorder({ onChange }: { onChange: (note: Blob | null) => void }) {
-  const [state, setState] = useState<State>({ kind: 'idle' })
+// The recorder itself, whatever it looks like: what it is doing, and start, stop and remove
+export function useVoiceRecorder(onChange: (note: Blob | null) => void) {
+  const [state, setState] = useState<VoiceState>({ kind: 'idle' })
   const recorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
   const ticker = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -80,6 +81,12 @@ export function VoiceNoteRecorder({ onChange }: { onChange: (note: Blob | null) 
     onChange(null)
     setState({ kind: 'idle' })
   }
+
+  return { state, start, stop, remove }
+}
+
+export function VoiceNoteRecorder({ onChange }: { onChange: (note: Blob | null) => void }) {
+  const { state, start, stop, remove } = useVoiceRecorder(onChange)
 
   const big = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-5 text-base font-semibold'
   if (state.kind === 'blocked') {

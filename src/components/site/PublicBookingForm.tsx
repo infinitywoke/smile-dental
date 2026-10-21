@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertCircle, ArrowLeft, CalendarCheck, CalendarDays, Clock, MessageCircle, Phone, Sun, Sunrise, Sunset,
 } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { attachVoiceNote, submitBookingRequest } from '@/lib/actions/booking'
-import { VoiceNoteRecorder, canRecordVoice } from './VoiceNoteRecorder'
+import { VoiceNoteRecorder } from './VoiceNoteRecorder'
+import { useVoiceVariant } from './voice-variant'
 import { formatPhone, isValidPhone, normalizePhone } from '@/lib/phone'
 import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
@@ -57,32 +58,6 @@ function partOfDay(hhmm: string): 'Morning' | 'Afternoon' | 'Evening' {
   if (hhmm < '13:00') return 'Morning'
   return hhmm < '18:00' ? 'Afternoon' : 'Evening'
 }
-
-// Which version of the voice note test this visitor sees (kept for the browser tab)
-const VOICE_KEY = 'smile_voice_variant'
-let voiceVariantCache: 'page' | 'whatsapp' | null = null
-function voiceVariantNow(): 'page' | 'whatsapp' {
-  if (voiceVariantCache) return voiceVariantCache
-  let chosen: 'page' | 'whatsapp' | null = null
-  try {
-    const kept = sessionStorage.getItem(VOICE_KEY)
-    if (kept === 'page' || kept === 'whatsapp') chosen = kept
-  } catch {
-    // Storage blocked: chosen for this page only
-  }
-  if (!chosen) chosen = Math.random() < 0.5 ? 'page' : 'whatsapp'
-  // A browser that can't record gets the WhatsApp version
-  if (chosen === 'page' && !canRecordVoice()) chosen = 'whatsapp'
-  try {
-    sessionStorage.setItem(VOICE_KEY, chosen)
-  } catch {
-    // fine
-  }
-  voiceVariantCache = chosen
-  return chosen
-}
-const noSubscribe = () => () => {}
-const useVoiceVariant = () => useSyncExternalStore(noSubscribe, voiceVariantNow, () => null)
 
 const PART_ICON = { Morning: Sunrise, Afternoon: Sun, Evening: Sunset } as const
 

@@ -1,4 +1,4 @@
-/* The new homepage (website D): navy and amber, Instrument Serif headlines, Manrope text.
+/* The new website (D): navy and amber, Instrument Serif headlines, Manrope text.
    Everything is scoped under .h-root so the rest of the site is untouched. */
 
 .h-root {
@@ -185,7 +185,7 @@
 .h-chip:hover { border-color: var(--navy); }
 .h-chip.on { background: var(--navy); border-color: var(--navy); color: #fff; }
 .h-day:focus-visible, .h-chip:focus-visible, .h-area:focus-visible, .h-linkbtn:focus-visible, .h-earliest:focus-visible,
-.h-hint-btn:focus-visible, .h-faq-item summary:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.h-hint-btn:focus-visible, .h-voice-btn:focus-visible, .h-faq-item summary:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 .h-reason-hint {
   margin: 12px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px;
   background: var(--mist); color: var(--muted); font-weight: 600; font-size: 13px; line-height: 1.5;
@@ -233,6 +233,22 @@
 .h-sent-icon { width: 48px; height: 48px; color: #1D7A55; }
 .h-sent-text { margin: 8px 0 0; font-size: 16px; line-height: 1.6; color: var(--muted); }
 .h-callout { margin: 16px 0; padding: 14px 16px; border-radius: 12px; background: #FFF4E0; color: #6B4A12; font-size: 14px; font-weight: 600; line-height: 1.5; }
+/* The voice note test: a recorder on the card, or how to send one on WhatsApp */
+.h-voice { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: var(--mist); }
+.h-voice-title { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-weight: 700; font-size: 14px; line-height: 1.4; }
+.h-voice-title svg { margin-top: 2px; }
+.h-voice-title small { font-size: inherit; font-weight: 500; color: var(--label); }
+.h-voice .h-hint { margin: 6px 0 12px; }
+.h-voice .h-hint:last-child { margin-bottom: 0; }
+.h-voice-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 16px;
+  border-radius: 10px; border: 1.5px dashed var(--navy); background: #fff; color: var(--navy); font-weight: 700; font-size: 15px; cursor: pointer;
+}
+.h-voice-btn:hover { background: #FFF6E6; }
+.h-voice-btn.recording { border: 1.5px solid #B42318; background: #B42318; color: #fff; }
+.h-voice-done { display: flex; flex-direction: column; gap: 10px; }
+.h-voice-done audio { width: 100%; }
+.h-chip-icon { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---- Sections ---- */
 .h-section { padding: 96px 0 104px; }
@@ -335,6 +351,47 @@
 .h-footer-line { margin-top: 72px; padding-top: 24px; border-top: 1px solid rgba(244, 247, 252, .15); font-size: 13px; color: #8FA3CC; }
 .h-root .h-footer-line a { color: #B8C6E3; }
 
+/* ---- Every other page: a navy band with the title, then the page on mist ---- */
+.h-page-head { margin-top: calc(-1 * var(--header-h)); padding: calc(var(--header-h) + 44px) 0 156px; color: #F4F7FC; }
+.h-root .h-back {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-bottom: 8px;
+  color: #B8C6E3; font-weight: 600; font-size: 15px; text-decoration: none;
+}
+.h-root .h-back:hover { color: #F4F7FC; }
+.h-page-title { margin: 14px 0 0; max-width: 900px; font-size: clamp(42px, 5.6vw, 76px); line-height: 1.04; text-wrap: balance; }
+.h-page-lead { margin: 20px 0 0; max-width: 640px; font-size: 18px; line-height: 1.65; color: #B8C6E3; }
+
+/* Treatments and prices: the price list under the homepage's headings, and one treatment's page */
+.h-price-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 24px; align-items: start; }
+.h-price-card { min-width: 0; padding: 28px; border-radius: 20px; background: #fff; border: 1.5px solid #DCE4F1; }
+.h-price-card .h-h3, .h-side-card .h-h3 { margin: 0; }
+.h-price-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.h-price-head strong { font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.h-price-list { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.45; color: var(--muted); }
+.h-price-list h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.h-root .h-price-list h3 a { display: inline-flex; align-items: center; gap: 2px; min-height: 32px; text-decoration: none; }
+.h-root .h-price-list h3 a:hover { text-decoration: underline; text-decoration-color: var(--amber); text-decoration-thickness: 3px; text-underline-offset: 5px; }
+.h-price-list .h-leader-row strong { color: var(--navy); }
+.h-price-card > .h-btn { margin-top: 24px; }
+.h-price-card > .h-hint { margin-top: 18px; }
+.h-side-card { align-self: flex-start; padding: 28px; border-radius: 20px; background: #fff; border: 1.5px solid var(--navy); box-shadow: 8px 8px 0 var(--amber); }
+.h-side-card .h-btn { margin-top: 22px; }
+.h-side-card .h-linkbtn { margin-top: 10px; }
+.h-related { margin-top: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
+.h-related .h-eyebrow { flex-basis: 100%; }
+
+/* The privacy policy: the text on a sheet of paper */
+.h-paper { max-width: 820px; margin-inline: auto; padding: 48px 56px; border-radius: 22px; background: #fff; border: 1.5px solid #DCE4F1; }
+.h-prose { font-size: 17px; line-height: 1.7; color: #24375F; }
+.h-prose p, .h-prose ul { margin: 14px 0 0; }
+.h-prose > p:first-child { margin-top: 0; }
+.h-prose ul { list-style: disc; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.h-prose li::marker { color: var(--amber-edge); }
+.h-prose strong { color: var(--navy); }
+.h-prose a { font-weight: 700; text-decoration: underline; text-decoration-color: var(--amber); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.h-prose-part { margin-top: 36px; }
+.h-prose-part h2 { margin: 0; font-size: 30px; line-height: 1.15; color: var(--navy); }
+
 /* ---- Waves ---- */
 .h-waves { position: absolute; left: 0; right: 0; bottom: 0; height: 120px; pointer-events: none; }
 .h-waves.top { top: -1px; bottom: auto; transform: scaleY(-1); }
@@ -380,6 +437,12 @@
   .h-section { padding: 72px 0 80px; }
   .h-quote { font-size: 21px; }
   .h-visit { padding-bottom: 120px; }
+  .h-page-head { padding-top: calc(var(--header-h) + 24px); padding-bottom: 130px; }
+  .h-page-lead { font-size: 17px; }
+  .h-price-card, .h-side-card { padding: 22px 18px; }
+  .h-paper { padding: 28px 20px; }
+  .h-prose { font-size: 16px; }
+  .h-prose-part h2 { font-size: 26px; }
   .h-mobile-bar {
     position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 45; display: grid; grid-template-columns: auto 1fr; gap: 10px;
     padding: 10px; border-radius: 18px; background: rgba(8, 19, 46, .92); backdrop-filter: blur(14px);
