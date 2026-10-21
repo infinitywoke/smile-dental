@@ -3,14 +3,16 @@ import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { Bell, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
-import { THEME_COOKIE, themeFrom } from '@/lib/theme'
+import { FUN_COOKIE, THEME_COOKIE, funFrom, themeFrom } from '@/lib/theme'
 import { Card, ScreenLoading } from '@/components/clinic/ui'
+import { FunSwitch } from '@/components/clinic/FunSwitch'
 import { SignOutButton } from '@/components/clinic/SignOutButton'
 import { ThemeSwitch } from '@/components/clinic/ThemeSwitch'
 
 async function SettingsContent() {
   await getDoctor()
-  const theme = themeFrom((await cookies()).get(THEME_COOKIE)?.value)
+  const store = await cookies()
+  const theme = themeFrom(store.get(THEME_COOKIE)?.value)
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold tracking-tight text-gray-900">Settings</h1>
@@ -20,6 +22,9 @@ async function SettingsContent() {
           <p className="text-sm text-gray-500">Phone follows this phone&apos;s dark or light mode.</p>
         </div>
         <ThemeSwitch initial={theme} />
+      </Card>
+      <Card>
+        <FunSwitch initial={funFrom(store.get(FUN_COOKIE)?.value)} />
       </Card>
       <Link href="/app/notifications" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white px-4 font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200">
         <Bell className="h-5 w-5 text-blue-600" aria-hidden="true" />

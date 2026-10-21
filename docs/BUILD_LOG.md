@@ -245,11 +245,18 @@ The multi-clinic foundation comes after this. New tables follow the existing own
         - controls: Walk-in, **Running late**, and Block time (jumps to Free times).
         - Running late is a sheet: pick 10, 15, 20 or 30 minutes, then a written WhatsApp per patient still to come (`runningLateMessage`, first name only); he taps Send.
     - **Tests:** `e2e/cockpit.spec.ts` (Cockpit, Running late, the theme switch and that dark is really navy), the notification test now goes through Settings, unit tests for the strip, ring, next patient and the message.
-- [ ] **P3b, part 2:**
-    - responses: haptics on key taps, optimistic Start, Send and payments;
-    - transitions between screens;
-    - game touches (day ring completion, streaks, milestones) with an off switch in Settings;
-    - **Pause online booking** (needs a small SQL: a flag that `get_open_slots` and `submit_booking_request` respect).
+- [x] **P3b, part 2 (21 Oct):**
+    - **Screen changes** (`PageTransition.tsx`): each screen fades in as it opens, played with the Web Animations API on a wrapper that stays mounted.
+        - A wrapper keyed by the address remounted the page and broke Next 16 keeping a screen's state for Back (the half-typed New patient form was lost; `today.spec.ts` caught it).
+        - Only opacity moves, so nothing fixed to the screen shifts while it plays.
+    - **Game touches** (Settings → Game touches, on by default, the `clinic-fun` cookie):
+        - when everyone today has been seen, the ring glows once and an "Everyone has been seen" chip shows;
+        - "N days in a row, every visit sent" counts past clinic days on which every visit was finished and sent (`src/lib/streak.ts`, unit-tested; data in `src/lib/data/streak.ts`; days without visits don't break the run).
+    - **Responses:** a short vibration on Android for Start visit, Running late and the switches.
+    - **Switches:** the checkbox now covers the whole switch, so a tap anywhere on it works (`FunSwitch`, the notification toggles).
+- [ ] **P3b, part 3:**
+    - **Pause online booking**: needs a small SQL, a flag that `get_open_slots` and `submit_booking_request` respect, plus the Cockpit control;
+    - optimistic Send and payments.
 - [ ] **P4. Stock and costs:**
     - stock items, bills in, use and counts;
     - materials per treatment (optional: deducts stock automatically, with Undo);

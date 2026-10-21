@@ -29,6 +29,8 @@ export function StartVisitButton({
     visitIdRef.current ??= crypto.randomUUID()
     const visitId = visitIdRef.current
     setError(null)
+    // A short buzz on Android: the tap was taken
+    navigator.vibrate?.(10)
     startTransition(async () => {
       // On success this opens the visit
       const result = await startVisit(patientId, visitId, appointmentId)

@@ -5,3 +5,7 @@ export const THEME_COOKIE = 'clinic-theme'
 export const THEME_PREFS: ThemePref[] = ['system', 'light', 'dark']
 
 export const themeFrom = (value: string | undefined): ThemePref => (value === 'light' || value === 'dark' ? value : 'system')
+
+// Game touches (the ring that glows when everyone is seen, the all-sent streak): on unless turned off
+export const FUN_COOKIE = 'clinic-fun'
+export const funFrom = (value: string | undefined): boolean => value !== 'off'

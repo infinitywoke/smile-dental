@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, Clock, UserPlus } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, Flame, UserPlus } from 'lucide-react'
 import { LUNCH_SPAN, ringDash, type StripBlock } from '@/lib/cockpit'
 import { formatRupees } from '@/lib/pricing'
 import { formatBlock, inIndia } from '@/lib/schedule'
@@ -18,6 +18,9 @@ type Props = {
   owed: number
   strip: StripBlock[]
   late: { id: string; name: string; startsAt: string; phone: string }[]
+  // Game touches (Settings): the ring glows when everyone today is seen; the all-sent streak in days
+  fun: boolean
+  streak: number
 }
 
 const R = 92
@@ -26,7 +29,8 @@ const label = 'hud-mono text-[10px] tracking-[0.14em] text-gray-500'
 
 // Today at a glance, like an instrument panel: whether the clinic is open, how much of the day is done,
 // who is next, the money, what is waiting, and the day's appointments on one strip
-export function Cockpit({ status, seen, total, marks, next, collected, requests, owed, strip, late }: Props) {
+export function Cockpit({ status, seen, total, marks, next, collected, requests, owed, strip, late, fun, streak }: Props) {
+  const allSeen = fun && total > 0 && seen >= total
   return (
     <section aria-label="Cockpit" className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -38,7 +42,7 @@ export function Cockpit({ status, seen, total, marks, next, collected, requests,
       </div>
 
       <div className="relative mx-auto flex h-48 w-48 items-center justify-center">
-        <svg viewBox="0 0 220 220" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <svg viewBox="0 0 220 220" className={`absolute inset-0 h-full w-full${allSeen ? ' hud-ring-done' : ''}`} aria-hidden="true">
           <circle cx="110" cy="110" r={R} fill="none" strokeWidth="12" className="stroke-gray-200" />
           <circle cx="110" cy="110" r={R} fill="none" strokeWidth="12" strokeLinecap="round" stroke="var(--hud-amber)"
             strokeDasharray={ringDash(seen, total, CIRCUMFERENCE)} transform="rotate(-90 110 110)" />
@@ -53,6 +57,22 @@ export function Cockpit({ status, seen, total, marks, next, collected, requests,
           <span className={label}>SEEN TODAY</span>
         </div>
       </div>
+
+      {(allSeen || (fun && streak >= 2)) && (
+        <div className="flex flex-wrap justify-center gap-2">
+          {allSeen && (
+            <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-amber-50 px-3 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />Everyone has been seen
+            </span>
+          )}
+          {fun && streak >= 2 && (
+            <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-bold text-gray-700 ring-1 ring-gray-200">
+              <Flame className="h-4 w-4 text-[var(--hud-amber-text)]" aria-hidden="true" />
+              <span className="hud-mono">{streak}</span> days in a row, every visit sent
+            </span>
+          )}
+        </div>
+      )}
 
       {next ? (
         <div className="flex items-center gap-3 rounded-[18px] bg-white py-3.5 pr-3.5 pl-4 ring-1 ring-[color:var(--hud-amber)]">
