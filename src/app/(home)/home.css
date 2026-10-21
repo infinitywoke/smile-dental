@@ -84,14 +84,13 @@
 }
 /* The hero runs up under the transparent header */
 .h-hero-section { margin-top: calc(-1 * var(--header-h)); padding: calc(var(--header-h) + 36px) 0 176px; }
-/* Dr. Rahil, the headline and how booking works on the left; the booking card on the right. On a phone:
-   Dr. Rahil, the headline, the booking card, then how booking works. */
+/* The headline (signed by Dr. Rahil) and how booking works on the left; the booking card on the right.
+   On a phone: the headline, the booking card, then how booking works. */
 .h-hero {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 480px); grid-template-rows: auto auto 1fr;
-  grid-template-areas: "player card" "text card" "how card"; column-gap: 64px; align-items: start;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 480px); grid-template-rows: auto 1fr;
+  grid-template-areas: "text card" "how card"; column-gap: 64px; align-items: start;
 }
-.h-hero > .h-player { grid-area: player; }
-.h-hero-text { grid-area: text; min-width: 0; padding-top: 26px; color: #F4F7FC; }
+.h-hero-text { grid-area: text; min-width: 0; padding-top: 34px; color: #F4F7FC; }
 .h-book-zone { grid-area: card; min-width: 0; }
 .h-eyebrow { margin: 0; font-weight: 700; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--label); }
 .h-eyebrow.amber { color: var(--amber); }
@@ -122,35 +121,29 @@
 .h-how li p { margin: 3px 0 0; color: #C9D6EE; font-size: 15px; line-height: 1.5; }
 .h-how li b { color: #F4F7FC; }
 
-/* Dr. Rahil's player card */
-.h-player {
-  display: flex; align-items: center; gap: 22px; max-width: 520px; padding: 16px 20px 16px 18px;
-  border-radius: 22px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .14);
+/* Dr. Rahil's byline under the headline: his photo in a three-part amber ring, his years as a level */
+.h-byline {
+  margin-top: 30px; padding-top: 24px; max-width: 520px; display: flex; align-items: center; gap: 20px;
+  border-top: 1px solid rgba(255, 255, 255, .12);
 }
-.h-player-photo { position: relative; flex: none; width: 96px; height: 96px; }
-.h-ring { position: absolute; inset: -8px; width: calc(100% + 16px); height: calc(100% + 16px); transform: rotate(-90deg); overflow: visible; }
+.h-byline-photo { position: relative; flex: none; width: 64px; height: 64px; }
+.h-ring { position: absolute; inset: -7px; width: calc(100% + 14px); height: calc(100% + 14px); transform: rotate(-90deg); overflow: visible; }
 .h-ring circle { fill: none; stroke-width: 5; stroke-linecap: round; }
 .h-ring-track { stroke: rgba(255, 255, 255, .12); }
 .h-ring-arc { stroke: var(--amber); stroke-dasharray: 90 210; animation: h-ring-in 1.1s cubic-bezier(.2, .7, .2, 1) both; }
 .h-ring-arc.a2 { stroke-dashoffset: -100; animation-delay: .15s; }
 .h-ring-arc.a3 { stroke-dashoffset: -200; animation-delay: .3s; }
 @keyframes h-ring-in { from { stroke-dasharray: 0 300; } }
-.h-player-img { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; object-position: center top; border: 3px solid #0B1A3D; }
+.h-byline-img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; object-position: center top; border: 2px solid #0B1A3D; }
 .h-level {
-  position: absolute; right: -9px; bottom: -7px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  width: 42px; height: 42px; border-radius: 50%; background: var(--amber); color: var(--navy); border: 3px solid #0B1A3D; line-height: 1;
+  position: absolute; right: -9px; bottom: -6px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; background: var(--amber); color: var(--navy); border: 2px solid #0B1A3D; line-height: 1;
 }
-.h-level b { font-size: 16px; font-weight: 800; }
-.h-level small { font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.h-player-body { min-width: 0; }
-.h-player-role { margin: 0; font-weight: 700; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--amber); }
-.h-player-name { margin: 4px 0 0; font-family: var(--font-display), Georgia, serif; font-weight: 400; font-size: 27px; line-height: 1.1; color: #F4F7FC; }
-.h-badges { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 7px; }
-.h-badges li {
-  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 600;
-  color: #F6E7C8; background: rgba(255, 196, 107, .1); border: 1px solid rgba(255, 196, 107, .32);
-}
-.h-badges svg { flex: none; width: 15px; height: 15px; color: var(--amber); }
+.h-level b { font-size: 12px; font-weight: 800; }
+.h-level small { font-size: 6.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.h-byline-text { min-width: 0; }
+.h-byline-name { margin: 0; font-family: var(--font-display), Georgia, serif; font-weight: 400; font-size: 24px; line-height: 1.15; color: #F4F7FC; }
+.h-byline-meta { margin: 5px 0 0; font-size: 14px; line-height: 1.5; color: #B8C6E3; }
 
 /* ---- Booking card ---- */
 .h-card {
@@ -368,7 +361,7 @@
   .h-menu-btn { display: inline-flex !important; }
 }
 @media (max-width: 900px) {
-  .h-hero { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "player" "text" "card" "how"; row-gap: 28px; }
+  .h-hero { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "text" "card" "how"; row-gap: 28px; }
   .h-hero-text { padding-top: 0; }
   .h-how { margin-top: 8px; }
 }
@@ -379,12 +372,9 @@
   .h-brand-logo { width: 40px; height: 40px; }
   .h-brand-name { font-size: 16px; }
   .h-hero-section { padding-top: calc(var(--header-h) + 20px); padding-bottom: 150px; }
-  .h-player { align-items: center; gap: 18px; padding: 14px 16px; }
-  .h-player-photo, .h-player-img { width: 76px; height: 76px; }
-  .h-level { width: 36px; height: 36px; right: -8px; bottom: -6px; }
-  .h-level b { font-size: 14px; }
-  .h-player-name { font-size: 23px; }
-  .h-badges li { font-size: 12px; padding: 4px 9px; }
+  .h-byline { gap: 16px; margin-top: 26px; padding-top: 20px; }
+  .h-byline-name { font-size: 21px; }
+  .h-byline-meta { font-size: 13px; }
   .h-card { padding: 22px 18px; }
   .h-grid2 { grid-template-columns: 1fr; }
   .h-section { padding: 72px 0 80px; }

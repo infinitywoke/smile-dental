@@ -66,11 +66,12 @@ test('on a wide screen every header button sits in one row', async ({ browser },
   await wide.close()
 })
 
-test('Dr. Rahil leads the page, then the headline, whether the clinic is open, and the way booking works', async ({ page }) => {
-  const card = page.locator('.h-player')
-  await expect(card.getByRole('heading', { name: 'Dr. Rahil Yusuf, BDS' })).toBeVisible()
-  await expect(card.getByLabel('5 years of practice')).toBeVisible()
-  expect(await top(card)).toBeLessThan(await top(page.getByRole('heading', { level: 1 })))
+test('the headline leads, signed by Dr. Rahil, then whether the clinic is open and the way booking works', async ({ page }) => {
+  const byline = page.locator('.h-byline')
+  await expect(byline.getByRole('img', { name: 'Dr. Rahil Yusuf' })).toBeVisible()
+  await expect(byline.getByText('Dr. Rahil Yusuf, BDS')).toBeVisible()
+  await expect(byline.getByLabel('5 years of practice')).toBeVisible()
+  expect(await top(page.getByRole('heading', { level: 1 }))).toBeLessThan(await top(byline))
   await expect(page.locator('.h-status').first()).toHaveText(/^(Open now|Opens today|Closed)/)
   await expect(page.getByText('How booking works')).toBeVisible()
   // Kept out of search until it replaces the homepage, with the clinic's details ready for it

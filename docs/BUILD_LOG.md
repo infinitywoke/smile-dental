@@ -106,7 +106,7 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
         - At 1280px and wider: glass buttons for treatments and prices, Dr. Rahil, Get directions, WhatsApp the clinic, a call icon, and an amber Book appointment button.
         - Narrower: call, Book and a menu.
         - On a phone: call and the menu. A bar at the bottom offers WhatsApp and Book, and steps aside while the booking card is on screen (`MobileBar.tsx`).
-    - **Dr. Rahil's player card** leads the page, in place of the old "Dr. Rahil Yusuf, BDS" line: his photo in a three-part amber ring, a "5 yrs" level badge and achievement-style badges.
+    - **The headline opens the page**, signed underneath by Dr. Rahil: his photo in a three-part amber ring with a "5 yrs" level badge, his name and a line on his training and practice. A full player card at the top was tried first and dropped the same day: opening the page with it felt odd, and it competed with the headline and the booking card.
     - **Smarter top section:**
         - a live open or closed status in India time (`src/lib/clinic-hours.ts`, `OpenStatus.tsx`; for example "Closed for lunch · opens at 2:30 PM", with Friday skipped);
         - "How booking works" in 3 steps.

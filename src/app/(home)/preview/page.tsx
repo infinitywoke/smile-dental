@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 import { connection } from 'next/server'
 import { cacheLife } from 'next/cache'
 import type { Metadata } from 'next'
-import { Check, ChevronDown, Globe, GraduationCap } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { faqs, homeServices, siteConfig } from '@/config/site'
 import { getOpenSlots } from '@/lib/actions/booking'
 import { OPEN_SESSIONS } from '@/lib/clinic-hours'
@@ -98,36 +98,30 @@ export default function HomePreview() {
 
       <section className="h-tide h-hero-section">
         <div className="h-wrap h-hero">
-          {/* Dr. Rahil as a player card: his photo in a three-part ring, years as a level, his record as badges */}
-          <div className="h-player">
-            <div className="h-player-photo">
-              <svg className="h-ring" viewBox="0 0 120 120" aria-hidden="true">
-                <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-track" />
-                <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a1" />
-                <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a2" />
-                <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a3" />
-              </svg>
-              <Image src={siteConfig.dentist.portraitPhoto} alt={siteConfig.dentist.name} width={96} height={96}
-                className="h-player-img" priority />
-              <span className="h-level" aria-label="5 years of practice"><b>5</b><small>yrs</small></span>
-            </div>
-            <div className="h-player-body">
-              <p className="h-player-role">Your dentist</p>
-              <h2 className="h-player-name">{siteConfig.dentist.name}, BDS</h2>
-              <ul className="h-badges">
-                <li><GraduationCap aria-hidden="true" />Yenepoya, 2020</li>
-                <li><Globe aria-hidden="true" />India and the Middle East</li>
-                <li><Check aria-hidden="true" />Sees every patient himself</li>
-              </ul>
-            </div>
-          </div>
-
           <div className="h-hero-text">
             <h1 className="h-serif h-h1">A dentist who takes the time to <em>explain</em>.</h1>
             <p className="h-hero-lead">
               Check-ups, cleaning, fillings, root canals, crowns, braces and dentures on Shirva Road, Katapadi. Every
               price is on this page.
             </p>
+            {/* Dr. Rahil, signed under the headline: his photo in a three-part ring, his years as a level */}
+            <div className="h-byline">
+              <div className="h-byline-photo">
+                <svg className="h-ring" viewBox="0 0 120 120" aria-hidden="true">
+                  <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-track" />
+                  <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a1" />
+                  <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a2" />
+                  <circle cx="60" cy="60" r="56" pathLength="300" className="h-ring-arc a3" />
+                </svg>
+                <Image src={siteConfig.dentist.portraitPhoto} alt={siteConfig.dentist.name} width={64} height={64}
+                  className="h-byline-img" priority />
+                <span className="h-level" aria-label="5 years of practice"><b>5</b><small>yrs</small></span>
+              </div>
+              <div className="h-byline-text">
+                <p className="h-byline-name">{siteConfig.dentist.name}, BDS</p>
+                <p className="h-byline-meta">Yenepoya, 2020 · India and the Middle East<br />Sees every patient himself</p>
+              </div>
+            </div>
             <OpenStatus />
           </div>
 
