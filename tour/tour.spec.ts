@@ -162,25 +162,15 @@ test('evidence tour', async ({ page }) => {
   startJob('Website: patient books online (not sent)')
   await step('home', async () => { await page.goto('/'); await snap(page, 'site-home') })
   await step('book', async () => {
-    await page.goto('/book'); await snap(page, 'site-book-1-times')
+    await page.goto('/book'); await snap(page, 'site-book-1-card')
+    await tap(page.getByRole('button', { name: 'Toothache' }))
     await tap(visible(page.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)$/ })))
-    await page.waitForTimeout(600); await snap(page, 'site-book-2-details')
+    await page.waitForTimeout(600); await snap(page, 'site-book-2-time')
+    await type(page.getByLabel('Name'), 'Tour Visitor')
     await type(page.getByLabel('WhatsApp number'), '9845021763')
-    await type(visible(page.getByLabel(/^(Full name|Name)$/)), 'Tour Visitor')
-    await tap(page.getByRole('radio', { name: 'Female', exact: true }))
-    const age = visible(page.getByLabel(/^Age/))
-    if (await age.count()) await type(age, '36')
-    else { await type(page.getByLabel('Date of birth'), '1990-05-15'); current.pickers++ }
-    await type(page.getByLabel('Address'), 'Pangala, Udupi')
-    await tap(page.getByRole('button', { name: 'Tooth pain' }))
-    await snap(page, 'site-book-2-filled')
-    const review = visible(page.getByRole('button', { name: 'Review' }))
-    if (await review.count()) {
-      await tap(review)
-      await page.waitForTimeout(600); await snap(page, 'site-book-3-review')
-    }
-    current.notes.push(`Send button enabled on the details page: ${await visible(page.getByRole('button', { name: /Confirm & send WhatsApp message/ })).isEnabled().catch(() => false)}`)
-    current.notes.push('Stopped before the Send tap (that tap would be the last one).')
+    await snap(page, 'site-book-3-filled')
+    current.notes.push(`Request button enabled on the card: ${await visible(page.getByRole('button', { name: 'Request this appointment' })).isEnabled().catch(() => false)}`)
+    current.notes.push('Stopped before the Request tap (that tap would be the last one).')
     current.taps++
   })
 

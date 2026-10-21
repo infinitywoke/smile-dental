@@ -4,7 +4,6 @@ import { ChevronRight } from 'lucide-react'
 import { homeServices, treatments } from '@/config/site'
 import { priceForPatients } from '@/lib/pricing'
 import { PageHead } from '@/components/home/PageHead'
-import { sitePath } from '@/components/home/site-links'
 
 export const metadata: Metadata = {
   title: 'Treatments and prices · Smile Dental Clinic, Katapadi',
@@ -18,7 +17,7 @@ const groups = homeServices.map((service) => ({
   items: treatments.filter((t) => service.slugs.includes(t.slug)),
 }))
 
-export default function TreatmentsPreview() {
+export default function TreatmentsPage() {
   return (
     <>
       <PageHead eyebrow="Treatments and prices" title="Every treatment, with the price."
@@ -35,7 +34,7 @@ export default function TreatmentsPreview() {
               <p className="h-small">{group.line}</p>
               {group.items.map((t) => (
                 <div key={t.slug} className="h-price-list">
-                  <h3><Link href={sitePath(`/treatments/${t.slug}`)}>{t.name}<ChevronRight className="h-icon-sm" aria-hidden="true" /></Link></h3>
+                  <h3><Link href={`/treatments/${t.slug}`}>{t.name}<ChevronRight className="h-icon-sm" aria-hidden="true" /></Link></h3>
                   {(t.pricing ?? []).map((p) => (
                     <div key={p.detail} className="h-leader-row">
                       <span>{p.detail}</span>
@@ -45,7 +44,7 @@ export default function TreatmentsPreview() {
                   ))}
                 </div>
               ))}
-              <Link href={`${sitePath('/book')}?reason=${group.id}`} className="h-btn small" aria-label={`Book ${group.name}`}>Book</Link>
+              <Link href={`/book?reason=${group.id}`} className="h-btn small" aria-label={`Book ${group.name}`}>Book</Link>
             </article>
           ))}
         </div>

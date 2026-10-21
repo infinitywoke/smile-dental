@@ -1,7 +1,7 @@
 'use client'
 
 import { Mic, RotateCcw, Square, Trash2 } from 'lucide-react'
-import { clock, useVoiceRecorder } from '@/components/site/VoiceNoteRecorder'
+import { clock, useVoiceRecorder } from '@/components/site/voice-recorder'
 
 // The booking card's voice note: up to a minute in the patient's own words, heard back before sending
 export function VoiceNote({ onChange }: { onChange: (note: Blob | null) => void }) {

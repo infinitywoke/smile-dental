@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { canRecordVoice } from './VoiceNoteRecorder'
+import { canRecordVoice } from './voice-recorder'
 
 // The patient voice note test: which version this visitor sees (kept for the browser tab). 'page' offers
 // a recorder with the booking; 'whatsapp' asks for a WhatsApp voice note after Send.

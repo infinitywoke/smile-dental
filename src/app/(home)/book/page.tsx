@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 // The booking card on a page of its own, for links that go straight to booking: the Google profile's
 // appointment link, and Book on a treatment's page (?reason=)
-export default function BookPreview({ searchParams }: PageProps<'/preview/book'>) {
+export default function BookPage({ searchParams }: PageProps<'/book'>) {
   return (
     <>
       <section className="h-tide h-hero-section">

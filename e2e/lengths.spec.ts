@@ -48,17 +48,25 @@ test('booking for 1 h 20 min from the length chips books 80 minutes', async () =
 
 test('Move keeps the appointment its own length', async () => {
   const before = await durationOf(longId)
-  await page.goto(`/app/appointments/${longId}/move`)
+  // A free time on a day ahead, where the Move page offers only times that fit 80 minutes, whatever the
+  // time now. (Late in the day the last time left today can be the appointment's own, where 80 minutes
+  // run past closing.) Not openDay(4): the last test needs that morning free.
+  const day = openDay(6)
+  await page.goto(`/app/appointments/${longId}/move?d=${day}`)
   await expect(visible(page.getByText('1 h 20 min appointment'))).toBeVisible()
-  // Another free time that fits 80 minutes
-  const other = visible(page.getByRole('button', { name: time })).filter({ hasNotText: 'Booked' })
-  await other.last().click()
+  // Free times are named by the time alone; a booked one also carries the patient's name
+  const free = visible(page.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)$/, disabled: false })).first()
+  const [, h, m, ampm] = (await free.textContent())!.trim().match(/^(\d{1,2}):(\d{2}) (AM|PM)$/)!
+  const chosen = `${String((Number(h) % 12) + (ampm === 'PM' ? 12 : 0)).padStart(2, '0')}:${m}`
+  await free.click()
   // The moved message opens WhatsApp: wait for it, so it can't land in the next test
   const wa = await captureWhatsapp(page)
   await visible(page.getByRole('button', { name: 'Move appointment' })).click()
   await expect.poll(() => wa.url).toContain('wa.me')
   await expect.poll(async () => (await durationOf(longId)).starts_at).not.toBe(before.starts_at)
-  expect((await durationOf(longId)).duration_min).toBe(80)
+  const after = await durationOf(longId)
+  expect(new Date(after.starts_at).getTime()).toBe(new Date(blockInstant(day, chosen)).getTime())
+  expect(after.duration_min).toBe(80)
 })
 
 test('a 20-minute next visit can be booked from the visit', async () => {

@@ -211,7 +211,7 @@ export const treatments: Treatment[] = [
   }
 ]
 
-// --- New homepage (website D, at /preview until approved) ---
+// --- The website (D): the homepage's treatments, the booking card's reasons and the tooth chart ---
 // Every price shown here is checked against the price list above by src/lib/home-content.test.ts.
 export type HomeService = {
   id: string

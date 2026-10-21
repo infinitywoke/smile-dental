@@ -1,3 +1,4 @@
+
 # Build log: the simplification build
 
 Started 11 Oct 2026. The plan is [SIMPLIFY.md](SIMPLIFY.md) (fresh-eyes review). This file records **everything built under it**, so the build can be resumed at any point, by anyone, in a new session.
@@ -128,13 +129,13 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
     - **Not sure? tooth chart:** all 32 teeth with dental numbers, plus areas (front, back, wisdom, gums, missing). It picks the reason and notes the tooth, for example "Toothache (tooth 36, lower left first molar)".
     - **Prices:** every homepage price is checked against the price list by `src/lib/home-content.test.ts`.
     - **Tests:** `src/lib/booking-days.test.ts` and `e2e/home-preview.spec.ts`. The e2e test never sends a request, because public requests go to the clinic's own account.
-    - **Next:** the other pages in the same style (item 15), then the switch-over once the owner and Rahil approve.
+    - **Then:** the other pages in the same style (item 15), and the switch-over (item 16).
     - **Domain:** the owner is buying one (smiledentalkatapady .com/.in were free on 20 Oct); then switch `siteConfig.url` and the Google profile's appointment link.
-- [ ] 14. No notice needed for online booking (21 Oct, the owner asked): any free block that hasn't started can be requested, and today's times offer "Coming in right now? Call the clinic".
+- [x] 14. No notice needed for online booking (21 Oct, the owner asked): any free block that hasn't started can be requested, and today's times offer "Coming in right now? Call the clinic".
     - **Code (shipped):** `MIN_LEAD_MINUTES` is now 0 in `schedule.ts` (a block is bookable until it starts).
     - **Database:** `supabase/no-notice-2026-10.sql` replaces `get_open_slots`. The 2-hour line becomes `s.slot > clinic_now()`; the 2-hour hold after a WhatsApp is a different rule and stays.
     - **Checks:** booking 133/133 and logic 35/35. Live schema + this file = `schema.sql`, with no difference in columns or functions.
-    - **Waiting on the owner:** run `supabase/no-notice-2026-10.sql` once in the Supabase SQL editor. Until then, the database still hides times under 2 hours away, so nothing breaks in between.
+    - **Applied live by the owner (21 Oct).** Checked read-only: the live `get_open_slots` has the `s.slot > clinic_now()` rule and no 2-hour line.
 - [x] 15. Website phase 0, the other pages (21 Oct): the rest of website D, also under `/preview` and out of search (`(home)/preview/layout.tsx` sets noindex for every page under it).
     - **One frame for every page** (`(home)/layout.tsx`): the header, the Visit section as the foot of every page (`SiteFooter.tsx`) and the phone bar. Links come from `src/components/home/site-links.ts`: `HOME` is `/preview` until the switch, and `linksFor(path)` sends Book to the card on the page (homepage, booking page) or to the booking page.
     - **Treatments and prices** (`/preview/treatments`): the whole price list under the homepage's 8 headings, with a Book button on each. Post and core now sits under root canal; a unit test checks every treatment is under exactly one heading. Prices read as the website says them (`priceForPatients`: "₹3,499 per crown").
@@ -144,12 +145,20 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
     - **Privacy** (`/preview/privacy`): the same policy; the website part now describes the new card (name, WhatsApp number, time, reason, an optional voice note, and where the visitor came from).
     - About, Contact and FAQ are sections of the new homepage (Your dentist, Visit, Questions), so they get no pages of their own.
     - **Tests:** `e2e/site-preview.spec.ts`, plus 2 in `voice.spec.ts`. The preview tests wait for React (the open status shows) before tapping, because a tap before that is lost.
-    - **To switch over, once the owner and Rahil approve:**
-        1. Move `(home)/preview/*` up to `(home)/` and set `HOME = '/'`.
-        2. Delete `(public)/`, `PublicHeader`, `TreatmentsCarousel` and `PublicBookingForm`.
-        3. Redirect /about → /#doctor, /contact → /#visit and /faq → /#questions.
-        4. Update the sitemap and move the /book and /preview tests to the new paths.
-        5. The Google appointment link (`/book?utm_source=google…`) keeps working.
+- [x] 16. Website switch-over (21 Oct, the owner: "switch the live site over now"): website D is the live site.
+    - **Real addresses:** the pages moved from `(home)/preview/` to `/`, `/treatments`, `/treatments/[slug]`, `/book` and `/privacy`, open to search. `site-links.ts` no longer has the `/preview` base path.
+    - **Deleted:** `(public)/` (the old homepage, about, contact, FAQ, book, privacy and treatments pages), `PublicHeader`, `TreatmentsCarousel`, `PublicBookingForm` and `e2e/website.spec.ts`. The recorder is now only `useVoiceRecorder`, in `src/components/site/voice-recorder.ts`.
+    - **Redirects** (`next.config.ts`):
+        - /about → /#doctor, /contact → /#visit and /faq → /#questions (permanent);
+        - /preview and anything under it → the live pages.
+    - **Sitemap:** /, /book, /treatments, /privacy and the 12 treatment pages.
+    - **Google profile:** the appointment link (`/book?utm_source=google&utm_medium=business_profile`) opens the new booking page and still records "Google".
+    - **Tests:**
+        - `e2e/home.spec.ts`;
+        - `e2e/site.spec.ts`, now with the redirects;
+        - `e2e/voice.spec.ts`, now on /book;
+        - the tour's website step uses the card.
+    - **Also fixed:** `e2e/lengths.spec.ts` "Move keeps the appointment its own length" failed in the evenings. The last time left today could be the appointment's own, where 80 minutes run past closing. The test now moves to 8:30 AM six open days ahead.
 - Outside the repo (20 Oct):
     - Rahil meeting pack https://claude.ai/artifact/GJGMstZ5ucUZvkuiUmzdS7.
     - **90-second commercial** `../commercialisation/demo/clinic-os-commercial.mp4` (1080×1920, H.264 + AAC, 58 MB).

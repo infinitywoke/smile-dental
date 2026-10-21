@@ -1,10 +1,7 @@
-'use client'
-
 import { useEffect, useRef, useState } from 'react'
-import { Mic, RotateCcw, Square, Trash2 } from 'lucide-react'
 
-// A short recording on the booking page (up to a minute), so the patient can tell Dr. Rahil what is
-// wrong in their own words. Kept small (about 24 kbit/s) so it uploads quickly on mobile data.
+// A short recording with the booking (up to a minute), so the patient can tell Dr. Rahil what is wrong
+// in their own words. Kept small (about 24 kbit/s) so it uploads quickly on mobile data.
 const MAX_SECONDS = 60
 const TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']
 
@@ -83,46 +80,4 @@ export function useVoiceRecorder(onChange: (note: Blob | null) => void) {
   }
 
   return { state, start, stop, remove }
-}
-
-export function VoiceNoteRecorder({ onChange }: { onChange: (note: Blob | null) => void }) {
-  const { state, start, stop, remove } = useVoiceRecorder(onChange)
-
-  const big = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-5 text-base font-semibold'
-  if (state.kind === 'blocked') {
-    return (
-      <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
-        The microphone is blocked in this browser. You can write it in the note below instead.
-      </p>
-    )
-  }
-  if (state.kind === 'recording') {
-    return (
-      <button type="button" onClick={stop} className={`${big} bg-red-600 text-white`}>
-        <Square className="h-5 w-5 fill-current" /> Stop ({clock(state.seconds)} of 1:00)
-      </button>
-    )
-  }
-  if (state.kind === 'recorded') {
-    return (
-      <div className="space-y-2">
-        <audio src={state.url} controls className="w-full" aria-label="Your voice note" />
-        <div className="flex gap-2">
-          <button type="button" onClick={() => { remove(); void start() }}
-            className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-semibold text-gray-700 ring-1 ring-gray-300">
-            <RotateCcw className="h-4 w-4" /> Record again
-          </button>
-          <button type="button" onClick={remove}
-            className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-semibold text-red-700 ring-1 ring-red-200">
-            <Trash2 className="h-4 w-4" /> Remove
-          </button>
-        </div>
-      </div>
-    )
-  }
-  return (
-    <button type="button" onClick={() => void start()} className={`${big} bg-blue-50 text-blue-800 ring-1 ring-blue-200`}>
-      <Mic className="h-5 w-5" /> Tap to record (up to 1 minute)
-    </button>
-  )
 }

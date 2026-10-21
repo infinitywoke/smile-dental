@@ -4,7 +4,7 @@ import { siteConfig } from '@/config/site'
 import { BookButton } from './BookButton'
 import { OpenStatus } from './OpenStatus'
 import { Waves } from './Waves'
-import { HOURS, PHONE_SHOWN, TEL, WHATSAPP, sitePath } from './site-links'
+import { HOURS, PHONE_SHOWN, TEL, WHATSAPP } from './site-links'
 
 async function Year() {
   'use cache'
@@ -44,8 +44,8 @@ export function SiteFooter() {
         </div>
       </div>
       <p className="h-wrap h-footer-line">
-        © <Year /> {siteConfig.name}, Katapadi · <Link href={sitePath('/treatments')}>Treatments and prices</Link> ·{' '}
-        <Link href={sitePath('/privacy')}>Privacy</Link> · <Link href="/app">Clinic login</Link>
+        © <Year /> {siteConfig.name}, Katapadi · <Link href="/treatments">Treatments and prices</Link> ·{' '}
+        <Link href="/privacy">Privacy</Link> · <Link href="/app">Clinic login</Link>
       </p>
     </footer>
   )

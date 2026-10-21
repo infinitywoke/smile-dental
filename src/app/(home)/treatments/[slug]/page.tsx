@@ -5,7 +5,6 @@ import { homeServices, treatments } from '@/config/site'
 import { priceForPatients } from '@/lib/pricing'
 import { clinicWhatsappLink } from '@/lib/whatsapp'
 import { PageHead } from '@/components/home/PageHead'
-import { sitePath } from '@/components/home/site-links'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -28,7 +27,7 @@ export function generateStaticParams() {
 export const instant = false
 
 // One treatment from the price list: what it is, every price, and a way to book it or ask about it
-export default async function TreatmentPreview({ params }: Props) {
+export default async function TreatmentPage({ params }: Props) {
   const treatment = find((await params).slug)
   if (!treatment) notFound()
   const group = homeServices.find((s) => s.slugs.includes(treatment.slug))
@@ -36,7 +35,7 @@ export default async function TreatmentPreview({ params }: Props) {
 
   return (
     <>
-      <PageHead back={{ href: sitePath('/treatments'), label: 'All treatments and prices' }} eyebrow={group?.name}
+      <PageHead back={{ href: '/treatments', label: 'All treatments and prices' }} eyebrow={group?.name}
         title={treatment.name} lead={treatment.shortDescription} />
 
       <section className="h-section mist first">
@@ -58,7 +57,7 @@ export default async function TreatmentPreview({ params }: Props) {
           <div className="h-col h-side-card" style={{ flex: '1 1 300px' }}>
             <h2 className="h-serif h-h3">Book a visit</h2>
             <p className="h-small">Pick a free time from Dr. Rahil&apos;s calendar. The clinic confirms your time on WhatsApp.</p>
-            <Link href={`${sitePath('/book')}?reason=${group?.id ?? 'unsure'}`} className="h-btn amber wide">Book appointment</Link>
+            <Link href={`/book?reason=${group?.id ?? 'unsure'}`} className="h-btn amber wide">Book appointment</Link>
             <a href={clinicWhatsappLink(`Hello, I have a question about ${treatment.name}.`)} target="_blank" rel="noopener noreferrer"
               className="h-linkbtn">Ask about it on WhatsApp</a>
           </div>
@@ -67,7 +66,7 @@ export default async function TreatmentPreview({ params }: Props) {
           <div className="h-wrap h-related">
             <p className="h-eyebrow">See also</p>
             {related.map((t) => (
-              <Link key={t.slug} href={sitePath(`/treatments/${t.slug}`)} className="h-booklink">{t.name}</Link>
+              <Link key={t.slug} href={`/treatments/${t.slug}`} className="h-booklink">{t.name}</Link>
             ))}
           </div>
         )}

@@ -8,8 +8,8 @@ import './home.css'
 const display = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['normal', 'italic'], variable: '--font-display' })
 const body = Manrope({ subsets: ['latin'], variable: '--font-body' })
 
-// The new website (D): its own fonts and styles, and on every page the header, the visit details at the
-// foot and the phone bar. At /preview until it is approved.
+// The website (D): its own fonts and styles, and on every page the header, the visit details at the
+// foot and the phone bar.
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   return (
     <div id="top" className={`h-root ${display.variable} ${body.variable}`}>

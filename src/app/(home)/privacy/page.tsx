@@ -17,7 +17,7 @@ function Part({ title, children }: { title: string; children: React.ReactNode })
   )
 }
 
-export default function PrivacyPreview() {
+export default function PrivacyPage() {
   return (
     <>
       <PageHead eyebrow="Privacy" title="Privacy policy"

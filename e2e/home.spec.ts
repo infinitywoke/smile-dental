@@ -1,8 +1,8 @@
 import { expect, test, type Locator } from '@playwright/test'
 import { addDays, inIndia, weekday } from '../src/lib/schedule'
 
-// The new homepage (website D) at /preview. Nothing is sent: public requests go to the clinic's own
-// account, so the test stops before a request would be saved, and reads the WhatsApp links instead.
+// The homepage (website D). Nothing is sent: public requests go to the clinic's own account, so the
+// test stops before a request would be saved, and reads the WhatsApp links instead.
 const timeButton = /^\d{1,2}:\d{2} (AM|PM)$/
 const today = inIndia(new Date()).date
 const nextFriday = (() => {
@@ -15,7 +15,7 @@ const top = async (l: Locator) => (await l.boundingBox())!.y
 const middle = async (l: Locator) => { const b = (await l.boundingBox())!; return b.y + b.height / 2 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/preview')
+  await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Book an appointment' })).toBeVisible()
   // React is running once the open status (worked out in the browser) shows, so no tap is lost
   await expect(page.locator('.h-status').first()).toHaveText(/\S/)
@@ -49,7 +49,7 @@ test('on a phone the header is one row (clinic, call, menu), the menu holds the 
 
 test('on a wide screen every header button sits in one row', async ({ browser }, testInfo) => {
   const wide = await browser.newPage({ viewport: { width: 1366, height: 900 } })
-  await wide.goto(`${testInfo.project.use.baseURL}/preview`)
+  await wide.goto(`${testInfo.project.use.baseURL}/`)
   const header = wide.locator('header.h-header')
   const buttons = [
     header.getByRole('link', { name: 'Treatments and prices' }),
@@ -76,8 +76,8 @@ test('the headline leads, signed by Dr. Rahil, then whether the clinic is open a
   expect(await top(page.getByRole('heading', { level: 1 }))).toBeLessThan(await top(byline))
   await expect(page.locator('.h-status').first()).toHaveText(/^(Open now|Opens today|Closed)/)
   await expect(page.getByText('How booking works')).toBeVisible()
-  // Kept out of search until it replaces the homepage, with the clinic's details ready for it
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/)
+  // Open to search engines, with the clinic's details, hours and questions for them
+  await expect(page.locator('meta[name="robots"]')).toHaveCount(0)
   expect(await page.locator('script[type="application/ld+json"]').first().textContent()).toContain('"openingHoursSpecification"')
 })
 

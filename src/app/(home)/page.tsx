@@ -11,11 +11,10 @@ import { OpenStatus } from '@/components/home/OpenStatus'
 import { Questions, questions } from '@/components/home/Questions'
 import { ToothChart } from '@/components/home/ToothChart'
 import { Waves } from '@/components/home/Waves'
-import { sitePath } from '@/components/home/site-links'
 
-// Website D, the new homepage, for Rahil to try before it replaces the current one
+// The homepage (website D): booking first, then the treatments and prices, the tooth chart, the dentist and questions
 export const metadata: Metadata = {
-  title: 'Smile Dental Clinic, Katapadi',
+  title: 'Smile Dental Clinic, Katapadi, Udupi · Dr. Rahil Yusuf, BDS',
   description: siteConfig.description,
 }
 
@@ -53,7 +52,7 @@ const faqJsonLd = {
   mainEntity: questions.map((f) => ({ '@type': 'Question', name: f.question, acceptedAnswer: { '@type': 'Answer', text: f.answer } })),
 }
 
-export default function HomePreview() {
+export default function HomePage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -126,7 +125,7 @@ export default function HomePreview() {
               </div>
             ))}
           </div>
-          <Link href={sitePath('/treatments')} className="h-btn h-after">See the full price list</Link>
+          <Link href="/treatments" className="h-btn h-after">See the full price list</Link>
         </div>
       </section>
 
