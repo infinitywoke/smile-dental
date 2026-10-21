@@ -81,32 +81,37 @@ test('the headline leads, signed by Dr. Rahil, then whether the clinic is open a
   expect(await page.locator('script[type="application/ld+json"]').first().textContent()).toContain('"openingHoursSpecification"')
 })
 
-test('booking asks what you need (or Not sure), a day, a free time, a name and a WhatsApp number', async ({ page }) => {
+test('booking asks one thing at a time, and any earlier answer can be changed', async ({ page }) => {
   const card = page.locator('#book')
+  const answers = card.getByRole('list', { name: 'Your answers so far' })
   await expect(card.getByText(/gender/i)).toHaveCount(0)
+
+  // Step 1 alone: what you need (nothing chosen yet, no days or times on show)
+  await expect(card.getByText('Step 1 of 4')).toBeVisible()
   const reasons = card.getByRole('group', { name: 'What do you need?' })
-  await expect(reasons.getByRole('button', { name: 'Not sure' })).toBeVisible()
   await expect(reasons.getByRole('button', { pressed: true })).toHaveCount(0)
-
-  // Each day says how many free times it has
-  await expect(card.getByRole('group', { name: 'Pick a day' }).getByText(/\d+ free/).first()).toBeVisible()
-
-  // Send names what is missing, in order, and sends nothing
-  const send = card.getByRole('button', { name: 'Request this appointment' })
-  await send.click()
-  await expect(card.getByText('Please choose what you need, or Not sure')).toBeVisible()
+  await expect(card.getByRole('group', { name: 'Pick a day' })).toHaveCount(0)
   await reasons.getByRole('button', { name: 'Not sure' }).click()
-  await expect(card.getByText(/No problem: Dr. Rahil examines first/)).toBeVisible()
 
-  await send.click()
-  await expect(card.getByText('Please pick a free time')).toBeVisible()
-  await expect(card.getByRole('group', { name: 'Pick a day' }).getByRole('button', { pressed: true })).toHaveCount(1)
+  // Step 2: the day, with the answer so far above it, and each day's free times counted
+  await expect(card.getByText('Step 2 of 4')).toBeVisible()
+  await expect(answers).toContainText('Not sure')
+  await expect(card.getByText(/No problem: Dr. Rahil examines first/)).toBeVisible()
+  const days = card.getByRole('group', { name: 'Pick a day' })
+  await expect(days.getByText(/\d+ free/).first()).toBeVisible()
+  await expect(days.getByRole('button', { pressed: true })).toHaveCount(0)
+  await days.getByRole('button').first().click()
+
+  // Step 3: a free time
+  await expect(card.getByText('Step 3 of 4')).toBeVisible()
   const firstTime = card.getByRole('button', { name: timeButton }).first()
   const label = (await firstTime.textContent())!.trim()
   await firstTime.click()
-  await expect(firstTime).toHaveAttribute('aria-pressed', 'true')
-  await expect(card.getByText(new RegExp(`at ${label}$`))).toBeVisible()
 
+  // Step 4: the details; Send names what is missing, in order, and sends nothing
+  await expect(card.getByText('Step 4 of 4')).toBeVisible()
+  await expect(answers).toContainText(label)
+  const send = card.getByRole('button', { name: 'Request this appointment' })
   await send.click()
   await expect(card.getByText('Please enter your WhatsApp number')).toBeVisible()
   await card.getByLabel('WhatsApp number').fill('9845021763')
@@ -115,6 +120,20 @@ test('booking asks what you need (or Not sure), a day, a free time, a name and a
   await card.getByLabel('Name').fill('Asha Rao')
   await expect(card.getByText('Request saved')).toHaveCount(0)
   await expect(card.getByRole('button', { name: 'No WhatsApp? Ask the clinic to call you' })).toBeVisible()
+
+  // Change what you need: the new answer comes straight back to the details, with what was typed kept
+  await card.getByRole('button', { name: 'Change what you need' }).click()
+  await expect(card.getByText('Step 1 of 4')).toBeVisible()
+  await expect(reasons.getByRole('button', { name: 'Not sure' })).toHaveAttribute('aria-pressed', 'true')
+  await reasons.getByRole('button', { name: 'Cleaning' }).click()
+  await expect(card.getByText('Step 4 of 4')).toBeVisible()
+  await expect(answers).toContainText('Cleaning')
+  await expect(card.getByLabel('Name')).toHaveValue('Asha Rao')
+
+  // Back goes one step at a time, with the earlier answer still chosen
+  await card.getByRole('button', { name: 'Back' }).click()
+  await expect(card.getByText('Step 3 of 4')).toBeVisible()
+  await expect(card.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('the earliest free time is one tap away, and the reason shows its price, or the earliest time for pain', async ({ page }) => {
@@ -123,13 +142,16 @@ test('the earliest free time is one tap away, and the reason shows its price, or
   await reasons.getByRole('button', { name: 'Cleaning' }).click()
   await expect(card.getByText('Teeth cleaning · ₹400 – ₹800')).toBeVisible()
 
+  await card.getByRole('button', { name: 'Change what you need' }).click()
   await reasons.getByRole('button', { name: 'Toothache' }).click()
   await expect(card.getByText(/^In pain\? The earliest free time is/)).toBeVisible()
   await card.getByRole('button', { name: /^Earliest:/ }).click()
-  await expect(card.getByRole('button', { name: timeButton, pressed: true })).toHaveCount(1)
-  await expect(card.getByRole('button', { name: /^Earliest:/ })).toHaveCount(0)
+  // Straight to the details, with that day and time already chosen
+  await expect(card.getByText('Step 4 of 4')).toBeVisible()
+  await expect(card.getByRole('button', { name: 'Change the time' })).toBeVisible()
 
   // Today's times come with a way to come in right now
+  await card.getByRole('button', { name: 'Change the day' }).click()
   const firstDay = card.getByRole('group', { name: 'Pick a day' }).getByRole('button').first()
   if ((await firstDay.textContent())?.startsWith('Today')) {
     await firstDay.click()
@@ -144,8 +166,11 @@ test('another date: its free times or why there are none; another time from a 12
   const date = card.getByLabel('Choose a date')
   await date.fill(nextFriday)
   await expect(card.getByText('The clinic is closed on Fridays. Please choose another date.')).toBeVisible()
+  await expect(card.getByText('Step 2 of 4')).toBeVisible()
 
+  // Beyond four weeks: on to the time, to ask for one on WhatsApp
   await date.fill(farAway)
+  await expect(card.getByText('Step 3 of 4')).toBeVisible()
   await expect(card.getByText(/Online booking opens four weeks ahead/)).toBeVisible()
   const preferred = card.getByLabel('Preferred time')
   // Only opening hours, in 12-hour words: 4:30 PM yes; nothing at lunch, nothing in 24-hour form
@@ -153,7 +178,7 @@ test('another date: its free times or why there are none; another time from a 12
   await expect(preferred.locator('option', { hasText: '1:30 PM' })).toHaveCount(0)
   await expect(preferred.locator('option', { hasText: '16:30' })).toHaveCount(0)
   await preferred.selectOption({ label: '4:30 PM' })
-  await card.getByLabel('Name').fill('Asha Rao')
+  await card.getByLabel('Your name').fill('Asha Rao')
   const ask = card.getByRole('link', { name: 'Ask on WhatsApp' })
   const href = decodeURIComponent((await ask.getAttribute('href'))!)
   expect(href).toContain('https://wa.me/916361816711')
@@ -162,7 +187,9 @@ test('another date: its free times or why there are none; another time from a 12
   expect(href).toContain('For: Cleaning')
   expect(href).toMatch(/Date: \w{3}, \d{1,2} \w{3}/)
 
-  // On a listed day (not today, so no times have passed), a time that isn't offered can still be asked for
+  // Back to the day: on a listed day (not today, so no times have passed), a time that isn't offered
+  // can still be asked for
+  await card.getByRole('button', { name: 'Back' }).click()
   const days = card.getByRole('group', { name: 'Pick a day' }).getByRole('button')
   await days.nth((await days.count()) > 2 ? 1 : 0).click()
   await card.getByRole('button', { name: 'None of these work? Ask for another time' }).click()
@@ -173,22 +200,23 @@ test('another date: its free times or why there are none; another time from a 12
   await expect(card.getByRole('button', { name: timeButton }).first()).toBeVisible()
 })
 
-test('a treatment Book link and the tooth chart pick the reason, even if the card is still loading', async ({ page }) => {
-  const reasons = page.locator('#book').getByRole('group', { name: 'What do you need?' })
+test('a treatment Book link and the tooth chart pick the reason and move the card on to the day', async ({ page }) => {
+  const card = page.locator('#book')
+  const answers = card.getByRole('list', { name: 'Your answers so far' })
   await page.getByRole('link', { name: 'Book Teeth cleaning' }).click()
-  await expect(reasons.getByRole('button', { name: 'Cleaning' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(card.getByText('Step 2 of 4')).toBeVisible()
+  await expect(answers).toContainText('Cleaning')
 
   await page.getByRole('button', { name: 'Tooth 36, lower left first molar' }).click()
   await expect(page.getByText('Tooth 36, lower left first molar', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Pain in a back tooth' })).toBeVisible()
   await page.getByRole('link', { name: 'Book a check-up for this' }).click()
-  await expect(reasons.getByRole('button', { name: 'Toothache' })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('#book').getByText('Toothache (tooth 36, lower left first molar)')).toBeVisible()
+  await expect(answers).toContainText('Toothache (tooth 36, lower left first molar)')
 
   await page.getByRole('button', { name: 'Gums', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Bleeding gums or tartar' })).toBeVisible()
   await page.getByRole('link', { name: 'Book a cleaning' }).click()
-  await expect(reasons.getByRole('button', { name: 'Cleaning' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(answers).toContainText('Cleaning')
 })
 
 test('questions open in place, and the visit section has the map', async ({ page }) => {

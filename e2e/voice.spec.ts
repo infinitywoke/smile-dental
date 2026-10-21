@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
 import { cleanRun, makeRequest, newRunId, signIn, testDb, visible } from './helpers'
 
@@ -13,10 +13,22 @@ test.use({
   launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
 })
 
-test('recorder version: the patient can record, hear and remove a voice note on the booking card', async ({ page }) => {
-  await page.addInitScript(() => sessionStorage.setItem('smile_voice_variant', 'page'))
+// The booking card's last step, the details, where the voice note is asked for
+async function toDetails(page: Page, variant: 'page' | 'whatsapp') {
+  await page.addInitScript((v) => sessionStorage.setItem('smile_voice_variant', v), variant)
   await page.goto('/book')
+  // React is running once the open status (worked out in the browser) shows, so no tap is lost
+  await expect(page.locator('.h-status').first()).toHaveText(/\S/)
   const card = page.locator('#book')
+  await card.getByRole('group', { name: 'What do you need?' }).getByRole('button', { name: 'Not sure' }).click()
+  await card.getByRole('group', { name: 'Pick a day' }).getByRole('button').first().click()
+  await card.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)$/ }).first().click()
+  await expect(card.getByText('Step 4 of 4')).toBeVisible()
+  return card
+}
+
+test('recorder version: the patient can record, hear and remove a voice note on the booking card', async ({ page }) => {
+  const card = await toDetails(page, 'page')
   await expect(card.getByText("Tell Dr. Rahil what's bothering you")).toBeVisible()
   await card.getByRole('button', { name: 'Tap to record (up to 1 minute)' }).click()
   const stop = card.getByRole('button', { name: /^Stop \(0:0\d of 1:00\)$/ })
@@ -29,9 +41,7 @@ test('recorder version: the patient can record, hear and remove a voice note on 
 })
 
 test('WhatsApp version: the booking card explains how to send a voice note after Send, with no recorder', async ({ page }) => {
-  await page.addInitScript(() => sessionStorage.setItem('smile_voice_variant', 'whatsapp'))
-  await page.goto('/book')
-  const card = page.locator('#book')
+  const card = await toDetails(page, 'whatsapp')
   await expect(card.getByText("Tell Dr. Rahil what's bothering you, in a voice note")).toBeVisible()
   await expect(card.getByText(/hold the microphone button/)).toBeVisible()
   await expect(card.getByRole('button', { name: 'Tap to record (up to 1 minute)' })).toHaveCount(0)

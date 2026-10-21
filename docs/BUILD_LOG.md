@@ -158,6 +158,14 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
         - `e2e/site.spec.ts`, now with the redirects;
         - `e2e/voice.spec.ts`, now on /book;
         - the tour's website step uses the card.
+- [x] 17. Booking card, one step at a time (21 Oct, the owner asked) (`BookingCard.tsx`, `home.css`):
+    - **The steps:** 1 what you need, 2 a day, 3 a free time, 4 name and WhatsApp number. Only the step on show is visible, with a 4-part progress line and "Step N of 4".
+    - **Moving on:** each answer moves on by itself after a short moment to see it chosen. The Earliest shortcut and "Take it" jump straight to the details.
+    - **Going back:** the answers so far sit above the step, each with **Change**, and Back goes one step. A changed answer returns to the first step still unanswered, so changing the reason from the details comes straight back to the details with what was typed kept.
+    - **Animation:** the new step slides in from the right going forward and from the left going back, while the card eases to its new height. It is off for anyone who turns motion off on their phone. Focus moves to the new step's title, and a card scrolled out of sight comes back into view.
+    - **Everything else kept:** reason hints and prices, other dates (a closed date stays on the day step with the reason; too far or full moves on to ask for a time), "Ask for another time" (now with a Your name field), the voice-note test on the details step, the bot traps, and "call me instead".
+    - **Links:** a Book link or the tooth chart moves the card from step 1 to the day. `/book?reason=` opens on step 2.
+    - **Tests:** the booking tests in `e2e/home.spec.ts` now walk the steps, changing an answer and going back; `site.spec.ts` checks the answers list; `voice.spec.ts` walks to the details; the tour picks a day.
     - **Also fixed:** `e2e/lengths.spec.ts` "Move keeps the appointment its own length" failed in the evenings. The last time left today could be the appointment's own, where 80 minutes run past closing. The test now moves to 8:30 AM six open days ahead.
 - Outside the repo (20 Oct):
     - Rahil meeting pack https://claude.ai/artifact/GJGMstZ5ucUZvkuiUmzdS7.

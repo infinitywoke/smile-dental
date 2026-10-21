@@ -26,8 +26,9 @@ test('the price list shows every treatment with its prices, and Book opens the b
 
   await page.getByRole('link', { name: 'Book Teeth cleaning' }).click()
   await expect(page).toHaveURL(/\/book\?reason=cleaning$/)
-  const reasons = page.locator('#book').getByRole('group', { name: 'What do you need?' })
-  await expect(reasons.getByRole('button', { name: 'Cleaning' })).toHaveAttribute('aria-pressed', 'true')
+  // The card starts at the day, with the reason already answered
+  await expect(page.locator('#book').getByText('Step 2 of 4')).toBeVisible()
+  await expect(page.locator('#book').getByRole('list', { name: 'Your answers so far' })).toContainText('Cleaning')
 })
 
 test('a treatment page shows its prices, books it or asks about it, and leads back to the price list', async ({ page }) => {
@@ -45,8 +46,7 @@ test('a treatment page shows its prices, books it or asks about it, and leads ba
 
   await page.locator('.h-side-card').getByRole('link', { name: 'Book appointment' }).click()
   await expect(page).toHaveURL(/\/book\?reason=crown$/)
-  const reasons = page.locator('#book').getByRole('group', { name: 'What do you need?' })
-  await expect(reasons.getByRole('button', { name: 'Crown or bridge' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('#book').getByRole('list', { name: 'Your answers so far' })).toContainText('Crown or bridge')
 
   // A treatment that isn't on the price list is a real "not found"
   expect((await page.goto('/treatments/whitening'))?.status()).toBe(404)
@@ -56,8 +56,7 @@ test('the booking page takes the reason from an older link and where the visitor
   // The Google profile's appointment link, as an older treatment page would have added a reason to it
   await page.goto('/book?reason=Root%20Canal%20Treatment&utm_source=google')
   await expect(page.getByRole('heading', { level: 1, name: 'Book a visit with Dr. Rahil.' })).toBeVisible()
-  const reasons = page.locator('#book').getByRole('group', { name: 'What do you need?' })
-  await expect(reasons.getByRole('button', { name: 'Root canal' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('#book').getByRole('list', { name: 'Your answers so far' })).toContainText('Root canal')
   await ready(page)
   expect(await page.evaluate(() => sessionStorage.getItem('smile_heard_from'))).toBe('Google')
 

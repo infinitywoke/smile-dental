@@ -164,6 +164,7 @@ test('evidence tour', async ({ page }) => {
   await step('book', async () => {
     await page.goto('/book'); await snap(page, 'site-book-1-card')
     await tap(page.getByRole('button', { name: 'Toothache' }))
+    await tap(visible(page.getByRole('group', { name: 'Pick a day' }).getByRole('button')))
     await tap(visible(page.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)$/ })))
     await page.waitForTimeout(600); await snap(page, 'site-book-2-time')
     await type(page.getByLabel('Name'), 'Tour Visitor')

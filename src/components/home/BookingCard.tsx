@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, CalendarCheck, CalendarDays, MessageCircle, Mic, Phone, Zap } from 'lucide-react'
+import { AlertCircle, ArrowLeft, CalendarCheck, CalendarDays, MessageCircle, Mic, Phone, Zap } from 'lucide-react'
 import { bookingReasons, homeServices } from '@/config/site'
 import { attachVoiceNote, submitBookingRequest } from '@/lib/actions/booking'
 import { checkOtherDate, dayLabel, daysWithSlots, otherTimeMessage, partOfDay, preferredTimeOptions, slotsOn } from '@/lib/booking-days'
@@ -26,17 +26,38 @@ type Props = {
   initialReason?: string | null
 }
 
+type Step = 1 | 2 | 3 | 4
+const TITLES: Record<Step, string> = { 1: 'What do you need?', 2: 'Pick a day', 3: 'Pick a free time', 4: 'Your details' }
 const PARTS = ['Morning', 'Afternoon', 'Evening'] as const
 const CHECKUP_PRICE = homeServices.find((s) => s.id === 'checkup')?.price ?? ''
 
-// The booking card: what you need, a day, a free time, a name and a WhatsApp number. The request is
-// saved for the clinic; WhatsApp then opens with it written, ready to send.
+// The step on show grows or shrinks smoothly to its new height
+function SmoothHeight({ children }: { children: React.ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number | null>(null)
+  useEffect(() => {
+    const el = inner.current
+    if (!el) return
+    const observer = new ResizeObserver(() => setHeight(el.offsetHeight))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+  return (
+    <div className="h-steps" style={height === null ? undefined : { height }}>
+      <div ref={inner} className="h-steps-inner">{children}</div>
+    </div>
+  )
+}
+
+// The booking card, one step at a time: what you need, a day, a free time, then a name and a WhatsApp
+// number. Each answer moves on to the next step; the answers so far sit above it, each with Change.
+// The request is saved for the clinic; WhatsApp then opens with it written, ready to send.
 export function BookingCard({ slots, today, promise, initialReason = null }: Props) {
   const router = useRouter()
   const days = useMemo(() => daysWithSlots(slots, today), [slots, today])
   // What the visit is for (a reason id), and a note such as which tooth, from the tooth chart
   const [choice, setChoice] = useState<{ reason: string | null; note: string | null }>({ reason: initialReason, note: null })
-  const [day, setDay] = useState<string>(days[0]?.date ?? 'other')
+  const [day, setDay] = useState<string | null>(null)
   const [otherDate, setOtherDate] = useState('')
   const [picked, setPicked] = useState<string | null>(null)
   const [askOther, setAskOther] = useState(false)
@@ -46,6 +67,11 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
   const [error, setError] = useState<string | null>(null)
   const [tried, setTried] = useState(false)
   const [sent, setSent] = useState<{ url: string | null; at: string } | null>(null)
+  // Which step is on show, and which way the last move went (for the slide; none before the first move)
+  const [step, setStep] = useState<Step>(initialReason ? 2 : 1)
+  const [dir, setDir] = useState<'forward' | 'back'>('forward')
+  const [moved, setMoved] = useState(false)
+  const stepNow = useRef(step)
   // The voice note test: each visitor sees one version (kept for the visit), stored on the request
   const voiceVariant = useVoiceVariant()
   const [voiceNote, setVoiceNote] = useState<Blob | null>(null)
@@ -53,15 +79,29 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
   const [trap, setTrap] = useState('')
   const [humanPace, setHumanPace] = useState(false)
   const [pending, startTransition] = useTransition()
+  const cardRef = useRef<HTMLDivElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => setHumanPace(true), 3000)
     return () => clearTimeout(timer)
   }, [])
 
-  // A Book link or the tooth chart picks the reason; one tapped while this card was loading counts too
   useEffect(() => {
-    const apply = (detail: BookFor) => setChoice({ reason: detail.reason, note: detail.note ?? null })
+    stepNow.current = step
+  }, [step])
+
+  // A Book link or the tooth chart picks the reason (one tapped while this card was loading counts too);
+  // on the first step that means moving on to the day
+  useEffect(() => {
+    const apply = (detail: BookFor) => {
+      setChoice({ reason: detail.reason, note: detail.note ?? null })
+      if (stepNow.current === 1) {
+        setMoved(true)
+        setDir('forward')
+        setStep(2)
+      }
+    }
     const waiting = takePendingBookFor()
     if (waiting) apply(waiting)
     const onFor = (event: Event) => {
@@ -72,10 +112,22 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
     return () => window.removeEventListener(BOOK_EVENT, onFor)
   }, [])
 
-  // After fresh free times arrive, a day that is no longer listed falls back to the first one
-  const activeDay = day === 'other' || days.some((d) => d.date === day) ? day : days[0]?.date ?? 'other'
+  // After a move, the new step's title takes the focus (screen readers say it), and a card scrolled out
+  // of sight comes back into view
+  useEffect(() => {
+    if (!moved) return
+    headingRef.current?.focus({ preventScroll: true })
+    const card = cardRef.current
+    if (card && card.getBoundingClientRect().top < 0) {
+      const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      card.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
+    }
+  }, [step, moved])
+
+  // After fresh free times arrive, a day that is no longer listed is chosen again
+  const activeDay = day === 'other' || days.some((d) => d.date === day) ? day : null
   const other = activeDay === 'other' && otherDate ? checkOtherDate(otherDate, today, slots) : null
-  const daySlots = activeDay === 'other' ? (other?.ok ? other.slots : []) : slotsOn(slots, activeDay)
+  const daySlots = activeDay === 'other' ? (other?.ok ? other.slots : []) : activeDay ? slotsOn(slots, activeDay) : []
   const chosenDate = activeDay === 'other' ? otherDate || null : activeDay
   // A full or far-off date can still be asked for on WhatsApp
   const mustAsk = days.length === 0 || (other !== null && !other.ok && (other.reason === 'beyond' || other.reason === 'full'))
@@ -85,13 +137,6 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
   // The earliest free time, one tap away; "Today, 4:30 PM"
   const earliest = slots.length > 0 ? [...slots].sort()[0] : null
   const when = (iso: string) => `${dayLabel(inIndia(iso).date, today)}, ${formatBlock(inIndia(iso).time)}`
-  function takeEarliest() {
-    if (!earliest) return
-    setDay(inIndia(earliest).date)
-    setPicked(earliest)
-    setAskOther(false)
-    setError(null)
-  }
   // A line that fits the reason: its price, or for pain the earliest time
   const service = homeServices.find((s) => s.id === choice.reason)
   const hint = choice.reason === 'toothache'
@@ -105,25 +150,64 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
   const askUrl = clinicWhatsappLink(otherTimeMessage({ name, date: chosenDate, time: preferred || null, forWhat: reasonText || null }))
 
   const phoneOk = isValidPhone(normalizePhone(phone))
-  const missing = !choice.reason
-    ? { id: 'home-reason', text: 'Please choose what you need, or Not sure' }
-    : !picked
-      ? { id: 'home-times', text: 'Please pick a free time' }
-      : !phoneOk
-        ? { id: 'home-phone', text: 'Please enter your WhatsApp number' }
-        : name.trim().length < 2
-          ? { id: 'home-name', text: 'Please enter your name' }
-          : null
+  const missing = !phoneOk
+    ? { id: 'home-phone', text: 'Please enter your WhatsApp number' }
+    : name.trim().length < 2
+      ? { id: 'home-name', text: 'Please enter your name' }
+      : null
+
+  function goTo(next: Step) {
+    setMoved(true)
+    setDir(next > step ? 'forward' : 'back')
+    setStep(next)
+    setError(null)
+  }
+
+  // After an answer, carry on to the first step still to answer (so a changed reason returns straight
+  // to the details when the day and time still stand)
+  function carryOn(after: Step, dayChosen = activeDay !== null, timeChosen = picked !== null) {
+    goTo(after < 2 && !dayChosen ? 2 : after < 3 && !timeChosen ? 3 : 4)
+  }
+
+  function chooseReason(id: string) {
+    setChoice({ reason: id, note: id === choice.reason ? choice.note : null })
+    // A moment to see the choice light up, then on to the next step
+    setTimeout(() => carryOn(1), 160)
+  }
 
   function chooseDay(value: string) {
     setDay(value)
     setPicked(null)
     setAskOther(false)
     setPreferred('')
-    setError(null)
+    if (value !== 'other') setTimeout(() => carryOn(2, true, false), 160)
+  }
+
+  function chooseOtherDate(value: string) {
+    setOtherDate(value)
+    setPicked(null)
+    setPreferred('')
+    const checked = value ? checkOtherDate(value, today, slots) : null
+    // Free times that day, or none to book online (too far, or full) but one to ask for: on to the times
+    if (checked && (checked.ok || checked.reason === 'beyond' || checked.reason === 'full')) carryOn(2, true, false)
+  }
+
+  function chooseTime(slot: string) {
+    setPicked(slot)
+    setTimeout(() => carryOn(3, true, true), 160)
+  }
+
+  function takeEarliest() {
+    if (!earliest) return
+    setDay(inIndia(earliest).date)
+    setPicked(earliest)
+    setAskOther(false)
+    goTo(4)
   }
 
   function submit(contact: 'whatsapp' | 'call') {
+    if (!choice.reason) return goTo(1)
+    if (!picked) return goTo(3)
     if (missing) {
       setTried(true)
       const el = document.getElementById(missing.id)
@@ -131,7 +215,7 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
       el?.focus({ preventScroll: true })
       return
     }
-    const startsAt = picked!
+    const startsAt = picked
     let heardFrom = ''
     try {
       heardFrom = sessionStorage.getItem(SOURCE_KEY) ?? ''
@@ -145,12 +229,13 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
         requestedStart: startsAt, contact, website: trap, tooFast: !humanPace,
       })
       if (!result.ok) {
-        setError(result.error)
         // The time was probably taken meanwhile: fresh free times, and choose again
         if (/no longer available|available times/i.test(result.error)) {
           setPicked(null)
           router.refresh()
+          goTo(3)
         }
+        setError(result.error)
         return
       }
       // The voice note (or which version was shown) goes with the request; WhatsApp opens within 10 s regardless
@@ -203,10 +288,34 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
     )
   }
 
+  // The answers so far, above the step on show, each with a way back to change it
+  const trail = [
+    step > 1 && reasonText ? { label: 'For', value: reasonText, change: 'Change what you need', to: 1 as Step } : null,
+    step > 2 && chosenDate ? { label: 'Day', value: formatDay(chosenDate), change: 'Change the day', to: 2 as Step } : null,
+    step > 3 && picked ? { label: 'Time', value: formatBlock(inIndia(picked).time), change: 'Change the time', to: 3 as Step } : null,
+  ].filter((row) => row !== null)
+
   return (
-    <div id="book" className="h-card">
+    <div id="book" className="h-card" ref={cardRef}>
       <h2 className="h-serif h-card-title">Book an appointment</h2>
       <p className="h-sub">No account needed. The clinic confirms your time on WhatsApp.</p>
+
+      <div className="h-progress" aria-hidden="true">
+        {([1, 2, 3, 4] as Step[]).map((n) => <span key={n} className={n < step ? 'done' : n === step ? 'now' : ''} />)}
+      </div>
+      <p className="h-step-count">Step {step} of 4</p>
+
+      {trail.length > 0 && (
+        <ul className="h-trail" aria-label="Your answers so far">
+          {trail.map((row) => (
+            <li key={row.label}>
+              <span className="h-trail-label">{row.label}</span>
+              <span className="h-trail-value">{row.value}</span>
+              <button type="button" className="h-trail-change" aria-label={row.change} onClick={() => goTo(row.to)}>Change</button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {error && (
         <div className="h-error" role="alert">
@@ -215,172 +324,186 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
         </div>
       )}
 
-      <div className="h-step" id="home-reason" tabIndex={-1}>
-        <p className="h-label"><span className="h-num">1</span>What do you need?</p>
-        <div role="group" aria-label="What do you need?" className="h-row">
-          {bookingReasons.map((reason) => (
-            <button key={reason.id} type="button" className={`h-chip${choice.reason === reason.id ? ' on' : ''}`}
-              aria-pressed={choice.reason === reason.id}
-              onClick={() => setChoice({ reason: reason.id, note: reason.id === choice.reason ? choice.note : null })}>
-              {reason.label}
-            </button>
-          ))}
-        </div>
-        {hint && (
-          <p className="h-reason-hint">
-            {hint.text}
-            {hint.offer && picked !== earliest && <button type="button" className="h-hint-btn" onClick={takeEarliest}>Take it</button>}
-          </p>
-        )}
-      </div>
+      <SmoothHeight>
+        <div key={step} className={`h-step${moved ? ` h-step-in${dir === 'back' ? ' back' : ''}` : ''}`}>
+          <div className="h-label-row">
+            <h3 className="h-label" tabIndex={-1} ref={headingRef}><span className="h-num">{step}</span>{TITLES[step]}</h3>
+            {step === 2 && earliest && (
+              <button type="button" className="h-earliest" onClick={takeEarliest}>
+                <Zap className="h-icon-sm" aria-hidden="true" /> Earliest: {when(earliest)}
+              </button>
+            )}
+          </div>
 
-      <div className="h-step">
-        <div className="h-label-row">
-          <p className="h-label"><span className="h-num">2</span>Pick a day</p>
-          {earliest && picked !== earliest && (
-            <button type="button" className="h-earliest" onClick={takeEarliest}>
-              <Zap className="h-icon-sm" aria-hidden="true" /> Earliest: {when(earliest)}
+          {step === 1 && (
+            <div role="group" aria-label="What do you need?" className="h-row">
+              {bookingReasons.map((reason) => (
+                <button key={reason.id} type="button" className={`h-chip${choice.reason === reason.id ? ' on' : ''}`}
+                  aria-pressed={choice.reason === reason.id} onClick={() => chooseReason(reason.id)}>
+                  {reason.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {step === 2 && (
+            <>
+              {hint && (
+                <p className="h-reason-hint">
+                  {hint.text}
+                  {hint.offer && <button type="button" className="h-hint-btn" onClick={takeEarliest}>Take it</button>}
+                </p>
+              )}
+              <div role="group" aria-label="Pick a day" className="h-row h-gap">
+                {days.map((d) => (
+                  <button key={d.date} type="button" className={`h-day${activeDay === d.date ? ' on' : ''}`}
+                    aria-pressed={activeDay === d.date} onClick={() => chooseDay(d.date)}>
+                    <span>{d.label}</span>
+                    <span className="h-day-sub">{d.short}</span>
+                    <span className="h-day-free">{d.slots.length} free</span>
+                  </button>
+                ))}
+                <button type="button" className={`h-day${activeDay === 'other' ? ' on' : ''}`}
+                  aria-pressed={activeDay === 'other'} onClick={() => chooseDay('other')}>
+                  <CalendarDays className="h-icon-sm" aria-hidden="true" />
+                  <span className="h-day-sub">Other date</span>
+                </button>
+              </div>
+              {activeDay === 'other' && (
+                <label className="h-field h-gap">
+                  Choose a date
+                  <input type="date" min={today} max={addDays(today, 365)} value={otherDate} onChange={(e) => chooseOtherDate(e.target.value)} />
+                </label>
+              )}
+              {other && !other.ok && <p className="h-note">{other.message}</p>}
+              {days.length === 0 && (
+                <>
+                  <p className="h-note">No online times are free in the next four weeks. Ask for a time on WhatsApp, or call the clinic.</p>
+                  <button type="button" className="h-linkbtn" onClick={() => carryOn(2, true, false)}>Ask for a time on WhatsApp</button>
+                </>
+              )}
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              {!showAsk && PARTS.map((part) => {
+                const list = daySlots.filter((slot) => partOfDay(inIndia(slot).time) === part)
+                if (list.length === 0) return null
+                return (
+                  <div key={part} className="h-part">
+                    <p className="h-part-name">{part}</p>
+                    <div role="group" aria-label={`${part} times`} className="h-row">
+                      {list.map((slot) => (
+                        <button key={slot} type="button" className={`h-chip${picked === slot ? ' on' : ''}`}
+                          aria-pressed={picked === slot} onClick={() => chooseTime(slot)}>
+                          {formatBlock(inIndia(slot).time)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+              {chosenDate === today && (
+                <p className="h-hint">
+                  Coming in right now? <a href={TEL} className="h-inline-call"><Phone className="h-icon-sm" aria-hidden="true" /> Call the clinic</a>
+                </p>
+              )}
+              {!mustAsk && (daySlots.length > 0 || askOther) && (
+                <button type="button" className="h-linkbtn" onClick={() => { setAskOther(!askOther); setPicked(null) }}>
+                  {askOther ? 'Back to the free times' : 'None of these work? Ask for another time'}
+                </button>
+              )}
+              {showAsk && (
+                <div className="h-ask">
+                  {mustAsk && other && !other.ok && <p className="h-note">{other.message}</p>}
+                  <div className="h-ask-row">
+                    <label className="h-field">
+                      Preferred time
+                      <select value={preferred} onChange={(e) => setPreferred(e.target.value)}>
+                        <option value="">Choose a time</option>
+                        <optgroup label="Flexible">
+                          <option value="any">Any time</option>
+                          {timeGroups.map((group) => (
+                            <option key={group.part} value={`any-${group.part.toLowerCase()}`}>Any time in the {group.part.toLowerCase()}</option>
+                          ))}
+                        </optgroup>
+                        {timeGroups.map((group) => (
+                          <optgroup key={group.part} label={group.part}>
+                            {group.times.map((t) => <option key={t} value={t}>{formatBlock(t)}</option>)}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="h-field">
+                      Your name
+                      <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+                    </label>
+                  </div>
+                  <a href={askUrl} className="h-btn small h-gap">Ask on WhatsApp</a>
+                  <p className="h-hint">Only times the clinic is open. WhatsApp opens with your request written, and the clinic replies to confirm.</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {step === 4 && (
+            <>
+              <div className="h-grid2">
+                <label className="h-field">
+                  Name
+                  <input id="home-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+                </label>
+                <label className="h-field">
+                  WhatsApp number
+                  <input id="home-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="98450 21763"
+                    value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </label>
+              </div>
+              {voiceVariant === 'page' && (
+                <div className="h-voice">
+                  <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell Dr. Rahil what&apos;s bothering you <small>(optional)</small></span></p>
+                  <p className="h-hint">
+                    Which tooth or side? Since when? Does it hurt with hot, cold or sweet things, when biting, or at night? Any
+                    swelling? It helps him plan the right amount of time for you.
+                  </p>
+                  <VoiceNote onChange={setVoiceNote} />
+                </div>
+              )}
+              {voiceVariant === 'whatsapp' && (
+                <div className="h-voice">
+                  <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell Dr. Rahil what&apos;s bothering you, in a voice note</span></p>
+                  <p className="h-hint">
+                    After you tap Send in WhatsApp, hold the microphone button and tell him: which tooth or side, since when, and
+                    what makes it hurt (hot, cold, biting, at night, swelling). It helps him plan the right amount of time for you.
+                  </p>
+                </div>
+              )}
+
+              {/* Bot trap: hidden from people (and screen readers), so only bots fill it in */}
+              <div aria-hidden="true" className="h-trap">
+                <label htmlFor="home-website">Leave this empty</label>
+                <input id="home-website" name="website" type="text" tabIndex={-1} autoComplete="off" value={trap} onChange={(e) => setTrap(e.target.value)} />
+              </div>
+
+              {tried && missing && <p className="h-missing" role="alert">{missing.text}</p>}
+              <button type="button" className="h-btn navy wide h-gap" onClick={() => submit('whatsapp')} disabled={pending}>
+                {pending ? 'Sending…' : 'Request this appointment'}
+              </button>
+              <p className="h-hint">Next, WhatsApp opens with your request written: just tap Send. {promise}</p>
+              <button type="button" className="h-linkbtn h-center" onClick={() => submit('call')} disabled={pending}>
+                No WhatsApp? Ask the clinic to call you
+              </button>
+            </>
+          )}
+
+          {step > 1 && (
+            <button type="button" className="h-linkbtn h-back-btn" onClick={() => goTo((step - 1) as Step)}>
+              <ArrowLeft className="h-icon-sm" aria-hidden="true" /> Back
             </button>
           )}
         </div>
-        <div role="group" aria-label="Pick a day" className="h-row">
-          {days.map((d) => (
-            <button key={d.date} type="button" className={`h-day${activeDay === d.date ? ' on' : ''}`}
-              aria-pressed={activeDay === d.date} onClick={() => chooseDay(d.date)}>
-              <span>{d.label}</span>
-              <span className="h-day-sub">{d.short}</span>
-              <span className="h-day-free">{d.slots.length} free</span>
-            </button>
-          ))}
-          <button type="button" className={`h-day${activeDay === 'other' ? ' on' : ''}`}
-            aria-pressed={activeDay === 'other'} onClick={() => chooseDay('other')}>
-            <CalendarDays className="h-icon-sm" aria-hidden="true" />
-            <span className="h-day-sub">Other date</span>
-          </button>
-        </div>
-        {activeDay === 'other' && (
-          <label className="h-field h-gap">
-            Choose a date
-            <input type="date" min={today} max={addDays(today, 365)} value={otherDate}
-              onChange={(e) => { setOtherDate(e.target.value); setPicked(null); setPreferred('') }} />
-          </label>
-        )}
-        {other && !other.ok && <p className="h-note">{other.message}</p>}
-        {days.length === 0 && (
-          <p className="h-note">No online times are free in the next four weeks. Ask for a time on WhatsApp below, or call the clinic.</p>
-        )}
-      </div>
-
-      <div className="h-step" id="home-times" tabIndex={-1}>
-        <p className="h-label"><span className="h-num">3</span>Pick a free time</p>
-        {!askOther && PARTS.map((part) => {
-          const list = daySlots.filter((slot) => partOfDay(inIndia(slot).time) === part)
-          if (list.length === 0) return null
-          return (
-            <div key={part} className="h-part">
-              <p className="h-part-name">{part}</p>
-              <div role="group" aria-label={`${part} times`} className="h-row">
-                {list.map((slot) => (
-                  <button key={slot} type="button" className={`h-chip${picked === slot ? ' on' : ''}`}
-                    aria-pressed={picked === slot} onClick={() => { setPicked(slot); setError(null) }}>
-                    {formatBlock(inIndia(slot).time)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-        {activeDay === 'other' && !otherDate && !askOther && <p className="h-hint">Choose a date to see its free times.</p>}
-        {(activeDay === today || (activeDay === 'other' && otherDate === today)) && (
-          <p className="h-hint">
-            Coming in right now? <a href={TEL} className="h-inline-call"><Phone className="h-icon-sm" aria-hidden="true" /> Call the clinic</a>
-          </p>
-        )}
-        {!mustAsk && (daySlots.length > 0 || askOther) && (
-          <button type="button" className="h-linkbtn" onClick={() => { setAskOther(!askOther); setPicked(null) }}>
-            {askOther ? 'Back to the free times' : 'None of these work? Ask for another time'}
-          </button>
-        )}
-        {showAsk && (
-          <div className="h-ask">
-            <div className="h-ask-row">
-              <label className="h-field">
-                Preferred time
-                <select value={preferred} onChange={(e) => setPreferred(e.target.value)}>
-                  <option value="">Choose a time</option>
-                  <optgroup label="Flexible">
-                    <option value="any">Any time</option>
-                    {timeGroups.map((group) => (
-                      <option key={group.part} value={`any-${group.part.toLowerCase()}`}>Any time in the {group.part.toLowerCase()}</option>
-                    ))}
-                  </optgroup>
-                  {timeGroups.map((group) => (
-                    <optgroup key={group.part} label={group.part}>
-                      {group.times.map((t) => <option key={t} value={t}>{formatBlock(t)}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-              <a href={askUrl} className="h-btn small">Ask on WhatsApp</a>
-            </div>
-            <p className="h-hint">Only times the clinic is open. WhatsApp opens with your request written, and the clinic replies to confirm.</p>
-          </div>
-        )}
-      </div>
-
-      <div className="h-step">
-        <p className="h-label"><span className="h-num">4</span>Your details</p>
-        <div className="h-grid2">
-          <label className="h-field">
-            Name
-            <input id="home-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label className="h-field">
-            WhatsApp number
-            <input id="home-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="98450 21763"
-              value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </label>
-        </div>
-        {voiceVariant === 'page' && (
-          <div className="h-voice">
-            <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell Dr. Rahil what&apos;s bothering you <small>(optional)</small></span></p>
-            <p className="h-hint">
-              Which tooth or side? Since when? Does it hurt with hot, cold or sweet things, when biting, or at night? Any
-              swelling? It helps him plan the right amount of time for you.
-            </p>
-            <VoiceNote onChange={setVoiceNote} />
-          </div>
-        )}
-        {voiceVariant === 'whatsapp' && (
-          <div className="h-voice">
-            <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell Dr. Rahil what&apos;s bothering you, in a voice note</span></p>
-            <p className="h-hint">
-              After you tap Send in WhatsApp, hold the microphone button and tell him: which tooth or side, since when, and
-              what makes it hurt (hot, cold, biting, at night, swelling). It helps him plan the right amount of time for you.
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="h-summary">
-        <strong>{picked ? `${formatDay(inIndia(picked).date)} at ${formatBlock(inIndia(picked).time)}` : 'Pick a day and a free time'}</strong>
-        <span className={`h-for${reasonText ? '' : ' quiet'}`}>{reasonText || 'Dr. Rahil Yusuf · Smile Dental Clinic, Katapadi'}</span>
-      </div>
-
-      {/* Bot trap: hidden from people (and screen readers), so only bots fill it in */}
-      <div aria-hidden="true" className="h-trap">
-        <label htmlFor="home-website">Leave this empty</label>
-        <input id="home-website" name="website" type="text" tabIndex={-1} autoComplete="off" value={trap} onChange={(e) => setTrap(e.target.value)} />
-      </div>
-
-      {tried && missing && <p className="h-missing" role="alert">{missing.text}</p>}
-      <button type="button" className="h-btn navy wide" onClick={() => submit('whatsapp')} disabled={pending}>
-        {pending ? 'Sending…' : 'Request this appointment'}
-      </button>
-      <p className="h-hint">Next, WhatsApp opens with your request written: just tap Send. {promise}</p>
-      <button type="button" className="h-linkbtn h-center" onClick={() => submit('call')} disabled={pending}>
-        No WhatsApp? Ask the clinic to call you
-      </button>
+      </SmoothHeight>
     </div>
   )
 }

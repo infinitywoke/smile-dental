@@ -249,6 +249,37 @@
 .h-voice-done { display: flex; flex-direction: column; gap: 10px; }
 .h-voice-done audio { width: 100%; }
 .h-chip-icon { display: inline-flex; align-items: center; gap: 6px; }
+/* One step at a time: a progress line, the answers so far (each with Change), and the step on show,
+   which slides in from the right going forward and from the left going back while the card eases to
+   its new height */
+.h-progress { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.h-progress span { height: 5px; border-radius: 3px; background: #E3EAF6; transition: background .3s; }
+.h-progress span.done { background: var(--navy); }
+.h-progress span.now { background: var(--amber); }
+.h-step-count { margin: 8px 0 0; font-weight: 700; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--label); }
+.h-trail { list-style: none; margin: 14px 0 0; padding: 0; border: 1.5px solid #E3EAF6; border-radius: 14px; }
+.h-trail li { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 2px 4px 2px 14px; }
+.h-trail li + li { border-top: 1px solid #E3EAF6; }
+.h-trail-label { flex: none; width: 40px; font-weight: 700; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--label); }
+.h-trail-value { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.h-trail-change {
+  flex: none; min-height: 44px; padding: 0 10px; border: 0; background: none; color: var(--navy); cursor: pointer;
+  font-weight: 700; font-size: 13px; text-decoration: underline; text-decoration-color: var(--amber); text-decoration-thickness: 3px; text-underline-offset: 4px;
+}
+.h-trail-change:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; border-radius: 6px; }
+.h-steps { overflow: hidden; margin: 0 -6px; padding: 0 6px; transition: height .34s cubic-bezier(.2, .7, .2, 1); }
+.h-steps-inner { display: flow-root; padding-bottom: 2px; }
+.h-step h3.h-label:focus { outline: none; }
+.h-step-in { animation: h-step-in .34s cubic-bezier(.2, .7, .2, 1) both; }
+.h-step-in.back { animation-name: h-step-back; }
+@keyframes h-step-in { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+@keyframes h-step-back { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: none; } }
+.h-back-btn { gap: 6px; margin-top: 14px; text-decoration: none; color: var(--label); }
+.h-ask-row .h-field + .h-field { flex: 1 1 160px; }
+@media (prefers-reduced-motion: reduce) {
+  .h-steps { transition: none; }
+  .h-step-in, .h-step-in.back { animation: none; }
+}
 
 /* ---- Sections ---- */
 .h-section { padding: 96px 0 104px; }
