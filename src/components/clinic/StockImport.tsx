@@ -85,7 +85,7 @@ export function StockImport({ existing, today }: { existing: ImportExisting; tod
         accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => pick(e.target.files?.[0])} />
       <button type="button" onClick={() => picker.current?.click()} disabled={pending}
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-white px-5 text-base font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-60">
-        <FileSpreadsheet className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" />
+        <FileSpreadsheet className="h-5 w-5 text-gray-500" aria-hidden="true" />
         {file ? 'Pick another file' : 'Pick the spreadsheet'}
       </button>
 

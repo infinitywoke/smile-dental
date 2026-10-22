@@ -23,7 +23,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
   // Visits come newest first
   const lastVisit = visits[0]?.visit_date ?? null
   const nextUp = coming[0] ? inIndia(coming[0].starts_at).date : null
-  const startClass = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC46B] px-5 py-4 text-lg font-extrabold text-[#0B2357] shadow-sm hover:bg-[#FFD08A] disabled:opacity-70'
+  const startClass = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-lg font-extrabold text-white shadow-sm hover:bg-blue-700 disabled:opacity-70'
 
   return (
     <div className="space-y-5">
@@ -45,7 +45,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
               <Phone className="h-5 w-5" />
             </a>
             <a href={whatsappLink(patient.phone, '')} aria-label="WhatsApp patient"
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-green-600 text-white">
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-800 ring-1 ring-gray-300">
               <MessageCircle className="h-5 w-5" />
             </a>
           </div>
@@ -93,7 +93,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
             return (
               <div key={appointment.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
                 <div className="flex items-center gap-3">
-                  <CalendarClock className="h-5 w-5 shrink-0 text-[var(--hud-amber-text)]" aria-hidden="true" />
+                  <CalendarClock className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
                     <p className="hud-mono text-[15px] font-bold text-gray-900">{formatDay(date)}, {formatBlock(time)} – {formatBlock(endOf(time, appointment.duration_min))}</p>
                     {appointment.reason && <p className="truncate text-sm text-gray-500">{appointment.reason}</p>}

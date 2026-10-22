@@ -19,7 +19,7 @@ export function ReviewRequest({ patientId, name, phone, askedAt }: { patientId: 
   if (asked) {
     return (
       <p className="flex items-center justify-center gap-1.5 text-sm text-gray-600">
-        <Star className="h-4 w-4 text-amber-500" /> Google review asked on {formatDate(inIndia(asked).date)}
+        <Star className="h-4 w-4 text-gray-500" /> Google review asked on {formatDate(inIndia(asked).date)}
       </p>
     )
   }
@@ -35,7 +35,7 @@ export function ReviewRequest({ patientId, name, phone, askedAt }: { patientId: 
         })
         saveThenOpen(event, href, () => markSent('review', patientId))
       }}
-      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-green-700 ring-1 ring-green-600 hover:bg-green-50">
+      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50">
       <Star className="h-5 w-5" /> Ask for a Google review
     </a>
   )

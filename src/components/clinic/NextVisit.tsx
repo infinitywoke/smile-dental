@@ -140,7 +140,7 @@ export function NextVisit({
           </div>
           {whatsappUrl && (
             <a href={whatsappUrl}
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700">
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-blue-700">
               <MessageCircle className="h-6 w-6" /> Open WhatsApp
             </a>
           )}
@@ -151,7 +151,7 @@ export function NextVisit({
           <LengthChips value={minutes} onChange={(m) => { setMinutes(m); setSuggestion(null) }} />
           {cancelUrl && (
             <a href={cancelUrl}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 text-base font-semibold text-green-700 ring-1 ring-green-600">
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-300">
               <MessageCircle className="h-5 w-5" /> Tell {firstName(patientName)} it&apos;s cancelled
             </a>
           )}

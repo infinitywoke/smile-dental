@@ -43,7 +43,7 @@ export function SlotGrid({ blocks, selected = null, over = null, label, onPick, 
 function Group({ title, blocks, selected, over, label, onPick, hrefs, ownId }: Props & { title: string }) {
   return (
     <section>
-      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">{title}</h3>
+      <h3 className="mb-2 text-sm font-bold text-gray-500">{title}</h3>
       <div className="grid grid-cols-3 gap-2">
         {blocks.map((block) => {
           const placeable = isPlaceable(block, ownId)
@@ -74,7 +74,7 @@ function Group({ title, blocks, selected, over, label, onPick, hrefs, ownId }: P
           const content = (
             <>
               <span className="block text-sm font-semibold tabular-nums">{formatBlock(block.time)}</span>
-              {sub && <span className="block max-w-full truncate text-[11px] font-medium opacity-80">{sub}</span>}
+              {sub && <span className="block max-w-full truncate text-xs font-medium opacity-80">{sub}</span>}
             </>
           )
           const className = `flex min-h-12 flex-col items-center justify-center rounded-xl px-1 py-2 text-center ring-1 ring-inset transition active:scale-95 ${tone}`

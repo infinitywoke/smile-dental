@@ -28,7 +28,7 @@ async function CancelledContent({ params }: PageProps<'/app/appointments/[id]/ca
       </div>
       {whatsappUrl && (
         <a href={whatsappUrl}
-          className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white">
+          className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-lg font-semibold text-white">
           <MessageCircle className="h-6 w-6" /> Tell {firstName(name)} on WhatsApp
         </a>
       )}

@@ -306,7 +306,7 @@ export function SendWhatsApp({
       {showPhotoButton && (
         <div className="space-y-2">
           <button type="button" onClick={sharePhotos} disabled={!photosReady && !photoFailed}
-            className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC46B] px-5 text-lg font-extrabold text-[#0B2357] shadow-sm hover:bg-[#FFD08A] disabled:opacity-60">
+            className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-lg font-extrabold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
             {photosReady ? <ImageIcon className="h-6 w-6" /> : photoFailed ? <AlertCircle className="h-6 w-6" /> : <Loader2 className="h-6 w-6 animate-spin" />}
             {photosReady
               ? tickedPhotos.length > 1
@@ -357,7 +357,7 @@ export function SendWhatsApp({
             event.preventDefault()
             void recordAndOpen(sending.link)
           }}
-          className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC46B] px-5 text-lg font-extrabold text-[#0B2357] shadow-sm hover:bg-[#FFD08A]">
+          className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-lg font-extrabold text-white shadow-sm hover:bg-blue-700">
           <MessageCircle className="h-6 w-6" /> Open WhatsApp
         </a>
       ) : (
@@ -365,7 +365,7 @@ export function SendWhatsApp({
         // Once the photo button shows, sending the message again is the second choice.
         <a key="send" href="#" onClick={send} aria-disabled={busy || !!hold}
           className={`flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl px-5 text-lg shadow-sm aria-disabled:opacity-60 ${
-            showPhotoButton ? 'bg-white font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50' : 'bg-[#FFC46B] font-extrabold text-[#0B2357] hover:bg-[#FFD08A]'
+            showPhotoButton ? 'bg-white font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50' : 'bg-blue-600 font-extrabold text-white hover:bg-blue-700'
           }`}>
           {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <MessageCircle className="h-6 w-6" />}
           {busy ? 'Preparing…' : sending.state === 'waiting' ? 'Try again' : 'Send on WhatsApp'}

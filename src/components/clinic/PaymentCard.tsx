@@ -153,7 +153,7 @@ export function PaymentCard({
             {error && !qr.open && <ErrorLine message={error} />}
             <div className="grid grid-cols-2 gap-3">
               <button type="button" onClick={() => void receive('cash')} disabled={pending || !valid}
-                className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-3 text-base font-semibold text-white disabled:opacity-50">
+                className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-3 text-base font-bold text-white disabled:opacity-50">
                 <Banknote className="h-5 w-5" /> Cash received
               </button>
               <button type="button"
@@ -163,7 +163,7 @@ export function PaymentCard({
                   qr.show()
                 }}
                 disabled={pending || !valid}
-                className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-green-600 px-3 text-base font-semibold text-white disabled:opacity-50">
+                className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-base font-bold text-gray-900 ring-1 ring-inset ring-gray-300 disabled:opacity-50">
                 <QrCode className="h-5 w-5" /> UPI
               </button>
             </div>
@@ -227,7 +227,7 @@ function UpiScreen({
         <div className="space-y-3">
           {error && <ErrorLine message={error} />}
           <button type="button" onClick={onReceived} disabled={pending}
-            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-4 text-lg font-semibold text-white disabled:opacity-60">
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-lg font-bold text-white disabled:opacity-60">
             <Check className="h-6 w-6" /> {pending ? 'Saving…' : 'Payment received'}
           </button>
         </div>

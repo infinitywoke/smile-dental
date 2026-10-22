@@ -147,7 +147,7 @@ export function TallyPanel({ settings, overview }: { settings: TallySettings | n
                     <span className="block text-xs text-gray-500">Leave out days you have already typed into Tally.</span>
                   </label>
                 )}
-                <button type="button" onClick={() => void download('new')} disabled={!!busy} className={`${button} bg-green-600 text-white`}>
+                <button type="button" onClick={() => void download('new')} disabled={!!busy} className={`${button} bg-blue-600 text-white`}>
                   {busy === 'new' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />} Download for Tally
                 </button>
               </>
@@ -170,7 +170,7 @@ export function TallyPanel({ settings, overview }: { settings: TallySettings | n
               <select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month" className={input}>
                 {overview.months.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}
               </select>
-              <button type="button" onClick={() => void download('month')} disabled={!!busy} className={`${button} bg-white text-green-700 ring-1 ring-green-600`}>
+              <button type="button" onClick={() => void download('month')} disabled={!!busy} className={`${button} bg-white text-gray-900 ring-1 ring-gray-300`}>
                 {busy === 'month' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />} Download month
               </button>
             </section>

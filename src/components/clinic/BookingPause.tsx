@@ -6,7 +6,7 @@ import { setBookingPause } from '@/lib/actions/booking-pause'
 import type { PauseMode } from '@/lib/booking-pause'
 import { FullScreen, useBackToClose } from './FullScreen'
 
-const label = 'hud-mono text-[10px] tracking-[0.14em] text-gray-500'
+const label = 'text-xs font-bold text-gray-500'
 const option = 'min-h-14 w-full rounded-2xl px-4 text-left text-base font-semibold ring-1 disabled:opacity-60'
 
 // The Cockpit's line for the website: whether it takes bookings, and a sheet to pause it (for the rest of
@@ -30,8 +30,8 @@ export function BookingPause({ paused, text }: { paused: boolean; text: string }
     <>
       <button type="button" onClick={() => { setError(''); show() }}
         className={`flex min-h-12 w-full items-center gap-2.5 rounded-[14px] px-3 text-left ring-1 transition-transform active:scale-[0.98] ${paused ? 'bg-amber-50 ring-amber-200' : 'bg-white ring-gray-200'}`}>
-        <Globe className={`h-5 w-5 shrink-0 ${paused ? 'text-amber-700' : 'text-[var(--hud-amber-text)]'}`} aria-hidden="true" />
-        <span className={label}>WEBSITE</span>
+        <Globe className={`h-5 w-5 shrink-0 ${paused ? 'text-amber-700' : 'text-gray-500'}`} aria-hidden="true" />
+        <span className={label}>Website</span>
         <span className="min-w-0 flex-1 truncate text-sm font-bold text-gray-900">{text}</span>
         <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
       </button>

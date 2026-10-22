@@ -100,7 +100,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         )}
         {done.whatsappUrl && (
           <a href={done.whatsappUrl}
-            className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white">
+            className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-lg font-semibold text-white">
             <MessageCircle className="h-6 w-6" />
             Open WhatsApp
           </a>

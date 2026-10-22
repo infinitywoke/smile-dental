@@ -11,7 +11,7 @@ import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { MarkPaidButton } from '@/components/clinic/CostButtons'
 
 const card = 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200'
-const label = 'hud-mono text-[11px] font-bold tracking-[0.14em] text-gray-500 uppercase'
+const label = 'text-sm font-bold text-gray-500'
 const short = (date: string) => formatDate(date, { day: 'numeric', month: 'short' })
 
 // A month's costs: what was spent and on what, the regular bills due (marked paid with one tap), and every cost
@@ -63,7 +63,7 @@ async function CostsContent({ searchParams }: PageProps<'/app/costs'>) {
                 {kinds.map((k) => (
                   <li key={k.category} className="text-sm">
                     <div className="flex justify-between gap-3"><span className="text-gray-800">{k.label}</span><span className="hud-mono font-semibold text-gray-900">{formatRupees(k.amount)}</span></div>
-                    <div className="mt-1 h-2 rounded-full bg-gray-100"><div className="h-2 rounded-full bg-[var(--hud-amber)]" style={{ width: `${(k.amount / top) * 100}%` }} /></div>
+                    <div className="mt-1 h-2 rounded-full bg-gray-100"><div className="h-2 rounded-full bg-gray-400" style={{ width: `${(k.amount / top) * 100}%` }} /></div>
                   </li>
                 ))}
               </ul>

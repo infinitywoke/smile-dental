@@ -37,20 +37,20 @@ async function StockContent() {
           <p className="text-base font-semibold text-gray-900">Nothing on the list yet</p>
           <p className="text-base text-gray-600">Add what you buy and keep: materials, medicines, gloves. Then you&apos;ll see what is running low.</p>
           <Link href="/app/stock/import" className="mt-2 flex min-h-12 items-center justify-center gap-2 rounded-full px-4 text-base font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-            <FileSpreadsheet className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" /> Load the spreadsheet
+            <FileSpreadsheet className="h-5 w-5 text-gray-500" aria-hidden="true" /> Load the spreadsheet
           </Link>
         </div>
       ) : (
         <>
           {summary && <p className="text-base font-semibold text-gray-700" role="status">{summary}</p>}
           <Link href="/app/stock/materials" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white px-4 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50">
-            <ListChecks className="h-5 w-5 shrink-0 text-[var(--hud-amber-text)]" aria-hidden="true" />
+            <ListChecks className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
             <span className="min-w-0 flex-1 text-base font-semibold text-gray-900">What each treatment uses</span>
             <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
           </Link>
           <StockList levels={sortStock(levels, today)} today={today} />
           <Link href="/app/stock/import" className="flex min-h-12 items-center justify-center gap-2 rounded-full px-4 text-base font-semibold text-gray-700 hover:bg-gray-100">
-            <FileSpreadsheet className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" /> Load the spreadsheet
+            <FileSpreadsheet className="h-5 w-5 text-gray-500" aria-hidden="true" /> Load the spreadsheet
           </Link>
         </>
       )}

@@ -20,13 +20,14 @@ body {
 
 /* ---- Clinic OS, the Cockpit (the HUD) ----------------------------------------------------------
    The Tailwind colours the app's screens use, redefined for the Cockpit's light and dark themes, so
-   every screen follows: navy and amber, with grays tinted toward navy. data-theme on .hud is the
-   dentist's choice in Settings ("system" follows the phone). In dark, white becomes the panel colour
-   and the grays run the other way, so light text sits on dark panels; blue (the app's primary)
-   becomes amber in dark and navy in light. */
+   every screen follows: navy, with grays tinted toward navy. data-theme on .hud is the dentist's
+   choice in Settings ("system" follows the phone). In dark, white becomes the panel colour and the
+   grays run the other way, so light text sits on dark panels; blue (the app's primary) is navy in
+   light and near-white in dark. The Quiet Cockpit (docs/BUILD_LOG.md): calm screens, and amber only
+   for what needs him (a request waiting, money due, a visit not sent, low stock). */
 .hud {
   --hud-bg: #F3F6FC;
-  --hud-grid: rgba(11, 35, 87, 0.045);
+  --hud-grid: transparent;
   --hud-amber: #F0A63A;
   --hud-amber-text: #8A5A12;
   --hud-green: #22A06B;
@@ -61,7 +62,7 @@ body {
    choice is System */
 .hud[data-theme="dark"] {
   --hud-bg: #050D24;
-  --hud-grid: rgba(143, 163, 204, 0.05);
+  --hud-grid: transparent;
   --hud-amber: #FFC46B;
   --hud-amber-text: #FFC46B;
   --hud-green: #3DDC97;
@@ -78,16 +79,16 @@ body {
   --color-gray-700: #C6D2EB;
   --color-gray-800: #DCE4F4;
   --color-gray-900: #EAF0FB;
-  --color-blue-50: #1E2742;
-  --color-blue-100: #2A3047;
-  --color-blue-200: #4A4648;
-  --color-blue-300: #7A6649;
-  --color-blue-400: #D9A95E;
-  --color-blue-500: #FFC46B;
-  --color-blue-600: #FFC46B;
-  --color-blue-700: #FFC46B;
-  --color-blue-800: #FFD796;
-  --color-blue-900: #FFE2AE;
+  --color-blue-50: #13244F;
+  --color-blue-100: #1B2E5E;
+  --color-blue-200: #2B4172;
+  --color-blue-300: #3F5689;
+  --color-blue-400: #8FA3CC;
+  --color-blue-500: #C6D2EB;
+  --color-blue-600: #EAF0FB;
+  --color-blue-700: #EAF0FB;
+  --color-blue-800: #FFFFFF;
+  --color-blue-900: #FFFFFF;
   --color-red-50: #2B1624;
   --color-red-100: #3A1B28;
   --color-red-200: #5C2A33;
@@ -131,7 +132,7 @@ body {
 @media (prefers-color-scheme: dark) {
   .hud[data-theme="system"] {
     --hud-bg: #050D24;
-    --hud-grid: rgba(143, 163, 204, 0.05);
+    --hud-grid: transparent;
     --hud-amber: #FFC46B;
     --hud-amber-text: #FFC46B;
     --hud-green: #3DDC97;
@@ -148,16 +149,16 @@ body {
     --color-gray-700: #C6D2EB;
     --color-gray-800: #DCE4F4;
     --color-gray-900: #EAF0FB;
-    --color-blue-50: #1E2742;
-    --color-blue-100: #2A3047;
-    --color-blue-200: #4A4648;
-    --color-blue-300: #7A6649;
-    --color-blue-400: #D9A95E;
-    --color-blue-500: #FFC46B;
-    --color-blue-600: #FFC46B;
-    --color-blue-700: #FFC46B;
-    --color-blue-800: #FFD796;
-    --color-blue-900: #FFE2AE;
+    --color-blue-50: #13244F;
+    --color-blue-100: #1B2E5E;
+    --color-blue-200: #2B4172;
+    --color-blue-300: #3F5689;
+    --color-blue-400: #8FA3CC;
+    --color-blue-500: #C6D2EB;
+    --color-blue-600: #EAF0FB;
+    --color-blue-700: #EAF0FB;
+    --color-blue-800: #FFFFFF;
+    --color-blue-900: #FFFFFF;
     --color-red-50: #2B1624;
     --color-red-100: #3A1B28;
     --color-red-200: #5C2A33;
@@ -205,14 +206,11 @@ body {
   background-size: 26px 26px;
 }
 .hud-mono { font-family: var(--font-hud-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
-/* A section's heading on the Cockpit screens: a small instrument label */
+/* A section's heading on the Clinic OS screens: small, quiet and in ordinary sentence case */
 .hud-heading {
-  font-family: var(--font-hud-mono), ui-monospace, monospace;
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
   font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
   color: var(--color-gray-500);
 }
 /* A QR code stays dark on white in every theme, or phones can't scan it */

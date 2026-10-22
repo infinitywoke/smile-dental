@@ -4,7 +4,7 @@ import { inIndia, formatBlock } from '@/lib/schedule'
 import { chairTime, type VisitStep, type VisitStepKey } from '@/lib/visit-progress'
 import { useNow } from './CockpitLive'
 
-const label = 'hud-mono text-[10px] font-bold tracking-[0.14em] uppercase'
+const label = 'text-xs font-bold'
 
 // Beside the patient's name: how long they have been in the chair (today, until sent), or when it was sent
 export function ChairReadout({ startedAt, visitDate, sentAt, resend }: { startedAt: string; visitDate: string; sentAt: string | null; resend: boolean }) {
@@ -40,9 +40,9 @@ export function VisitProgress({ steps, onJump }: { steps: VisitStep[]; onJump: (
             <button type="button" onClick={() => onJump(s.key)} aria-label={`${s.label}: ${s.state}`}
               className="flex min-h-11 w-full flex-col justify-center gap-1.5 rounded-lg text-left">
               <span className="block h-[5px] w-full overflow-hidden rounded-full bg-gray-200">
-                <span className="block h-full rounded-full bg-[var(--hud-amber)] transition-[width] duration-500" style={{ width: `${s.filled * 100}%` }} />
+                <span className="block h-full rounded-full bg-gray-900 transition-[width] duration-500" style={{ width: `${s.filled * 100}%` }} />
               </span>
-              <span className={`${label} ${s.filled === 1 ? 'text-[var(--hud-amber-text)]' : s.filled > 0 ? 'text-gray-900' : 'text-gray-500'}`}>{s.label}</span>
+              <span className={`${label} ${s.filled > 0 ? 'text-gray-900' : 'text-gray-500'}`}>{s.label}</span>
             </button>
           </li>
         ))}

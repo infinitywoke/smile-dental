@@ -38,7 +38,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
           </p>
           {booked && appointment && (
             <a href={whatsappLink(request.phone, confirmationMessage({ name: request.name, startsAt: appointment.starts_at }))}
-              className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-base font-semibold text-white">
+              className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-base font-semibold text-white">
               <MessageCircle className="h-5 w-5" /> Send confirmation again
             </a>
           )}
@@ -87,8 +87,8 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
             ['Note', request.notes, false],
           ] as const).filter(([, value]) => value).map(([name, value, lead]) => (
             <div key={name} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-3">
-              <dt className="hud-mono text-[10px] font-bold tracking-[0.14em] text-gray-500 uppercase">{name}</dt>{' '}
-              <dd className={lead ? 'hud-mono font-bold text-[var(--hud-amber-text)]' : 'text-gray-900'}>{value}</dd>
+              <dt className="text-xs font-bold text-gray-500">{name}</dt>{' '}
+              <dd className={lead ? 'hud-mono font-bold text-gray-900' : 'text-gray-900'}>{value}</dd>
             </div>
           ))}
         </dl>

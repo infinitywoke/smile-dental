@@ -89,7 +89,7 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
           </p>
         </div>
         {done.whatsappUrl && (
-          <a href={done.whatsappUrl} className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-green-600 px-4 py-3 text-base font-semibold text-white">
+          <a href={done.whatsappUrl} className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-base font-semibold text-white">
             <MessageCircle className="h-5 w-5" /> Open WhatsApp
           </a>
         )}

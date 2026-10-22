@@ -27,7 +27,7 @@ export function saveThenOpen(event: React.MouseEvent<HTMLAnchorElement>, href: s
   void Promise.race([saved, new Promise((resolve) => setTimeout(resolve, RECORD_WAIT_MS))]).then(() => openWhatsApp(href))
 }
 
-const waButton = 'flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-green-600 px-4 text-base font-semibold text-white hover:bg-green-700'
+const waButton = 'flex min-h-12 items-center justify-center gap-1.5 rounded-full bg-blue-600 px-4 text-base font-semibold text-white hover:bg-blue-700'
 const plainButton = 'flex min-h-12 items-center justify-center rounded-full px-4 text-base font-semibold text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50'
 
 // On a booked appointment whose time has passed: the patient didn't come

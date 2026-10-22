@@ -11,7 +11,7 @@ import { formatRupees } from '@/lib/pricing'
 import { ScreenLoading } from '@/components/clinic/ui'
 
 const card = 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200'
-const label = 'hud-mono text-[11px] font-bold tracking-[0.14em] text-gray-500 uppercase'
+const label = 'text-sm font-bold text-gray-500'
 const big = 'hud-mono mt-1 text-3xl font-bold tracking-tight text-gray-900'
 
 // The line under a number: how it compares with the same days of last month

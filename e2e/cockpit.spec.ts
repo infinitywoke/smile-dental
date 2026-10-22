@@ -33,7 +33,7 @@ test('Today opens on the Cockpit: open status, the seen ring, who is next, the m
 test('the Cockpit says whether the website takes bookings, and only the clinic’s own login can pause it', async ({ page }) => {
   await signIn(page)
   await page.goto('/app')
-  const line = page.getByRole('region', { name: 'Cockpit' }).getByRole('button', { name: /^WEBSITE/ })
+  const line = page.getByRole('region', { name: 'Cockpit' }).getByRole('button', { name: /^Website/ })
   await expect(line).toContainText(/Taking bookings|Paused/)
   await line.click()
   const sheet = page.getByRole('dialog', { name: 'Online booking' })

@@ -84,7 +84,7 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
         <p className="text-gray-700">{when}</p>
         {done.whatsappUrl && (
           <a href={done.whatsappUrl}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-4 text-lg font-semibold text-white">
+            className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-lg font-semibold text-white">
             <MessageCircle className="h-6 w-6" /> Send confirmation on WhatsApp
           </a>
         )}

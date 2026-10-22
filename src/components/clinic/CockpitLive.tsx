@@ -90,7 +90,7 @@ export function RunningLate({ patients }: { patients: { id: string; name: string
                     </span>
                     <a href={whatsappLink(p.phone, runningLateMessage({ name: p.name, startsAt: p.startsAt, minutes }))}
                       target="_blank" rel="noopener noreferrer" onClick={() => setSent((s) => [...s, p.id])}
-                      className={`flex min-h-12 items-center gap-2 rounded-xl px-4 font-semibold ${sent.includes(p.id) ? 'bg-gray-100 text-gray-600' : 'bg-green-600 text-white'}`}>
+                      className={`flex min-h-12 items-center gap-2 rounded-xl px-4 font-semibold ${sent.includes(p.id) ? 'bg-gray-100 text-gray-600' : 'bg-blue-600 text-white'}`}>
                       <MessageCircle className="h-5 w-5" aria-hidden="true" />{sent.includes(p.id) ? 'Sent' : 'Send'}
                     </a>
                   </li>

@@ -54,13 +54,13 @@ export function StockActions({ itemId, unit, onHand, lastPrice }: { itemId: stri
     <>
       <div className="grid grid-cols-3 gap-2">
         <button type="button" onClick={() => start('in')} className={button}>
-          <PlusCircle className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" />Add stock
+          <PlusCircle className="h-5 w-5 text-gray-500" aria-hidden="true" />Add stock
         </button>
         <button type="button" onClick={() => start('use')} className={button}>
-          <MinusCircle className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" />Used
+          <MinusCircle className="h-5 w-5 text-gray-500" aria-hidden="true" />Used
         </button>
         <button type="button" onClick={() => start('count')} className={button}>
-          <ClipboardCheck className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" />Count
+          <ClipboardCheck className="h-5 w-5 text-gray-500" aria-hidden="true" />Count
         </button>
       </div>
 

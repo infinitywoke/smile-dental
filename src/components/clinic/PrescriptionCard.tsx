@@ -164,12 +164,12 @@ export function PrescriptionCard({
             </button>
             {canShareFiles ? (
               <button type="button" onClick={share} disabled={!blob}
-                className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-green-600 px-4 text-base font-semibold text-white disabled:opacity-60">
+                className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-base font-semibold text-white disabled:opacity-60">
                 {blob ? <Send className="h-5 w-5" /> : <Loader2 className="h-5 w-5 animate-spin" />} Send prescription
               </button>
             ) : (
               <a href={url ?? undefined} download={fileName} aria-disabled={!url}
-                className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-green-600 px-4 text-base font-semibold text-white aria-disabled:opacity-60">
+                className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-base font-semibold text-white aria-disabled:opacity-60">
                 <Download className="h-5 w-5" /> Download prescription
               </a>
             )}

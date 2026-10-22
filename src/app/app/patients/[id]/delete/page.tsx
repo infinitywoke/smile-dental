@@ -41,7 +41,7 @@ async function DeletePatientContent({ params }: PageProps<'/app/patients/[id]/de
 
       {tellUrl && (
         <a href={tellUrl}
-          className="flex min-h-12 items-center justify-center rounded-2xl bg-white px-4 text-center text-base font-semibold text-green-700 ring-1 ring-green-600">
+          className="flex min-h-12 items-center justify-center rounded-2xl bg-white px-4 text-center text-base font-semibold text-gray-900 ring-1 ring-gray-300">
           First, tell {firstName(patient.name)} the appointment is cancelled
         </a>
       )}
