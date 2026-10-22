@@ -112,6 +112,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
         length={minutes}
         lengthLink={{ path: `/app/book?d=${date}${withPatient}`, defaultLength: DEFAULT_LENGTH }}
         day={date === today ? `Today, ${formatDay(date)}` : formatDay(date)}
+        date={date}
         prev={date > today ? { href: `/app/book?d=${addDays(date, -1)}${withPatient}${withLength}` } : null}
         next={schedule.closed || nothingLeft ? null : { href: nextDayHref }}
       >

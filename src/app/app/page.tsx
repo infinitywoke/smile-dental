@@ -4,7 +4,8 @@ import { AlertTriangle, Camera, ChevronDown, ChevronLeft, ChevronRight } from 'l
 import { getDoctor } from '@/lib/auth'
 import { getVisitsOn } from '@/lib/data/visits'
 import { getDues, type Due } from '@/lib/data/dues'
-import { getAppointmentsOn, getBusyCounts, getDaySchedule, getPendingRequests } from '@/lib/data/appointments'
+import { getAppointmentsOn, getBusyCounts, getDaySchedule, getDaysOff, getPendingRequests } from '@/lib/data/appointments'
+import { holidayKind, holidayName } from '@/lib/holidays'
 import { formatDate, todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
 import { DEFAULT_LENGTH, addDays, formatDay, formatTimeOf, formatWhen, inIndia, lengthLabel, weekday } from '@/lib/schedule'
@@ -30,6 +31,7 @@ import { ClinicStatus, MoneyPill } from '@/components/clinic/TodayStatus'
 import { NextPatient } from '@/components/clinic/NextPatient'
 import { DayPicker } from '@/components/clinic/DayPicker'
 import { KeepCopies } from '@/components/clinic/OfflineCopies'
+import { HolidayNote } from '@/components/clinic/HolidayNote'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
@@ -46,12 +48,13 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   const date = typeof d === 'string' && DATE.test(d) ? d : today
   const isToday = date === today
 
-  const [schedule, appointments, visits, requests, busy, dues, reminders, missed, recalls, money, pause] = await Promise.all([
+  const [schedule, appointments, visits, requests, busy, daysOff, dues, reminders, missed, recalls, money, pause] = await Promise.all([
     getDaySchedule(date),
     getAppointmentsOn(date),
     getVisitsOn(date),
     getPendingRequests(),
     getBusyCounts(today, STRIP_DAYS),
+    getDaysOff(today, STRIP_DAYS),
     // Everyone who owes, for the money pill's total; Needs you shows the first few
     isToday ? getDues(1000) : Promise.resolve([] as Due[]),
     isToday ? getReminders(today) : Promise.resolve(null),
@@ -77,15 +80,21 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     href: whatsappLink(r.phone!, recallMessage({ name: r.name, lastVisit: r.lastVisit })),
   }))
 
-  // The next two weeks, behind the date under the day's title
-  const pickerDays = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i)).map((day) => ({
-    href: day === today ? '/app' : `/app?d=${day}`,
-    name: day === today ? 'Today' : formatDay(day).split(',')[0],
-    number: Number(day.slice(8)),
-    note: weekday(day) === 5 ? 'off' : busy[day] ? `${busy[day]} booked` : '–',
-    active: day === date,
-    closed: weekday(day) === 5,
-  }))
+  // The next two weeks, behind the date under the day's title: Fridays and days he blocked off are off
+  const pickerDays = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i)).map((day) => {
+    const off = weekday(day) === 5 || daysOff.includes(day)
+    const name = holidayName(day)
+    const kind = holidayKind(day)
+    return {
+      href: day === today ? '/app' : `/app?d=${day}`,
+      name: day === today ? 'Today' : formatDay(day).split(',')[0],
+      number: Number(day.slice(8)),
+      note: off ? 'off' : busy[day] ? `${busy[day]} booked` : '–',
+      active: day === date,
+      closed: off,
+      holiday: name && kind ? { name, kind } : null,
+    }
+  })
   const poolBlocks = schedule.blocks.filter((b) => b.state === 'free' || b.state === 'blocked' || b.state === 'request')
   const freeCount = poolBlocks.filter((b) => b.state === 'free').length
   const freeSummary = schedule.closed ? 'Closed on Fridays' : schedule.dayOff ? 'Blocked off' : freeCount === 0 ? 'None left' : `${freeCount} free`
@@ -133,6 +142,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
           <div className="min-w-0">
             <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">{isToday ? 'Today' : formatDay(date)}</h1>
             <DayPicker label={isToday ? formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' }) : 'Pick a day'} days={pickerDays} />
+            <HolidayNote date={date} />
           </div>
           <div className="-mr-2 flex shrink-0">
             <Link href={`/app?d=${addDays(date, -1)}`} className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100" aria-label="Previous day">

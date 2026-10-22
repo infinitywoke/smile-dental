@@ -9,7 +9,7 @@ import { confirmationMessage, declineMessage, movedMessage, whatsappLink } from 
 import { parseGender } from '@/lib/gender'
 import { patientAge, titleCaseName } from '@/lib/patient-fields'
 import { findPatientsByPhone, namesList, searchPatients, withSameName } from '@/lib/data/patients'
-import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
+import { getDaySchedule, getDaysOff, type DaySchedule } from '@/lib/data/appointments'
 
 type Result = { error?: string }
 type WithWhatsapp = Result & {
@@ -441,4 +441,11 @@ export async function confirmRequestAsAsked(requestId: string): Promise<WithWhat
 export async function getScheduleForDate(date: string, length: number = DEFAULT_LENGTH): Promise<DaySchedule> {
   await getDoctor()
   return getDaySchedule(date, clinicLength(length))
+}
+
+// The days blocked off whole in the year from this day, for the month calendar
+export async function getDaysOffFrom(date: string): Promise<string[]> {
+  await getDoctor()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return []
+  return getDaysOff(date, 366)
 }

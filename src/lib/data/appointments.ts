@@ -145,6 +145,22 @@ export async function getDaySchedule(date: string, length: number = DEFAULT_LENG
   return { date, length, closed: blocksFor(date).length === 0, blocks, dayOff }
 }
 
+// The days blocked off whole (a holiday the doctor took), from one day for so many days
+export async function getDaysOff(from: string, days: number): Promise<string[]> {
+  await getDoctor()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('time_off')
+    .select('starts_at, ends_at')
+    .lt('starts_at', dayRange(addDays(from, days)).start.toISOString())
+    .gt('ends_at', dayRange(from).start.toISOString())
+  if (error) throw error
+  return Array.from({ length: days }, (_, i) => addDays(from, i)).filter((date) => {
+    const { start, end } = dayRange(date)
+    return data.some((t) => new Date(t.starts_at).getTime() <= start.getTime() && new Date(t.ends_at).getTime() >= end.getTime())
+  })
+}
+
 // Number of booked appointments per day, for the day strip. One that already has its visit (the
 // patient came; e.g. no phone, so WhatsApp never marked it done) is not counted.
 export async function getBusyCounts(from: string, days: number): Promise<Record<string, number>> {

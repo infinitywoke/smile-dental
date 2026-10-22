@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { HolidayNote } from './HolidayNote'
 import { LengthPicker } from './LengthPicker'
 
 // A way to the day before or after: a link (pages that reload with ?d=) or a tap; null when there is none
@@ -13,6 +14,7 @@ export function WhenPicker({
   onLength,
   lengthLink,
   day = '',
+  date,
   note,
   prev = null,
   next = null,
@@ -25,6 +27,8 @@ export function WhenPicker({
   lengthLink?: { path: string; defaultLength: number }
   // The day as shown ("Today, Thu, 22 Oct")
   day?: string
+  // The same day as YYYY-MM-DD: its holiday or festival shows under it
+  date?: string
   // A word under it ("Day requested")
   note?: string | null
   prev?: DayStep
@@ -40,9 +44,10 @@ export function WhenPicker({
       {dayPicker ?? (
         <div className="flex items-center justify-between">
           <DayButton step={prev} label="Previous day" icon={<ChevronLeft className="h-6 w-6" />} />
-          <div className="text-center">
+          <div className="min-w-0 text-center">
             <p className="text-base font-bold text-gray-900">{day}</p>
             {note && <p className="text-xs font-semibold text-amber-700">{note}</p>}
+            {date && <HolidayNote date={date} className="justify-center text-xs" />}
           </div>
           <DayButton step={next} label="Next day" icon={<ChevronRight className="h-6 w-6" />} />
         </div>

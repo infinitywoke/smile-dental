@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getScheduleForDate } from '@/lib/actions/appointments'
+import { getDaysOffFrom, getScheduleForDate } from '@/lib/actions/appointments'
 import type { DayBlock, DaySchedule } from '@/lib/data/appointments'
 import { isNetworkError } from '@/lib/offline/outbox'
 import { DEFAULT_LENGTH, addDays, blockInstant, formatDay, isClosedDay, startsFor } from '@/lib/schedule'
+import { HolidayNote } from './HolidayNote'
 import { MonthCalendar } from './MonthCalendar'
 import { SlotGrid } from './SlotGrid'
 import { WhenPicker } from './WhenPicker'
@@ -58,15 +59,28 @@ export function NextVisitPicker({
     }
   }, [date, minutes])
 
+  // The days he blocked off, closed on the calendar (with no signal, only Fridays are)
+  const [daysOff, setDaysOff] = useState<string[]>([])
+  useEffect(() => {
+    let cancelled = false
+    getDaysOffFrom(minDate)
+      .then((days) => !cancelled && setDaysOff(days))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [minDate])
+
   const loading = !failed && (schedule?.date !== date || schedule?.length !== minutes)
   const free = schedule && schedule.date === date && schedule.length === minutes ? schedule.blocks.filter((b) => b.state === 'free') : []
-  const calendar = <MonthCalendar selected={date} minDate={minDate} maxDate={addDays(minDate, 365)} isClosed={isClosedDay} onSelect={setDate} />
+  const calendar = <MonthCalendar selected={date} minDate={minDate} maxDate={addDays(minDate, 365)} isClosed={isClosedDay} daysOff={daysOff} onSelect={setDate} />
 
   if (failed === 'offline') {
     const times = clinicTimes(date, minutes)
     return (
       <WhenPicker length={minutes} onLength={onMinutes} dayPicker={calendar}>
         <p className="text-base font-bold text-gray-900">Clinic times on {formatDay(date)}</p>
+        <HolidayNote date={date} />
         <p role="note" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
           No signal, so other bookings can&apos;t be seen. The time you pick is booked when the signal is back, if it&apos;s still free.
         </p>
@@ -82,7 +96,8 @@ export function NextVisitPicker({
   return (
     <WhenPicker length={minutes} onLength={onMinutes} dayPicker={calendar}>
       <p className="text-base font-bold text-gray-900">Free times on {formatDay(date)}</p>
-      {failed && <p className="text-sm text-red-700">Could not load times. Check the connection and try again.</p>}
+      <HolidayNote date={date} />
+      {failed &&<p className="text-sm text-red-700">Could not load times. Check the connection and try again.</p>}
       {loading && <p className="text-sm text-gray-500">Checking availability…</p>}
       {schedule && !loading && (
         schedule.closed ? (

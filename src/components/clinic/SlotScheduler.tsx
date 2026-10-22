@@ -123,6 +123,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         length={minutes}
         lengthLink={{ path: `${basePath}?d=${date}`, defaultLength: defaultMinutes }}
         day={formatDay(date)}
+        date={date}
         note={originalInstant && inIndia(originalInstant).date === date ? (mode === 'request' ? 'Day requested' : 'Current day') : null}
         prev={{ href: dayHref(addDays(date, -1)) }}
         next={{ href: dayHref(addDays(date, 1)) }}
