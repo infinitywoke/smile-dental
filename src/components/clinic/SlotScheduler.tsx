@@ -121,7 +121,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
     <div className="space-y-4">
       <WhenPicker
         length={minutes}
-        lengthHref={(m) => `${basePath}?d=${date}${withLength(m)}`}
+        lengthLink={{ path: `${basePath}?d=${date}`, defaultLength: defaultMinutes }}
         day={formatDay(date)}
         note={originalInstant && inIndia(originalInstant).date === date ? (mode === 'request' ? 'Day requested' : 'Current day') : null}
         prev={{ href: dayHref(addDays(date, -1)) }}

@@ -110,7 +110,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
 
       <WhenPicker
         length={minutes}
-        lengthHref={(m) => `/app/book?d=${date}${withPatient}${m === DEFAULT_LENGTH ? '' : `&len=${m}`}`}
+        lengthLink={{ path: `/app/book?d=${date}${withPatient}`, defaultLength: DEFAULT_LENGTH }}
         day={date === today ? `Today, ${formatDay(date)}` : formatDay(date)}
         prev={date > today ? { href: `/app/book?d=${addDays(date, -1)}${withPatient}${withLength}` } : null}
         next={schedule.closed || nothingLeft ? null : { href: nextDayHref }}

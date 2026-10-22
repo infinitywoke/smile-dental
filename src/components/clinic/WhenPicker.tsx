@@ -11,7 +11,7 @@ export type DayStep = { href: string } | { onClick: () => void } | null
 export function WhenPicker({
   length,
   onLength,
-  lengthHref,
+  lengthLink,
   day,
   note,
   prev,
@@ -20,7 +20,8 @@ export function WhenPicker({
 }: {
   length: number
   onLength?: (minutes: number) => void
-  lengthHref?: (minutes: number) => string
+  // On a page that reloads with ?len=: its address without it, and the length that needs none
+  lengthLink?: { path: string; defaultLength: number }
   // The day as shown ("Today, Thu, 22 Oct")
   day: string
   // A word under it ("Day requested")
@@ -32,7 +33,7 @@ export function WhenPicker({
 }) {
   return (
     <div className="space-y-4">
-      <LengthPicker value={length} onChange={onLength} href={lengthHref} />
+      <LengthPicker key={length} value={length} onChange={onLength} linkTo={lengthLink} />
       <div className="flex items-center justify-between">
         <DayButton step={prev} label="Previous day" icon={<ChevronLeft className="h-6 w-6" />} />
         <div className="text-center">

@@ -159,7 +159,7 @@ export function NextVisit({
       ) : (
         <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
           <p className="text-base text-gray-700">None</p>
-          <LengthPicker value={minutes} onChange={chooseLength} />
+          <LengthPicker key={minutes} value={minutes} onChange={chooseLength} />
           <div role="group" aria-label="When" className="grid grid-cols-4 gap-1.5">
             {NEXT_VISIT_GAPS.map((gap) => (
               <button key={gap.days} type="button" aria-pressed={!notesNext && days === gap.days}

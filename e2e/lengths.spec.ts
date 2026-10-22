@@ -73,11 +73,10 @@ test('Move keeps the appointment its own length, and can change it', async () =>
 
   // 15 minutes shorter, at a time on another day
   await page.goto(`/app/appointments/${longId}/move?d=${openDay(7)}`)
-  for (const len of [85, 80, 75]) {
-    await visible(page.getByRole('link', { name: '5 minutes shorter' })).click()
-    await expect(page).toHaveURL(new RegExp(`len=${len}`))
-  }
+  // Quick taps add up; the page follows the last one
+  for (let i = 0; i < 3; i++) await visible(page.getByRole('button', { name: '5 minutes shorter' })).click()
   await expect(length()).toHaveText('1 h 15')
+  await expect(page).toHaveURL(/len=75/)
   await visible(page.getByRole('button', { name: freeTime, disabled: false })).first().click()
   wa = await captureWhatsapp(page)
   await visible(page.getByRole('button', { name: 'Move appointment' })).click()
