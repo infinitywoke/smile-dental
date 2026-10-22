@@ -6,10 +6,14 @@ import { blockInstant, inIndia } from '@/lib/schedule'
 import { pickSuggestedTime, suggestedDate } from '@/lib/next-visit'
 import { getDaySchedule } from './appointments'
 
+// How many days on from the chosen day to look for a free time
+const SEARCH_DAYS = 7
+
 // The suggested next visit, worked out only when the visit page asks for it: the same weekday
-// a week on, at today's appointment time when that is free (else the first free time).
-// Null when the patient already has an appointment coming up, or that day is full or closed.
-export async function getNextVisitSuggestion(visitId: string, length: number = 40): Promise<string | null> {
+// a week on (or after the gap he chose), at today's appointment time when that is free (else the
+// first free time), on the next open day with room. Null when the patient already has an appointment
+// coming up, or nothing is free that week.
+export async function getNextVisitSuggestion(visitId: string, length: number = 40, days: number = 7): Promise<string | null> {
   await getDoctor()
   const supabase = await createClient()
   const { data: visit } = await supabase.from('visits').select('id, patient_id, visit_date').eq('id', visitId).maybeSingle()
@@ -29,12 +33,16 @@ export async function getNextVisitSuggestion(visitId: string, length: number = 4
   if ((upcoming.data ?? []).some((a) => a.id !== linked.data?.id)) return null
 
   const today = todayInIndia()
-  const date = suggestedDate(visit.visit_date > today ? visit.visit_date : today)
-  const schedule = await getDaySchedule(date, length)
-  if (schedule.closed || schedule.dayOff) return null
-
-  const free = schedule.blocks.filter((b) => b.state === 'free').map((b) => b.time)
   const usual = linked.data ? inIndia(linked.data.starts_at).time : null
-  const time = pickSuggestedTime(usual, free)
-  return time ? blockInstant(date, time) : null
+  // That day, or the next open day with a free time (looking up to a week further)
+  let date = suggestedDate(visit.visit_date > today ? visit.visit_date : today, days)
+  for (let tries = 0; tries < SEARCH_DAYS; tries++) {
+    const schedule = await getDaySchedule(date, length)
+    if (!schedule.closed && !schedule.dayOff) {
+      const time = pickSuggestedTime(usual, schedule.blocks.filter((b) => b.state === 'free').map((b) => b.time))
+      if (time) return blockInstant(date, time)
+    }
+    date = suggestedDate(date, 1)
+  }
+  return null
 }

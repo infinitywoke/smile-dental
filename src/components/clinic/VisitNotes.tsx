@@ -5,6 +5,7 @@ import { AlertCircle, Check, CloudOff } from 'lucide-react'
 import { saveVisitNotes } from '@/lib/actions/visits'
 import type { NoteSuggestions } from '@/lib/actions/smart-notes'
 import { RecordNotes } from './RecordNotes'
+import { useUndo } from './UndoBar'
 
 // What the visit page asks of the notes: save anything typed, now (before another button acts), and
 // change the text from elsewhere on the page (the prescription card adds and removes medicines)
@@ -163,6 +164,7 @@ export function VisitNotes({
   const [notes, setNotes] = useState(initialNotes)
   const [state, setState] = useState<SaveState>('idle')
   const [saver] = useState(() => createNotesSaver(visitId, initialNotes, listed, setState))
+  const offerUndo = useUndo()
 
   const change = (next: string) => {
     setNotes(next)
@@ -206,12 +208,24 @@ export function VisitNotes({
       <RecordNotes visitId={visitId} onSorted={(result) => {
         // Added below anything already typed; he can edit it like any note
         const current = saver.latest()
-        if (result.notes) change(current.trim() ? `${current.replace(/\s+$/, '')}\n\n${result.notes}` : result.notes)
+        if (result.notes) {
+          const added = current.trim() ? `\n\n${result.notes}` : result.notes
+          change(`${current.replace(/\s+$/, '')}${added}`)
+          // Undo takes out only what the recording wrote, keeping anything typed since
+          offerUndo('Notes added from the recording', async () => {
+            const now = saver.latest()
+            const at = now.lastIndexOf(added)
+            if (at === -1) return { error: 'The notes have changed since: edit them by hand.' }
+            change(now.slice(0, at) + now.slice(at + added.length))
+            return {}
+          })
+        }
         onSuggestions?.(result)
       }} />
+      {/* Grows with the notes (no scrolling inside the box); 8 rows where the browser can't */}
       <textarea id="notes" rows={8} value={notes} onChange={(e) => change(e.target.value)}
         placeholder="Complaint, findings, treatment done, plan, medicines…"
-        className="block w-full rounded-xl border-0 px-4 py-3 text-base leading-relaxed text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
+        className="block min-h-36 w-full field-sizing-content rounded-xl border-0 px-4 py-3 text-base leading-relaxed text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
       <p className="min-h-5 text-sm" aria-live="polite">
         {state === 'saving' && <span className="text-gray-500">Saving…</span>}
         {state === 'saved' && (

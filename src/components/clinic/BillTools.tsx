@@ -1,12 +1,14 @@
 'use client'
 
-import { useMemo, useRef, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import type { VisitBill } from '@/lib/data/billing'
-import { removeCharge } from '@/lib/actions/billing'
+import { addCharge, removeCharge } from '@/lib/actions/billing'
 import { formatRupees } from '@/lib/pricing'
+import type { UsualCharge } from '@/lib/usual-charges'
 import { useBackToClose } from './FullScreen'
 import { PriceListSheet } from './PriceListSheet'
+import { useUndo } from './UndoBar'
 
 // Runs a save after the typed notes, and lets Send on WhatsApp wait for it (see VisitFlow)
 export type Save = <T>(action: () => Promise<T>) => Promise<T>
@@ -33,21 +35,48 @@ export function useSaveId(): SaveId {
   )
 }
 
-// The bill: its lines and total, and "Add charge", which opens the clinic price list
+// The bill: its lines and total, his usual charges one tap each, and "Add charge", which opens the clinic price list
 export function BillSection({
   visitId,
   charges,
   total,
+  usual,
   save,
 }: {
   visitId: string
   charges: VisitBill['charges']
   total: number
+  // The price-list items he bills most (src/lib/usual-charges.ts)
+  usual: UsualCharge[]
   save: Save
 }) {
   const sheet = useBackToClose()
   // Kept here, not in the sheet, so closing and reopening the list still recognises a retry
   const saveId = useSaveId()
+  const offerUndo = useUndo()
+  const [adding, setAdding] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // One tap adds a usual charge, as the price list does (same id on a retry, Undo after)
+  async function addUsual(item: UsualCharge) {
+    if (adding) return
+    setError(null)
+    setAdding(item.description)
+    const chargeId = saveId.idFor(`${item.slug}|${item.description}|${item.amount}`)
+    try {
+      const result = await save(() => addCharge(visitId, { description: item.description, amount: item.amount, treatmentSlug: item.slug }, chargeId))
+      if (result.error) setError(result.error)
+      else {
+        saveId.done()
+        navigator.vibrate?.(10)
+        offerUndo(`Added ${item.description}: ${formatRupees(item.amount)}`, () => save(() => removeCharge(chargeId)))
+      }
+    } catch {
+      setError("Couldn't reach the server. Check the internet and try again.")
+    } finally {
+      setAdding(null)
+    }
+  }
 
   return (
     <section className="space-y-3">
@@ -68,14 +97,30 @@ export function BillSection({
           </div>
         </div>
       )}
+      {usual.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[13px] font-bold text-gray-500">Usual charges</p>
+          <div role="group" aria-label="Usual charges" className="grid grid-cols-2 gap-2">
+            {usual.map((item) => (
+              // The price under the name, so the name has the whole width
+              <button key={item.description} type="button" disabled={!!adding} onClick={() => void addUsual(item)}
+                className="flex min-h-12 flex-col items-start justify-center rounded-xl bg-white px-3 py-1 text-left ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-60">
+                <span className="w-full truncate text-sm font-semibold text-gray-900">{item.label}</span>
+                <span className="hud-mono text-xs text-gray-500">{formatRupees(item.amount)}</span>
+              </button>
+            ))}
+          </div>
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        </div>
+      )}
       <button type="button"
         onClick={() => {
           // Typed notes are sent first; server actions run in order, so they save before the charge
           void save(async () => {})
           sheet.show()
         }}
-        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700">
-        <Plus className="h-5 w-5" /> Add charge
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-200 hover:bg-gray-50">
+        <Plus className="h-5 w-5 text-gray-500" aria-hidden="true" /> Add charge
       </button>
       {sheet.open && <PriceListSheet visitId={visitId} save={save} saveId={saveId} onAdded={sheet.close} onClose={sheet.close} />}
     </section>

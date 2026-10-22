@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore, type Ref } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Check, ImageIcon, Loader2, MessageCircle } from 'lucide-react'
@@ -60,6 +60,9 @@ type Sending =
   | { state: 'ready'; link: string }
   | { state: 'failed'; message: string }
 
+// What the visit's next-step bar can do from anywhere on the page: the same Send as the button here
+export type SendHandle = { send: () => void }
+
 // One message to the patient: bill, payments, balance and next appointment. At the tap it first waits
 // for anything still saving (a next visit, charge or payment tapped just before), then the server
 // reads the bill and the next appointment fresh, and the message is built from that reply. WhatsApp
@@ -72,6 +75,8 @@ export function SendWhatsApp({
   kindOf,
   uploads,
   whenSaved,
+  handle,
+  onSent,
 }: {
   visit: VisitDetail
   kindOf: (photo: VisitPhoto) => PhotoKind | null
@@ -79,6 +84,9 @@ export function SendWhatsApp({
   uploads: UploadCounts
   // Resolves once every save tapped before Send has reached the server
   whenSaved: () => Promise<void>
+  handle?: Ref<SendHandle>
+  // WhatsApp is opening with the message (the page learns it was sent a moment later)
+  onSent?: () => void
 }) {
   // Prescriptions are ticked by default; the doctor can tick any other photo
   const [ticks, setTicks] = useState<Record<string, boolean>>({})
@@ -220,12 +228,13 @@ export function SendWhatsApp({
       return
     }
     setSentNow(true)
+    onSent?.()
     onOpen?.()
     openWhatsApp(link)
   }
 
-  async function send(event: React.MouseEvent<HTMLAnchorElement>) {
-    event.preventDefault()
+  async function send(event?: React.MouseEvent<HTMLAnchorElement>) {
+    event?.preventDefault()
     if (!phone || hold || busy) return
     const thisTry = ++tries.current
     // Set once the tap's window has passed: WhatsApp must then be opened by a second tap
@@ -263,6 +272,8 @@ export function SendWhatsApp({
       setSending({ state: 'failed', message: "Couldn't reach the server. Check the internet and try again." })
     }
   }
+
+  useImperativeHandle(handle, () => ({ send: () => void send() }))
 
   return (
     <section className="space-y-3">
@@ -352,7 +363,7 @@ export function SendWhatsApp({
       ) : sending.state === 'ready' ? (
         // The server took a while: "Message ready", and WhatsApp opens on the doctor's own tap, which is
         // also when the send is recorded. It stays, so coming back he can tap again.
-        <a key="open" href={sending.link}
+        <a key="open" id="send-action" href={sending.link}
           onClick={(event) => {
             event.preventDefault()
             void recordAndOpen(sending.link)
@@ -363,7 +374,7 @@ export function SendWhatsApp({
       ) : (
         // The message is only ever built from the server's reply, so this link has no address of its own.
         // Once the photo button shows, sending the message again is the second choice.
-        <a key="send" href="#" onClick={send} aria-disabled={busy || !!hold}
+        <a key="send" id="send-action" href="#" onClick={send} aria-disabled={busy || !!hold}
           className={`flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl px-5 text-lg shadow-sm aria-disabled:opacity-60 ${
             showPhotoButton ? 'bg-white font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50' : 'bg-blue-600 font-extrabold text-white hover:bg-blue-700'
           }`}>

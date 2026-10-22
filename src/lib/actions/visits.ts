@@ -94,10 +94,11 @@ export async function deleteVisitPhoto(photoId: string): Promise<Result> {
 }
 
 // The suggested next visit, asked for by the visit page only when it shows the choice
-export async function suggestNextVisit(visitId: string, minutes: number = DEFAULT_LENGTH): Promise<string | null> {
+export async function suggestNextVisit(visitId: string, minutes: number = DEFAULT_LENGTH, days: number = 7): Promise<string | null> {
   await getDoctor()
   if (!UUID.test(visitId)) return null
-  return getNextVisitSuggestion(visitId, isLength(minutes) ? minutes : DEFAULT_LENGTH)
+  const gap = Number.isInteger(days) && days >= 1 && days <= 400 ? days : 7
+  return getNextVisitSuggestion(visitId, isLength(minutes) ? minutes : DEFAULT_LENGTH, gap)
 }
 
 // Books the next visit, only when the doctor taps a time. Choosing again moves the same booking.

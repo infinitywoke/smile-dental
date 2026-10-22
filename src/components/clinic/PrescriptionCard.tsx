@@ -95,8 +95,10 @@ export function PrescriptionCard({
   if (lines.length === 0 && !open) {
     return (
       <button type="button" onClick={() => setOpen(true)}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-blue-700 ring-1 ring-gray-300 hover:bg-blue-50">
-        <FileText className="h-5 w-5" /> Write prescription
+        className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-white px-4 text-left text-base font-semibold text-gray-900 ring-1 ring-gray-200 hover:bg-gray-50">
+        <FileText className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
+        <span className="flex-1">Write prescription</span>
+        <Plus className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
       </button>
     )
   }

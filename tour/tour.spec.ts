@@ -157,12 +157,18 @@ async function measure(page: Page) {
       const top = r.top + window.scrollY
       return top < window.innerHeight && top + r.height > 0
     })
-    // The main button: how far down the page its middle sits, in screens (0.8 = low on the first screen)
-    const main = mainButtons.map((name) => interactive.find((el) => label(el).replace(/\s+/g, ' ') === name)).find(Boolean)
-    const mainButton = main ? (() => {
-      const r = main.getBoundingClientRect()
-      return { label: label(main), screensDown: Math.round(((r.top + window.scrollY + r.height / 2) / window.innerHeight) * 100) / 100, heightPx: Math.round(r.height) }
-    })() : null
+    // The main button: how far down the page its middle sits, in screens (0.8 = low on the first screen). When it
+    // shows twice (the visit's next-step bar repeats it above the bottom bar), the copy nearest the top counts.
+    const nearest = (els: Element[]) => els.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0]
+    const main = mainButtons.map((name) => nearest(interactive.filter((el) => label(el).replace(/\s+/g, ' ') === name))).find(Boolean)
+    const place = (el: Element) => {
+      const r = el.getBoundingClientRect()
+      return { label: label(el), screensDown: Math.round(((r.top + window.scrollY + r.height / 2) / window.innerHeight) * 100) / 100, heightPx: Math.round(r.height) }
+    }
+    const mainButton = main ? place(main) : null
+    // The visit's next step in the bar above the bottom bar (Cash received while money is due, then Send)
+    const nextStepButton = document.querySelector('#next-step button')
+    const nextStep = nextStepButton ? place(nextStepButton) : null
     // The slowest tap since the last measurement (Event Timing API, recorded by the tour's start-up script)
     const w = window as unknown as { __worstTap?: number }
     const worstTapMs = Math.round(w.__worstTap ?? 0)
@@ -171,6 +177,7 @@ async function measure(page: Page) {
     return {
       interactiveOnFirstScreen: onFirstScreen.length,
       mainButton,
+      nextStep,
       amberElements: amber.length,
       capitalLabels: capitals.length,
       capitalExamples: capitals.slice(0, 8).map((el) => (el as HTMLElement).innerText.trim().slice(0, 30)),
@@ -203,6 +210,9 @@ async function snap(page: Page, name: string) {
     const no = String(++shotNo).padStart(2, '0')
     const file = `${no}-${name}.png`
     await page.screenshot({ path: path.join(OUT, file) })
+    // Measured as the page opens, scrolled to the top (where the visit's next-step bar shows when it has a step)
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.waitForTimeout(300)
     const m = await measure(page)
     if (m.screensTall > 1.3) await page.screenshot({ path: path.join(OUT, `${no}-${name}-full.png`), fullPage: true })
     shots.push({ file, job: current.job, ...m })
@@ -396,7 +406,7 @@ test('evidence tour', async ({ page }) => {
     const collect = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: 'Collect' }))
     await tap((await collect.count()) ? collect : visible(page.getByRole('link').filter({ hasText: patientName })).first())
     await page.waitForURL(/\/app\/visits\//)
-    await visible(page.getByRole('button', { name: 'Cash received' })).waitFor({ timeout: 15_000 })
+    await visible(page.getByRole('button', { name: 'Cash received' })).first().waitFor({ timeout: 15_000 })
     await snap(page, 'collect-payment-card')
     await tap(visible(page.getByRole('button', { name: 'Cash received' })))
     await visible(page.getByText('Paid in full')).first().waitFor({ timeout: 15_000 })
@@ -601,7 +611,7 @@ test('evidence tour', async ({ page }) => {
     screens: shots.map((s) => {
       const m = s as Record<string, unknown>
       return {
-        file: m.file, url: m.url, screensTall: m.screensTall, mainButton: m.mainButton, tappableOnFirstScreen: m.interactiveOnFirstScreen,
+        file: m.file, url: m.url, screensTall: m.screensTall, mainButton: m.mainButton, nextStep: m.nextStep, tappableOnFirstScreen: m.interactiveOnFirstScreen,
         tappable: m.interactiveCount, amber: m.amberElements, capitals: m.capitalLabels, textUnder12px: m.textUnder12px, worstTapMs: m.worstTapMs,
       }
     }),

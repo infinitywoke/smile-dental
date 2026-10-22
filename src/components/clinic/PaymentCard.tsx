@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useImperativeHandle, useState, type Ref } from 'react'
 import QRCode from 'qrcode'
 import { AlertCircle, Banknote, Check, QrCode } from 'lucide-react'
 import type { VisitBill } from '@/lib/data/billing'
@@ -19,12 +19,17 @@ const time = (iso: string) =>
 // "Collect" links (…?step=bill) land here.
 export type SavingPayment = { id: string; amount: number; method: 'cash' | 'upi' }
 
+// What the visit's next-step bar can do from anywhere on the page: the card's own Cash received and UPI,
+// for the amount the bar shows (what is due), whatever is in the box
+export type PaymentHandle = { cash: (amount: number) => Promise<boolean>; upi: (amount: number) => boolean }
+
 export function PaymentCard({
   visitId,
   patientName,
   bill,
   save,
   onSaving,
+  handle,
 }: {
   visitId: string
   patientName: string
@@ -32,6 +37,7 @@ export function PaymentCard({
   save: Save
   // Told about a payment tapped here that the page doesn't have yet, so Delete visit counts it at once
   onSaving?: (payment: SavingPayment | null) => void
+  handle?: Ref<PaymentHandle>
 }) {
   const { charges, payments, summary } = bill
   // A payment just tapped shows at once, marked as saving, and comes off what is due; the server's
@@ -61,8 +67,23 @@ export function PaymentCard({
     return save(() => removePayment(paymentId))
   }
 
-  async function receive(method: 'cash' | 'upi'): Promise<boolean> {
-    if (!valid) {
+  // The full-screen UPI QR for the amount in the box, or the one given (typed notes are sent first)
+  function openQr(value: number | null = parsed): boolean {
+    if (value === null || value <= 0) {
+      setError('Please enter the amount received.')
+      return false
+    }
+    setError(null)
+    if (value !== parsed) setAmount(String(value))
+    void save(async () => {})
+    qr.show()
+    return true
+  }
+
+  useImperativeHandle(handle, () => ({ cash: (value) => receive('cash', value), upi: (value) => openQr(value) }))
+
+  async function receive(method: 'cash' | 'upi', value: number | null = parsed): Promise<boolean> {
+    if (value === null || value <= 0) {
       setError('Please enter the amount received.')
       return false
     }
@@ -70,18 +91,18 @@ export function PaymentCard({
     setPending(true)
     // The same amount tapped again after a lost reply keeps its id, so the money is recorded once
     // (also when he then taps the other method)
-    const paymentId = saveId.idFor(String(parsed))
-    setSaving({ id: paymentId, amount: parsed!, method })
+    const paymentId = saveId.idFor(String(value))
+    setSaving({ id: paymentId, amount: value, method })
     navigator.vibrate?.(10)
     try {
-      const result = await save(() => recordPayment(visitId, parsed!, method, paymentId))
+      const result = await save(() => recordPayment(visitId, value, method, paymentId))
       if (result.error) {
         setSaving(null)
         setError(result.error)
         return false
       }
       saveId.done()
-      offerUndo(`${formatRupees(parsed!)} ${method === 'upi' ? 'UPI' : 'cash'} recorded`, () => takeBack(paymentId))
+      offerUndo(`${formatRupees(value)} ${method === 'upi' ? 'UPI' : 'cash'} recorded`, () => takeBack(paymentId))
       return true
     } catch {
       setSaving(null)
@@ -151,20 +172,15 @@ export function PaymentCard({
                 className="block w-full rounded-xl border-0 px-4 py-3 text-xl font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
             </div>
             {error && !qr.open && <ErrorLine message={error} />}
-            <div className="grid grid-cols-2 gap-3">
+            <div id="payment-actions" className="grid grid-cols-2 gap-3">
               <button type="button" onClick={() => void receive('cash')} disabled={pending || !valid}
-                className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-3 text-base font-bold text-white disabled:opacity-50">
-                <Banknote className="h-5 w-5" /> Cash received
+                className="flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-2 text-[15px] font-bold text-white disabled:opacity-50">
+                <Banknote className="h-5 w-5 shrink-0" /> Cash received
               </button>
-              <button type="button"
-                onClick={() => {
-                  setError(null)
-                  void save(async () => {})
-                  qr.show()
-                }}
+              <button type="button" onClick={() => openQr()}
                 disabled={pending || !valid}
-                className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-base font-bold text-gray-900 ring-1 ring-inset ring-gray-300 disabled:opacity-50">
-                <QrCode className="h-5 w-5" /> UPI
+                className="flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-white px-2 text-[15px] font-bold text-gray-900 ring-1 ring-inset ring-gray-300 disabled:opacity-50">
+                <QrCode className="h-5 w-5 shrink-0" /> UPI
               </button>
             </div>
           </>

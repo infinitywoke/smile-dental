@@ -55,7 +55,8 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
     <UndoContext.Provider value={offer}>
       {children}
       {(item || message) && (
-        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 px-4" role="status">
+        // Above the bottom bar, and above the visit's next-step bar when that shows (NextStepBar.tsx)
+        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 px-4 [body:has(#next-step)_&]:bottom-[calc(9rem+env(safe-area-inset-bottom))]" role="status">
           {item ? (
             <div key={item.key} className={bar}>
               <p className="min-w-0 flex-1 truncate">{item.label}</p>

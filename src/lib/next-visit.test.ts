@@ -29,3 +29,12 @@ describe('pickSuggestedTime', () => {
     expect(pickSuggestedTime('10:30', [])).toBeNull()
   })
 })
+
+describe('suggestedDate after another gap', () => {
+  it('counts the days asked for, still skipping a Friday', () => {
+    expect(suggestedDate('2026-10-12', 3)).toBe('2026-10-15') // Monday to Thursday
+    expect(suggestedDate('2026-10-13', 3)).toBe('2026-10-17') // Friday 16th is closed, so Saturday
+    expect(suggestedDate('2026-10-12', 30)).toBe('2026-11-11')
+    expect(suggestedDate('2026-10-12', 182)).toBe('2027-04-12')
+  })
+})

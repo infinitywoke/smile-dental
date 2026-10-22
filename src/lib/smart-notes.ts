@@ -158,13 +158,17 @@ export function notesText(sorted: SortedNotes): string {
 // A pretend answer for the end-to-end tests (no recording leaves the test machine)
 function fakeAnswer(): unknown {
   const rct = priceListWithIds().find((x) => x.option.slug === 'root-canal-treatment')
+  const xray = priceListWithIds().find((x) => x.option.slug === 'x-ray')
   return {
     complaint: 'Pain lower right back tooth for a week, worse at night',
     findings: 'Deep caries 46, tender on percussion',
     treatment: 'RCT started on 46',
     prescription: ['Amoxicillin 500 mg - three times a day - 5 days'],
     advice: 'Avoid chewing on the right side',
-    charges: rct ? [{ id: rct.id, teeth: '46', why: 'root canal started', confidence: 'sure' }] : [],
+    charges: [
+      ...(rct ? [{ id: rct.id, teeth: '46', why: 'root canal started', confidence: 'sure' }] : []),
+      ...(xray ? [{ id: xray.id, teeth: '46', why: 'x-ray of 46', confidence: 'sure' }] : []),
+    ],
     not_on_list: ['occlusal adjustment on 16'],
     unclear: ['the mouthwash name in the advice'],
     next_visit: { in_days: 7, length_minutes: 60, why: 'second RCT sitting' },

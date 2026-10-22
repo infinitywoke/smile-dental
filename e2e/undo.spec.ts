@@ -58,7 +58,7 @@ test('a next visit booked by mistake can be removed, and Undo books it again', a
 
 test('a payment just recorded can be undone', async () => {
   await visible(page.locator('#payment-amount')).fill('100')
-  await visible(page.getByRole('button', { name: 'Cash received' })).click()
+  await visible(page.locator('#payment').getByRole('button', { name: 'Cash received' })).click()
   await expect(visible(page.getByText('₹100 cash recorded'))).toBeVisible()
   const { supabase } = await testDb()
   const payments = async () => (await supabase.from('payments').select('id').eq('visit_id', visitId)).data!.length

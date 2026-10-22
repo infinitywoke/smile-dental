@@ -339,7 +339,7 @@ The multi-clinic foundation comes after this. New tables follow the existing own
 - **Rahil:** fill in `for-dr-rahil/Stock-and-costs-to-fill.xlsx`, then Stock → Load the spreadsheet.
 - **Phone checks** still open: Waves 1–3, the logic fixes, the share sheet, and now the Cockpit Visit, patient, request and Money screens on the OnePlus 13 and Rahil's Poco.
 
-#### Quiet Cockpit (owner's go-ahead 22 Oct) — **resume here**
+#### Quiet Cockpit (owner's go-ahead 22 Oct) — **built 22 Oct; next: Rahil on his phone**
 The owner's design report ("Minimalist UI and UX Philosophy for Clinic OS": the Quiet Cockpit) is the direction, with three corrections from the review:
 - pay and send in one button only once the next visit is settled;
 - age stays a typed number;
@@ -352,24 +352,25 @@ The owner's market report is background only: its feature ideas go on the discov
 - [x] **2. Design board (22 Oct): https://claude.ai/artifact/LETEaznAY7ajdVBmo8HfHQ.**
     - Today: now (the real screenshot, whole page) next to Quiet with something waiting (a request, a visit not sent, a patient 8 minutes late, low stock), Quiet on a calm day (no amber at all), and Quiet in dark.
     - Visit: now (whole page) next to Quiet's first screen (the next step, Collect then Send, in a bar above the bottom bar), Quiet's whole page (about 1.9 screens) and Quiet in dark.
-    - Waiting for the owner's pick, ideally after Rahil sees it on his Poco.
-- [ ] **3a. Calm** (mostly removing):
+    - The owner: "Let's proceed with the quiet version."
+- [x] **3a. Calm (702c670):**
     - amber only for a request, running late, unpaid, not sent and low stock;
     - primary buttons navy in light, near-white in dark;
     - no streak, no clock;
     - the ring becomes "3/7 seen";
     - money hidden on Today until tapped;
     - no text under 12 px, sentence-case labels.
-- [ ] **3b. Structure:**
+- [x] **3b. Structure (e4426d3):**
     - Today: the request card only when one is waiting; the next patient with Start visit docked low; the schedule as one list;
     - the bottom bar becomes Today · Patients · Practice (Money, Costs, Stock, Settings) + Walk-in.
-- [ ] **3c. Visit:**
-    - prescription and photos folded until used;
-    - "Undo" on what the recording added;
-    - his six usual charges as one-tap buttons;
-    - the next step (Collect, then Send) in a bar above the bottom bar;
-    - quick next-visit chips (+3 days, +1 week, +1 month, +6 months).
-- [ ] **After each slice:** re-run the walk-through on the Poco profile and compare with `measure-2026-10-22.md`.
+- [x] **3c. Visit (this commit):**
+    - prescription and photos are one slim row each until used;
+    - Undo for the notes a recording writes in (it takes out only what the recording wrote); the sure charges from a recording go on the bill with one tap, "Add all 2 charges", with one Undo. They still wait for that tap, as before: the board drew them added by themselves with an Undo, which is the owner's call;
+    - his six usual charges as one-tap buttons with Undo: what he billed most in six months, topped up with Consultation, X-ray, Scaling, Extraction, GIC filling and Root canal while his history is short (fixed prices only; `src/lib/usual-charges.ts`);
+    - the next step in a bar above the bottom bar: "Still due" with Cash received and UPI QR until something is paid on this visit, then Send on WhatsApp. It steps aside while the card's own buttons are on screen, and the Undo bar rises above it. After a part payment it moves on to Send (the board kept Collect there; with a part payment that put two blue buttons on screen while he scrolls to send);
+    - next-visit chips (+3 days, +1 week, +1 month, +6 months); the suggestion looks up to a week further for an open day with a free time; the suggested time on its own line with "Book it" and "Pick another time" side by side; the lengths in one row;
+    - New patient's Start visit stays above the bottom bar; the notes box grows with the notes.
+- [x] **After each slice:** walk-through re-run on the Poco profile; results in `measure-2026-10-22.md` ("After the Quiet Cockpit").
 
 ## Logic fixes (owner's bug: deleting a visit showed an advance)
 - [x] Logic audit (Opus, max): `docs/build/review-logic.md` (25 findings, invariants 1-31, one migration)
@@ -424,3 +425,4 @@ The owner's market report is background only: its feature ideas go on the discov
 - 2026-10-15 Website: new photo of Dr. Rahil pushed (side photo and its unused setting removed). Owner's answers on the next items recorded in `docs/build/PLAN-2026-10-next.md`; no agents from now on.
 - 2026-10-22 Owner: "resume the build". P3b part 3 ticked (pause live, instant payments pushed). P4 2d: Stock → Load the spreadsheet (9c7771a). The full suite caught a race in Delete visit right after a payment; fixed (168b78a). P3c part 1, the Visit page in the Cockpit look (a5d72a6), and part 2, patient, request and Money screens. Gates on each: tsc, unit (272), lint, build, all 92 browser tests (one run hit a network drop to Supabase; its failures were re-run and passed). Next: the owner's call on the multi-clinic foundation.
 - 2026-10-22 Owner shared two reports (market intelligence; Quiet Cockpit design philosophy) and approved: measure first, then a design board, light as the default to test. Walk-through extended for the Poco (f5b13ee, baseline in `docs/build/measure-2026-10-22.md`); light default (e51e855, all 92 browser tests passed); design board https://claude.ai/artifact/LETEaznAY7ajdVBmo8HfHQ. Next: the owner's pick on the board, then slices 3a–3c.
+- 2026-10-22 Owner: "Let's proceed with the quiet version." Quiet Cockpit built in three slices: calm colours and labels (702c670), Today and the bottom bar (e4426d3), the Visit (this commit). Gates on each: tsc, unit (272 now), lint, build, all browser tests (95 after the Visit slice). Walk-through on the Poco after each (`docs/build/measure-2026-10-22.md`, "After the Quiet Cockpit"): Today 1.5 screens (was 2.5), amber 0 on a calm day (was 16), nothing under 12 px (was 17), New patient's Start visit and the Visit's next step on the first screen (0.88), Back failures 0. Worse: phone booking from a free time takes a tap more (free times folded), the Visit page is 0.1–0.2 screens taller; first-screen choices on Today 19 (target about 7). For the owner: charges from a recording still wait for one tap ("Add all"), where the board drew them added by themselves with an Undo; after a part payment the bar moves on to Send. Next: Rahil on his Poco (light default, the Visit's bar), then the owner's call on the multi-clinic foundation.

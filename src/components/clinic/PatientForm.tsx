@@ -209,7 +209,8 @@ function PatientFields({
         <input type="hidden" name="heard_from" value={heardFrom} />
       </div>
 
-      <div className="space-y-3">
+      {/* Stays just above the bottom bar, so it is in reach without scrolling, as the booking screens' Save */}
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 space-y-2 border-t border-gray-200 bg-gray-50 px-4 pt-2 pb-2">
         {state.error && (
           <div className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />

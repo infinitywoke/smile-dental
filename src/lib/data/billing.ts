@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { patientAccount, summarise, visitMoneyOf, type BillSummary, type PatientAccount, type VisitMoney } from '@/lib/billing'
+import { usualCharges, type UsualCharge } from '@/lib/usual-charges'
 import type { Payment, VisitCharge } from './types'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -89,4 +90,19 @@ export async function getVisitBill(visitId: string): Promise<VisitBill> {
     payments: visitPayments,
     summary: summarise({ charges: visitCharges, payments: visitPayments, owed }),
   }
+}
+
+// The visit's usual charges: the price-list items billed most in the last six months (src/lib/usual-charges.ts)
+const USUAL_WINDOW_DAYS = 182
+
+export async function getUsualCharges(): Promise<UsualCharge[]> {
+  await getDoctor()
+  const supabase = await createClient()
+  const since = new Date(Date.now() - USUAL_WINDOW_DAYS * 86_400_000).toISOString()
+  const { data, error } = await supabase.from('visit_charges').select('description').not('treatment_slug', 'is', null).gte('created_at', since)
+    .order('created_at', { ascending: false }).limit(PAGE)
+  if (error) return usualCharges([])
+  const counts = new Map<string, number>()
+  for (const row of data) counts.set(row.description, (counts.get(row.description) ?? 0) + 1)
+  return usualCharges([...counts].map(([description, count]) => ({ description, count })))
 }

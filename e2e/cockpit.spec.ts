@@ -1,12 +1,15 @@
 import { expect, test } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
-import { blocksLeftToday, cleanRun, createAppointmentAtFirstFree, createPatient, newPhone, newRunId, signIn, visible } from './helpers'
+import {
+  blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, newPhone, newRunId, signIn, testDb, visible, whatsappText,
+} from './helpers'
 import { inIndia } from '../src/lib/schedule'
 
 // The Quiet Cockpit: Today stays quiet unless something needs him (whether the clinic is open, how many
 // seen, the money hidden until tapped, the next patient docked at the thumb), the Practice tab holds the
-// back office, and the light or dark choice in Settings is kept for this phone. Nothing is sent: Running
-// late only opens WhatsApp links.
+// back office, and the light or dark choice in Settings is kept for this phone. On the visit, his usual
+// charges are one tap each and the next step (collect, then send) stays in reach above the bottom bar.
+// Nothing is sent: WhatsApp links are only opened (and caught here).
 test.skip(!testLogin, NO_TEST_LOGIN)
 
 const runId = newRunId()
@@ -102,4 +105,93 @@ test('Practice holds Money, Costs, Stock and Settings; the look is light until c
   await expect.poll(async () => (await page.context().cookies()).find((c) => c.name === 'clinic-theme')?.value).toBe('system')
   // Phone follows this phone, which is in dark mode here
   expect(await page.locator('#hud-root').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(5, 13, 36)')
+})
+
+test('the Visit: a usual charge is one tap with Undo, the next visit can be a month on, and the next step stays in reach: collect, then send', async ({ page }) => {
+  const phone = newPhone('7')
+  const patientId = await createPatient(`${runId} Quick`, phone)
+  await signIn(page)
+  await page.goto(`/app/patients/${patientId}`)
+  await visible(page.getByRole('button', { name: 'Start visit' })).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+  const visitUrl = page.url()
+  const visitId = visitUrl.split('/').pop()!
+  const { supabase } = await testDb()
+  const charges = async () => (await supabase.from('visit_charges').select('amount').eq('visit_id', visitId)).data!.map((c) => Number(c.amount))
+
+  // Nothing is due yet, and nothing to send: no next-step bar
+  const bar = page.getByRole('region', { name: 'Next step' })
+  await expect(bar).toHaveCount(0)
+
+  // One tap adds a usual charge; Undo takes it off; tapped again, it stays
+  const chip = visible(page.getByRole('group', { name: 'Usual charges' })).getByRole('button').first()
+  const price = (await chip.locator('span').nth(1).textContent())!
+  const amount = Number(price.replace(/[^\d.]/g, ''))
+  await chip.click()
+  await expect(visible(page.getByRole('status').filter({ hasText: /^Added .+: ₹/ }))).toContainText(price)
+  await expect.poll(charges).toEqual([amount])
+  await visible(page.getByRole('button', { name: 'Undo' })).click()
+  await expect(visible(page.getByText('Undone'))).toBeVisible()
+  await expect.poll(charges).toEqual([])
+  await chip.click()
+  await expect.poll(charges).toEqual([amount])
+
+  // The next visit a month on, not a week
+  const gaps = visible(page.getByRole('group', { name: 'When' }))
+  await expect(gaps.getByRole('button', { name: '+1 week' })).toHaveAttribute('aria-pressed', 'true')
+  const suggested = visible(page.getByText(/^Suggested: /))
+  const inAWeek = (await suggested.textContent())!
+  await gaps.getByRole('button', { name: '+1 month' }).click()
+  await expect(gaps.getByRole('button', { name: '+1 month' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(suggested).toBeVisible({ timeout: 30_000 })
+  await expect(suggested).not.toHaveText(inAWeek)
+  await visible(page.getByRole('button', { name: 'Book it' })).click()
+  let startsAt = ''
+  await expect.poll(async () => {
+    startsAt = (await supabase.from('appointments').select('starts_at').eq('from_visit_id', visitId).eq('status', 'booked')).data?.[0]?.starts_at ?? ''
+    return startsAt
+  }).not.toBe('')
+  const daysOn = (Date.parse(inIndia(startsAt).date) - Date.parse(inIndia(new Date()).date)) / 86_400_000
+  expect(daysOn).toBeGreaterThanOrEqual(30)
+  expect(daysOn).toBeLessThanOrEqual(40)
+
+  // Up at the notes, the bar offers to collect what is due
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect(bar).toBeVisible()
+  await expect(bar).toContainText(`Still due${price}`)
+  await bar.getByRole('button', { name: 'Cash received' }).click()
+  await expect.poll(async () => (await supabase.from('payments').select('amount, method').eq('visit_id', visitId)).data!.map((p) => ({ amount: Number(p.amount), method: p.method })))
+    .toEqual([{ amount, method: 'cash' }])
+  const undo = visible(page.getByRole('status').filter({ hasText: `${price} cash recorded` }))
+  await expect(undo).toBeVisible()
+
+  // Then to send, with the Undo bar lifted above it
+  await expect(bar.getByRole('button', { name: 'Send on WhatsApp' })).toBeVisible()
+  const [undoBox, barBox] = [(await undo.boundingBox())!, (await bar.boundingBox())!]
+  expect(undoBox.y + undoBox.height).toBeLessThanOrEqual(barBox.y)
+  const whatsapp = await captureWhatsapp(page)
+  await bar.getByRole('button', { name: 'Send on WhatsApp' }).click()
+  const openButton = visible(page.getByRole('link', { name: 'Open WhatsApp' }))
+  await Promise.race([
+    page.waitForURL(/wa\.me\//, { timeout: 30_000 }),
+    openButton.waitFor({ timeout: 30_000 }).then(() => openButton.click()),
+  ])
+  await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
+  expect(whatsapp.url).toContain(`wa.me/91${phone}`)
+  expect(whatsappText(whatsapp.url)).toContain(`*Total: ${price}*`)
+
+  // Paid and sent: nothing left for the bar
+  await page.goto(visitUrl)
+  await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toBeVisible()
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect(bar).toHaveCount(0)
+})
+
+test('New patient: Start visit is in reach above the bottom bar, without scrolling', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app/patients/new')
+  const start = visible(page.getByRole('button', { name: /start visit/i }))
+  await expect(start).toBeInViewport()
+  const box = (await start.boundingBox())!
+  expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height - 64)
 })

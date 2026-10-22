@@ -139,9 +139,11 @@ export function PhotoGallery({
     viewer.show()
   }
 
+  const empty = photos.length === 0 && uploading.length === 0
+
   return (
     <section className="space-y-3">
-      <h2 className="hud-heading">Photos</h2>
+      {!empty && <h2 className="hud-heading">Photos</h2>}
 
       {photos.map((photo, index) => {
         const kind = kindOf(photo)
@@ -206,14 +208,20 @@ export function PhotoGallery({
       {/* Two inputs: Android opens only the gallery (no camera) when several photos may be picked */}
       <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target)} />
       <input ref={galleryInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addFiles(e.target)} />
-      <div className="grid grid-cols-2 gap-3">
+      {/* One slim row until there are photos: most visits have none */}
+      <div className={`flex items-center gap-2 ${empty ? 'min-h-14 rounded-2xl bg-white py-1.5 pr-1.5 pl-4 ring-1 ring-gray-200' : 'justify-end'}`}>
+        {empty && (
+          <span className="flex flex-1 items-center gap-3 text-base font-semibold text-gray-900">
+            <Camera className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />Photos
+          </span>
+        )}
         <button type="button" onClick={() => cameraInput.current?.click()}
-          className="flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white px-3 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700">
-          <Camera className="h-5 w-5" /> Take photo
+          className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white px-3 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50">
+          <Camera className="h-4 w-4" aria-hidden="true" /> Take photo
         </button>
         <button type="button" onClick={() => galleryInput.current?.click()}
-          className="flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white px-3 text-base font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-700">
-          <Images className="h-5 w-5" /> Gallery
+          className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white px-3 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50">
+          <Images className="h-4 w-4" aria-hidden="true" /> Gallery
         </button>
       </div>
 

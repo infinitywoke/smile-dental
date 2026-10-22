@@ -13,12 +13,14 @@ import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { photoKind, type PhotoKind } from '@/lib/visit-status'
 import { patientAge } from '@/lib/patient-fields'
 import { visitProgress, type VisitStepKey } from '@/lib/visit-progress'
+import type { UsualCharge } from '@/lib/usual-charges'
 import { ChairReadout, VisitProgress } from './VisitHud'
 import { BillSection, type Save } from './BillTools'
 import { NextVisit } from './NextVisit'
-import { PaymentCard, type SavingPayment } from './PaymentCard'
+import { PaymentCard, type PaymentHandle, type SavingPayment } from './PaymentCard'
 import { PhotoGallery, type UploadCounts } from './PhotoGallery'
-import { SendWhatsApp } from './SendWhatsApp'
+import { SendWhatsApp, type SendHandle } from './SendWhatsApp'
+import { NextStepBar, type NextStep } from './NextStepBar'
 import { VisitNotes, type NotesHandle } from './VisitNotes'
 import { MedicalAlert } from './ui'
 import { UndoProvider } from './UndoBar'
@@ -32,6 +34,7 @@ export function VisitFlow({
   visit,
   bill,
   medicines,
+  usual,
   focus,
 }: {
   doctorId: string
@@ -39,6 +42,8 @@ export function VisitFlow({
   bill: VisitBill
   // One-tap medicines for the prescription
   medicines: string[]
+  // The price-list items he bills most, one tap each on the bill
+  usual: UsualCharge[]
   // "payment": opened from a Collect link, so scroll to the payment card
   focus: 'payment' | null
 }) {
@@ -122,6 +127,21 @@ export function VisitFlow({
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  // The next step, kept in reach above the bottom bar: collect what is due, then send (when there is
+  // something to send and a number to send it to). Once something is paid on this visit (perhaps a
+  // part, the rest another day), the next step is sending; the card still shows what is due.
+  const paymentRef = useRef<PaymentHandle>(null)
+  const sendRef = useRef<SendHandle>(null)
+  const [sentHere, setSentHere] = useState(false)
+  const dueNow = Math.round((bill.summary.due - (pendingPayment?.amount ?? 0)) * 100) / 100
+  const paidHere = bill.payments.length > 0 || pendingPayment !== null
+  const hasContent = bill.charges.length > 0 || notesText.trim() !== ''
+  const nextStep: NextStep | null =
+    showPayment && dueNow > 0 && !paidHere ? { kind: 'collect', due: dueNow }
+      : visit.patient.phone && hasContent && ((!visit.closed_at && !sentHere) || visit.resend_needed) ? { kind: 'send' }
+        : null
+  const showSection = (id: string, block: ScrollLogicalPosition) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block })
+
   return (
     <UndoProvider>
     <div className="space-y-7 pb-4">
@@ -182,7 +202,7 @@ export function VisitFlow({
       </div>
 
       <div id="visit-bill" className="scroll-mt-4">
-        <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} save={save} />
+        <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} usual={usual} save={save} />
       </div>
 
       {showPayment && (
@@ -193,6 +213,7 @@ export function VisitFlow({
           bill={bill}
           save={save}
           onSaving={setSavingPayment}
+          handle={paymentRef}
         />
       )}
 
@@ -203,10 +224,19 @@ export function VisitFlow({
       </div>
 
       <div id="visit-sent" className="scroll-mt-4">
-        <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} />
+        <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} />
       </div>
 
       <DeleteVisit visit={visit} payments={heldPayments} />
+
+      {nextStep && (
+        <NextStepBar key={nextStep.kind} step={nextStep} watch={`${bill.payments.length}-${bill.summary.due}-${visit.closed_at ?? ''}`}
+          // What is due, as the bar says. A failed save shows on the payment card, so go there
+          onCash={() => void paymentRef.current?.cash(dueNow).then((ok) => { if (!ok) showSection('payment', 'start') })}
+          onUpi={() => { if (!paymentRef.current?.upi(dueNow)) showSection('payment', 'start') }}
+          // WhatsApp opens at once, or the Send part says why it is waiting
+          onSend={() => { sendRef.current?.send(); showSection('visit-sent', 'end') }} />
+      )}
     </div>
     </UndoProvider>
   )

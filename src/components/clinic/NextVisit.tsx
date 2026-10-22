@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { AlertCircle, CalendarClock, CalendarPlus, MessageCircle } from 'lucide-react'
 import { bookNextVisit, removeNextVisit, suggestNextVisit } from '@/lib/actions/visits'
 import { firstName } from '@/lib/whatsapp'
@@ -12,6 +12,7 @@ import type { Save } from './BillTools'
 import { FullScreen, useBackToClose } from './FullScreen'
 import { NextVisitPicker } from './NextVisitPicker'
 import { LengthChips } from './LengthChips'
+import { NEXT_VISIT_GAPS } from '@/lib/next-visit'
 
 const when = (iso: string) => {
   const { date, time } = inIndia(iso)
@@ -42,6 +43,9 @@ export function NextVisit({
   const [suggestion, setSuggestion] = useState<string | null>(null)
   // How long the next visit will be (40 minutes unless chosen; a booked one keeps its own)
   const [minutes, setMinutes] = useState(upcomingMinutes)
+  // How far ahead to look: a week unless he picks another gap
+  const [days, setDays] = useState(7)
+  const suggestionId = useId()
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
@@ -54,13 +58,13 @@ export function NextVisit({
   useEffect(() => {
     if (upcoming) return
     let cancelled = false
-    suggestNextVisit(visitId, minutes)
+    suggestNextVisit(visitId, minutes, days)
       .then((instant) => !cancelled && setSuggestion(instant))
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [visitId, upcoming, minutes])
+  }, [visitId, upcoming, minutes, days])
 
   // Books (or moves) the next visit. From the picker, it closes first (through its history entry).
   // Once the visit's WhatsApp has gone, the patient has the old time (or none), so WhatsApp opens
@@ -122,20 +126,21 @@ export function NextVisit({
       <h2 className="hud-heading">Next visit</h2>
       {upcoming ? (
         <>
-          <div className="flex min-h-14 items-center gap-3 rounded-2xl bg-blue-50 py-1 pl-4 pr-1 ring-1 ring-blue-200">
-            <CalendarClock className="h-5 w-5 shrink-0 text-blue-600" />
-            <p className="min-w-0 flex-1 text-base font-semibold text-blue-900">Booked: {when(upcoming)}</p>
+          {/* The day and time keep one line; Remove and Change move below when they don't fit beside it */}
+          <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white py-1 pl-4 pr-1 ring-1 ring-gray-200">
+            <CalendarClock className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
+            <p className="min-w-48 flex-1 text-base font-semibold text-gray-900">Booked: {when(upcoming)}</p>
             {bookedHere && (
-              <>
+              <div className="ml-auto flex gap-1">
                 <button type="button" onClick={() => void remove()} disabled={pending}
                   className="min-h-12 shrink-0 rounded-xl px-3 text-base font-semibold text-red-700 disabled:opacity-60">
                   Remove
                 </button>
                 <button type="button" onClick={picker.show} disabled={pending}
-                  className="min-h-12 shrink-0 rounded-xl bg-white px-4 text-base font-semibold text-blue-800 ring-1 ring-blue-200 disabled:opacity-60">
+                  className="min-h-12 shrink-0 rounded-xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-300 disabled:opacity-60">
                   Change
                 </button>
-              </>
+              </div>
             )}
           </div>
           {whatsappUrl && (
@@ -149,6 +154,14 @@ export function NextVisit({
         <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
           <p className="text-base text-gray-700">None</p>
           <LengthChips value={minutes} onChange={(m) => { setMinutes(m); setSuggestion(null) }} />
+          <div role="group" aria-label="When" className="grid grid-cols-4 gap-1.5">
+            {NEXT_VISIT_GAPS.map((gap) => (
+              <button key={gap.days} type="button" aria-pressed={days === gap.days} onClick={() => { setDays(gap.days); setSuggestion(null) }}
+                className={`min-h-11 whitespace-nowrap rounded-full px-0.5 text-[13px] font-semibold ring-1 ring-inset ${days === gap.days ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'}`}>
+                {gap.label}
+              </button>
+            ))}
+          </div>
           {cancelUrl && (
             <a href={cancelUrl}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-300">
@@ -160,16 +173,24 @@ export function NextVisit({
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
             </p>
           )}
+          {/* The suggested time on its own line, so Book and the other choice fit side by side */}
           {suggestion && (
-            <button type="button" onClick={() => void book(suggestion)} disabled={pending}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 text-base font-semibold text-blue-800 ring-1 ring-blue-200 disabled:opacity-60">
-              <CalendarPlus className="h-5 w-5" /> {pending ? 'Booking…' : `Book ${when(suggestion)}`}
-            </button>
+            <p id={suggestionId} className="text-base text-gray-700">
+              Suggested: <span className="font-bold text-gray-900">{when(suggestion)}</span>
+            </p>
           )}
-          <button type="button" onClick={picker.show} disabled={pending}
-            className="flex min-h-12 w-full items-center justify-center rounded-xl px-4 text-base font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
-            Pick another time
-          </button>
+          <div className={suggestion ? 'grid grid-cols-2 gap-2' : ''}>
+            {suggestion && (
+              <button type="button" onClick={() => void book(suggestion)} disabled={pending} aria-describedby={suggestionId}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-base font-bold text-white disabled:opacity-60">
+                <CalendarPlus className="h-5 w-5" aria-hidden="true" /> {pending ? 'Booking…' : 'Book it'}
+              </button>
+            )}
+            <button type="button" onClick={picker.show} disabled={pending}
+              className="flex min-h-12 w-full items-center justify-center rounded-xl px-3 text-base font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
+              Pick another time
+            </button>
+          </div>
         </div>
       )}
 

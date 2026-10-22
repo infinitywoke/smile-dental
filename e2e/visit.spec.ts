@@ -127,7 +127,7 @@ test('cash part payment leaves ₹200 due; UPI opens a full-screen QR that Back 
   const amount = visible(page.locator('#payment-amount'))
   await expect(amount).toHaveValue('1200')
   await amount.fill('1000')
-  await visible(page.getByRole('button', { name: 'Cash received' })).click()
+  await visible(page.locator('#payment').getByRole('button', { name: 'Cash received' })).click()
   await expect(visible(page.getByText('Paid by cash'))).toBeVisible()
   await expect(visible(page.locator('#payment'))).toContainText('Still due₹200')
   await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
@@ -139,6 +139,12 @@ test('cash part payment leaves ₹200 due; UPI opens a full-screen QR that Back 
   await page.goBack()
   await expect(qr).toHaveCount(0)
   await expect(page).toHaveURL(visitUrl)
+
+  // Part paid, the rest perhaps another day: the bar above the bottom bar moves on to sending
+  await page.evaluate(() => window.scrollTo(0, 0))
+  const bar = page.getByRole('region', { name: 'Next step' })
+  await expect(bar.getByRole('button', { name: 'Send on WhatsApp' })).toBeVisible()
+  await expect(bar.getByRole('button', { name: 'Cash received' })).toHaveCount(0)
 })
 
 async function bookedCount() {
@@ -277,7 +283,7 @@ test('Today lists the visit with its money once (no Collect in Needs you); the r
   await visit.click()
   await expect(page).toHaveURL(visitUrl)
   await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
-  await visible(page.getByRole('button', { name: 'Cash received' })).click()
+  await visible(page.locator('#payment').getByRole('button', { name: 'Cash received' })).click()
   await expect(visible(page.getByText('Paid in full'))).toBeVisible()
 })
 
@@ -323,7 +329,7 @@ test('Delete visit is refused while it holds a payment; once removed, it goes an
   await sheet.getByLabel('Amount (₹)').fill('200')
   await sheet.getByRole('button', { name: 'Add to bill' }).click()
   await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
-  await visible(page.getByRole('button', { name: 'Cash received' })).click()
+  await visible(page.locator('#payment').getByRole('button', { name: 'Cash received' })).click()
   await expect(visible(page.getByText('Paid in full'))).toBeVisible()
   // The payment shows at once; the Undo offer means the server has it
   await expect(visible(page.getByText('₹200 cash recorded'))).toBeVisible()
