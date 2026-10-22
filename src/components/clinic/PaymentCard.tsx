@@ -17,22 +17,28 @@ const time = (iso: string) =>
 
 // One card for the money: total, payments so far, what is still due, and two big buttons.
 // "Collect" links (…?step=bill) land here.
+export type SavingPayment = { id: string; amount: number; method: 'cash' | 'upi' }
+
 export function PaymentCard({
   visitId,
   patientName,
   bill,
   save,
+  onSaving,
 }: {
   visitId: string
   patientName: string
   bill: VisitBill
   save: Save
+  // Told about a payment tapped here that the page doesn't have yet, so Delete visit counts it at once
+  onSaving?: (payment: SavingPayment | null) => void
 }) {
   const { charges, payments, summary } = bill
   // A payment just tapped shows at once, marked as saving, and comes off what is due; the server's
   // copy (same id) then takes its place. If the save fails, it goes again.
-  const [saving, setSaving] = useState<{ id: string; amount: number; method: 'cash' | 'upi' } | null>(null)
+  const [saving, setSaving] = useState<SavingPayment | null>(null)
   const savingShown = saving && !payments.some((p) => p.id === saving.id) ? saving : null
+  useEffect(() => onSaving?.(savingShown), [savingShown, onSaving])
   const owed = Math.round((summary.due - (savingShown?.amount ?? 0)) * 100) / 100
   // What the patient owes, all visits together (one money rule, src/lib/billing.ts): the bottom
   // line and the amount box use it, so the box never asks for more than is owed

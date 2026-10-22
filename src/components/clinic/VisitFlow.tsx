@@ -13,7 +13,7 @@ import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { photoKind, type PhotoKind } from '@/lib/visit-status'
 import { BillSection, type Save } from './BillTools'
 import { NextVisit } from './NextVisit'
-import { PaymentCard } from './PaymentCard'
+import { PaymentCard, type SavingPayment } from './PaymentCard'
 import { PhotoGallery, type UploadCounts } from './PhotoGallery'
 import { SendWhatsApp } from './SendWhatsApp'
 import { VisitNotes, type NotesHandle } from './VisitNotes'
@@ -96,6 +96,9 @@ export function VisitFlow({
 
   // The payment card shows with a bill on this visit, or whenever the patient owes something
   const showPayment = bill.charges.length > 0 || bill.payments.length > 0 || bill.summary.due > 0
+  // A payment tapped a moment ago, before the page has the server's copy: Delete visit counts it too
+  const [savingPayment, setSavingPayment] = useState<SavingPayment | null>(null)
+  const heldPayments = savingPayment && !bill.payments.some((p) => p.id === savingPayment.id) ? [...bill.payments, savingPayment] : bill.payments
 
   return (
     <UndoProvider>
@@ -157,6 +160,7 @@ export function VisitFlow({
           patientName={visit.patient.name}
           bill={bill}
           save={save}
+          onSaving={setSavingPayment}
         />
       )}
 
@@ -166,7 +170,7 @@ export function VisitFlow({
 
       <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} />
 
-      <DeleteVisit visit={visit} payments={bill.payments} />
+      <DeleteVisit visit={visit} payments={heldPayments} />
     </div>
     </UndoProvider>
   )
@@ -174,7 +178,7 @@ export function VisitFlow({
 
 // Rare, so small and at the very bottom. A visit that holds payments can't be deleted (the money is
 // removed one payment at a time, on purpose); the question says what stays.
-function DeleteVisit({ visit, payments }: { visit: VisitPageData; payments: VisitBill['payments'] }) {
+function DeleteVisit({ visit, payments }: { visit: VisitPageData; payments: Pick<VisitBill['payments'][number], 'amount' | 'method'>[] }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
