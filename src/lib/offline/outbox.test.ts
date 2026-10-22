@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { VisitBill } from '@/lib/data/billing'
-import { applyOutbox } from './apply'
+import { applyOutbox, sentWaiting, shownNextVisit } from './apply'
 import { clearOutbox, enqueue, isNetworkError, markFailed, readOutbox } from './outbox'
 
 const VISIT = 'visit-1'
@@ -34,6 +34,21 @@ describe('the outbox', () => {
     enqueue({ visitId: VISIT, action: 'setPhotoKind', args: ['photo-1', 'X-ray'] })
     enqueue({ visitId: VISIT, action: 'setPhotoKind', args: ['photo-1', 'Prescription'] })
     expect(readOutbox().map((i) => i.args[1])).toEqual(['Prescription'])
+  })
+
+  it('keeps only the latest next visit: a new time replaces one waiting, and removing it drops the booking but still goes', () => {
+    enqueue({ visitId: VISIT, action: 'bookNextVisit', args: [VISIT, '2026-10-24T04:30:00.000Z', 30] })
+    enqueue({ visitId: VISIT, action: 'bookNextVisit', args: [VISIT, '2026-10-26T05:00:00.000Z', 60] })
+    expect(readOutbox().map((i) => i.args[1])).toEqual(['2026-10-26T05:00:00.000Z'])
+    enqueue({ visitId: VISIT, action: 'removeNextVisit', args: [VISIT] })
+    expect(readOutbox().map((i) => i.action)).toEqual(['removeNextVisit'])
+  })
+
+  it('records the send once, after what was waiting before it', () => {
+    enqueue(charge('c1', 'X-ray', 350))
+    enqueue({ visitId: VISIT, action: 'markWhatsappSent', args: [VISIT] })
+    enqueue({ visitId: VISIT, action: 'markWhatsappSent', args: [VISIT] })
+    expect(readOutbox().map((i) => i.action)).toEqual(['addCharge', 'markWhatsappSent'])
   })
 
   it('tells no signal from a refusal', () => {
@@ -76,5 +91,35 @@ describe('the bill with what is waiting', () => {
     enqueue(charge('c8', 'Refused', 100))
     markFailed(readOutbox()[1].id, 'That visit was not found.')
     expect(applyOutbox(bill, readOutbox())).toBe(bill)
+  })
+})
+
+describe('the next visit and the send with what is waiting', () => {
+  const server = { starts_at: '2026-10-24T04:30:00.000Z', duration_min: 30 }
+  const book = (startsAt: string, minutes: number) => ({ visitId: VISIT, action: 'bookNextVisit' as const, args: [VISIT, startsAt, minutes] })
+
+  it("is the server's when nothing waits", () => {
+    expect(shownNextVisit(VISIT, server, [])).toEqual({ startsAt: server.starts_at, minutes: 30, pending: false })
+    expect(shownNextVisit(VISIT, null, [])).toBeNull()
+  })
+
+  it('is the one booked on the phone while it waits, and none once removing it waits', () => {
+    enqueue(book('2026-10-26T05:00:00.000Z', 60))
+    expect(shownNextVisit(VISIT, server, readOutbox())).toEqual({ startsAt: '2026-10-26T05:00:00.000Z', minutes: 60, pending: true })
+    enqueue({ visitId: VISIT, action: 'removeNextVisit', args: [VISIT] })
+    expect(shownNextVisit(VISIT, server, readOutbox())).toBeNull()
+  })
+
+  it("goes back to the server's when the booking was turned down", () => {
+    enqueue(book('2026-10-26T05:00:00.000Z', 60))
+    markFailed(readOutbox()[0].id, 'That time was just taken. Please choose another.')
+    expect(shownNextVisit(VISIT, server, readOutbox())).toEqual({ startsAt: server.starts_at, minutes: 30, pending: false })
+  })
+
+  it('knows a send still waiting to be recorded', () => {
+    expect(sentWaiting(VISIT, readOutbox())).toBe(false)
+    enqueue({ visitId: VISIT, action: 'markWhatsappSent', args: [VISIT] })
+    expect(sentWaiting(VISIT, readOutbox())).toBe(true)
+    expect(sentWaiting('visit-2', readOutbox())).toBe(false)
   })
 })

@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useId, useState } from 'react'
-import { AlertCircle, CalendarClock, CalendarPlus, MessageCircle } from 'lucide-react'
-import { bookNextVisit, removeNextVisit, suggestNextVisit } from '@/lib/actions/visits'
+import { AlertCircle, CalendarClock, CalendarPlus, CloudOff, MessageCircle } from 'lucide-react'
+import { suggestNextVisit } from '@/lib/actions/visits'
 import { firstName } from '@/lib/whatsapp'
 import { useUndo } from './UndoBar'
 import { openWhatsApp } from '@/lib/whatsapp-business'
 import { todayInIndia } from '@/lib/dates'
 import { DEFAULT_LENGTH, formatWhen, inIndia } from '@/lib/schedule'
-import type { Save } from './BillTools'
+import { useSaves } from './Outbox'
 import { FullScreen, useBackToClose } from './FullScreen'
 import { NextVisitPicker } from './NextVisitPicker'
 import { LengthPicker } from './LengthPicker'
@@ -16,14 +16,15 @@ import { LengthPicker } from './LengthPicker'
 // Next visit: "None" unless the doctor books one. One tap books the suggested time (a week on, or what
 // the recording heard); "Pick another date" opens a month calendar and that day's free times. An
 // appointment already coming up is shown instead, with "Change" when it was booked from this visit.
+// With no signal a booking waits on the phone and is saved when the signal is back (the outbox).
 export function NextVisit({
   visitId,
   patientName,
   upcoming,
   upcomingMinutes = DEFAULT_LENGTH,
   bookedHere,
+  waiting = false,
   fromNotes = null,
-  save,
 }: {
   visitId: string
   patientName: string
@@ -33,10 +34,12 @@ export function NextVisit({
   upcomingMinutes?: number
   // That appointment was booked from this visit, so choosing again moves it
   bookedHere: boolean
+  // It was booked on this phone with no signal and is still waiting to be saved
+  waiting?: boolean
   // A next visit the recording heard ("second sitting next week"): the suggestion, with its length
   fromNotes?: { instant: string; minutes: number; why: string } | null
-  save: Save
 }) {
+  const saves = useSaves()
   const [suggestion, setSuggestion] = useState<string | null>(null)
   // The recording's next visit is shown until he chooses another length or gap
   const [notesNext, setNotesNext] = useState(fromNotes)
@@ -77,7 +80,7 @@ export function NextVisit({
     setError(null)
     setPending(true)
     try {
-      const result = await save(() => bookNextVisit(visitId, instant, minutes))
+      const result = await saves.bookNextVisit(visitId, instant, minutes)
       if (result.error) {
         setError(result.error)
         return
@@ -86,7 +89,7 @@ export function NextVisit({
       setWhatsappUrl(url)
       setCancelUrl(null)
       // A new booking can be taken back at once (a change is undone by changing again)
-      if (!upcoming) offerUndo(`Next visit booked: ${formatWhen(instant)}`, () => save(() => removeNextVisit(visitId)))
+      if (!upcoming) offerUndo(`Next visit booked: ${formatWhen(instant)}`, () => saves.removeNextVisit(visitId))
       if (fromPicker) {
         // WhatsApp opens once Back has closed the picker, so the two never cross
         if (url) window.addEventListener('popstate', () => openWhatsApp(url), { once: true })
@@ -108,7 +111,7 @@ export function NextVisit({
     setError(null)
     setPending(true)
     try {
-      const result = await save(() => removeNextVisit(visitId))
+      const result = await saves.removeNextVisit(visitId)
       if (result.error) {
         setError(result.error)
         return
@@ -116,7 +119,7 @@ export function NextVisit({
       setWhatsappUrl(null)
       setCancelUrl(result.whatsappUrl ?? null)
       const wasMinutes = upcomingMinutes
-      offerUndo('Next visit removed', () => save(() => bookNextVisit(visitId, was, wasMinutes)))
+      offerUndo('Next visit removed', () => saves.bookNextVisit(visitId, was, wasMinutes))
     } catch {
       setError("Couldn't reach the server. Check the internet and try again.")
     } finally {
@@ -132,7 +135,10 @@ export function NextVisit({
           {/* The day and time keep one line; Remove and Change move below when they don't fit beside it */}
           <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white py-1 pl-4 pr-1 ring-1 ring-gray-200">
             <CalendarClock className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
-            <p className="min-w-48 flex-1 text-base font-semibold text-gray-900">Booked: {formatWhen(upcoming)}</p>
+            <p className="min-w-48 flex-1 text-base font-semibold text-gray-900">
+              Booked: {formatWhen(upcoming)}
+              {waiting && <span className="flex items-center gap-1 text-xs font-semibold text-gray-500"><CloudOff className="h-3.5 w-3.5" aria-hidden="true" />Waiting to save</span>}
+            </p>
             {bookedHere && (
               <div className="ml-auto flex gap-1">
                 <button type="button" onClick={() => void remove()} disabled={pending}

@@ -2,9 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { AlertCircle, CloudOff, History, Loader2 } from 'lucide-react'
+import { AlertCircle, CloudOff, History, Loader2, MessageCircle } from 'lucide-react'
 import { addCharge, recordPayment, removeCharge, removePayment } from '@/lib/actions/billing'
-import { setPhotoKind } from '@/lib/actions/visits'
+import { bookNextVisit, markWhatsappSent, removeNextVisit, setPhotoKind } from '@/lib/actions/visits'
+import { openWhatsApp } from '@/lib/whatsapp-business'
 import { todayInIndia } from '@/lib/dates'
 import { dropFromOutbox, enqueue, isNetworkError, markFailed, readOutbox, subscribeOutbox, type QueuedAction, type QueuedSave } from '@/lib/offline/outbox'
 import { copyReplaced, onFreshCopy, readCopyAt, subscribeCopyAt } from '@/lib/offline/worker'
@@ -12,7 +13,8 @@ import { formatRupees } from '@/lib/pricing'
 import { formatTimeOf, formatWhen, inIndia } from '@/lib/schedule'
 import type { Save } from './BillTools'
 
-type Result = { error?: string; queued?: boolean }
+// whatsappUrl: the next visit changed after the patient had the WhatsApp, so they are told the new time
+type Result = { error?: string; queued?: boolean; whatsappUrl?: string }
 type Runner = (...args: unknown[]) => Promise<Result>
 const ACTIONS: Record<QueuedAction, Runner> = {
   addCharge: addCharge as Runner,
@@ -20,6 +22,9 @@ const ACTIONS: Record<QueuedAction, Runner> = {
   recordPayment: recordPayment as Runner,
   removePayment: removePayment as Runner,
   setPhotoKind: setPhotoKind as Runner,
+  bookNextVisit: bookNextVisit as Runner,
+  removeNextVisit: removeNextVisit as Runner,
+  markWhatsappSent: markWhatsappSent as Runner,
 }
 
 const EMPTY: QueuedSave[] = []
@@ -44,6 +49,9 @@ export type QueuedSaves = {
   recordPayment: (...args: Parameters<typeof recordPayment>) => Promise<Result>
   removePayment: (...args: Parameters<typeof removePayment>) => Promise<Result>
   setPhotoKind: (...args: Parameters<typeof setPhotoKind>) => Promise<Result>
+  bookNextVisit: (...args: Parameters<typeof bookNextVisit>) => Promise<Result>
+  removeNextVisit: (...args: Parameters<typeof removeNextVisit>) => Promise<Result>
+  markWhatsappSent: (...args: Parameters<typeof markWhatsappSent>) => Promise<Result>
 }
 
 export function useQueuedSaves(visitId: string, save: Save): QueuedSaves {
@@ -69,6 +77,9 @@ export function useQueuedSaves(visitId: string, save: Save): QueuedSaves {
     recordPayment: (...args) => run('recordPayment', args),
     removePayment: (...args) => run('removePayment', args),
     setPhotoKind: (...args) => run('setPhotoKind', args),
+    bookNextVisit: (...args) => run('bookNextVisit', args),
+    removeNextVisit: (...args) => run('removeNextVisit', args),
+    markWhatsappSent: (...args) => run('markWhatsappSent', args),
   }), [run])
 }
 
@@ -95,6 +106,12 @@ function describe(item: QueuedSave): string {
       return 'Removing a payment'
     case 'setPhotoKind':
       return "A photo's kind"
+    case 'bookNextVisit':
+      return `Next visit ${formatWhen(String(item.args[1]))}`
+    case 'removeNextVisit':
+      return 'Removing the next visit'
+    case 'markWhatsappSent':
+      return 'That the WhatsApp was sent'
   }
 }
 
@@ -147,6 +164,9 @@ export function OutboxSync() {
     if (pathname !== firstPath.current) copyReplaced()
   }, [pathname])
 
+  // A next visit changed with no signal after the patient had the WhatsApp: their message about it
+  const [toTell, setToTell] = useState<string[]>([])
+
   const flush = useCallback(async () => {
     if (sending.current || navigator.onLine === false) return
     const waiting = readOutbox().filter((i) => !i.error)
@@ -162,6 +182,8 @@ export function OutboxSync() {
           else {
             dropFromOutbox(item.id)
             saved++
+            const url = result?.whatsappUrl
+            if (url) setToTell((t) => [...t, url])
           }
         } catch (e) {
           if (isNetworkError(e)) break
@@ -202,7 +224,7 @@ export function OutboxSync() {
   }, [waiting.length, flush])
 
   const changes = (n: number) => (n === 1 ? '1 change' : `${n} changes`)
-  if (online && waiting.length === 0 && failed.length === 0 && copyAt === null) return null
+  if (online && waiting.length === 0 && failed.length === 0 && copyAt === null && toTell.length === 0) return null
   return (
     <div className="mx-auto w-full max-w-lg space-y-2 px-4 pt-3">
       {(!online || waiting.length > 0) && (
@@ -224,6 +246,15 @@ export function OutboxSync() {
           )}
         </p>
       )}
+      {toTell.map((url) => (
+        <div key={url} role="status" className="flex items-center gap-2 rounded-xl bg-white py-1 pr-1 pl-3 text-sm text-gray-900 ring-1 ring-gray-200">
+          <p className="min-w-0 flex-1 py-2">The next visit changed after the WhatsApp went: tell the patient.</p>
+          <button type="button" onClick={() => { setToTell((t) => t.filter((u) => u !== url)); openWhatsApp(url) }}
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 font-semibold">
+            <MessageCircle className="h-4 w-4" aria-hidden="true" /> Open WhatsApp
+          </button>
+        </div>
+      ))}
       {failed.map((item) => (
         <div key={item.id} role="alert" className="flex items-start gap-2 rounded-xl bg-red-50 py-1 pl-3 pr-1 text-sm text-red-700 ring-1 ring-red-200">
           <AlertCircle className="mt-2.5 h-4 w-4 shrink-0" aria-hidden="true" />

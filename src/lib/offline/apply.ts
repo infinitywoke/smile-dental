@@ -1,4 +1,5 @@
 import type { VisitBill } from '@/lib/data/billing'
+import { DEFAULT_LENGTH } from '@/lib/schedule'
 import { subjectOf, type QueuedSave } from './outbox'
 
 export type ShownCharge = VisitBill['charges'][number] & { pending?: boolean }
@@ -6,6 +7,23 @@ export type ShownPayment = VisitBill['payments'][number] & { pending?: boolean }
 export type ShownBill = Omit<VisitBill, 'charges' | 'payments'> & { charges: ShownCharge[]; payments: ShownPayment[] }
 
 const round = (n: number) => Math.round(n * 100) / 100
+
+// The next visit as the doctor should see it: one booked, moved or removed on this phone and still
+// waiting to be saved goes before the server's (pending while it waits)
+export function shownNextVisit(
+  visitId: string,
+  server: { starts_at: string; duration_min: number } | null,
+  items: QueuedSave[],
+): { startsAt: string; minutes: number; pending: boolean } | null {
+  const waiting = items.filter((i) => i.visitId === visitId && !i.error && (i.action === 'bookNextVisit' || i.action === 'removeNextVisit')).at(-1)
+  if (!waiting) return server ? { startsAt: server.starts_at, minutes: server.duration_min, pending: false } : null
+  if (waiting.action === 'removeNextVisit') return null
+  return { startsAt: String(waiting.args[1]), minutes: Number(waiting.args[2]) || DEFAULT_LENGTH, pending: true }
+}
+
+// "WhatsApp sent" is recorded on this phone and waits to be saved
+export const sentWaiting = (visitId: string, items: QueuedSave[]) =>
+  items.some((i) => i.visitId === visitId && !i.error && i.action === 'markWhatsappSent')
 
 // The bill as the doctor should see it: what the server has, plus what is waiting on this phone to be
 // saved (marked pending), less what he removed while it waited. The totals and what is due follow.

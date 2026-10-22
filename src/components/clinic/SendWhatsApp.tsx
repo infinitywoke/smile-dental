@@ -6,13 +6,16 @@ import { useRouter } from 'next/navigation'
 import { AlertCircle, Check, ImageIcon, Loader2, MessageCircle } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import type { VisitDetail, VisitPhoto } from '@/lib/data/types'
-import { markWhatsappSent, prepareWhatsapp, type MessageData } from '@/lib/actions/visits'
+import { prepareWhatsapp, type MessageData } from '@/lib/actions/visits'
 import { MAX_PHOTOS_TO_SEND, visitMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
+import type { ShownBill } from '@/lib/offline/apply'
+import { isNetworkError, readOutbox } from '@/lib/offline/outbox'
 import { photoLabel, type PhotoKind } from '@/lib/visit-status'
 import { firstName, whatsappLink } from '@/lib/whatsapp'
 import type { UploadCounts } from './PhotoGallery'
 import { openWhatsApp } from '@/lib/whatsapp-business'
+import { useSaves } from './Outbox'
 import { ReviewRequest } from './ReviewRequest'
 
 // WhatsApp opens by itself only within this time of the tap: Android keeps a tap's "opened by the
@@ -70,8 +73,14 @@ export type SendHandle = { send: () => void; reset: () => void }
 // - phones that can share files: after the message, "Send prescription photo" opens the share sheet
 //   with the photos attached (the patient's chat is now at the top of WhatsApp); no links are made;
 // - other browsers: a 30-day link to each photo, made by the server at the tap, goes in the text.
+// With no signal (or saves still waiting on the phone, which the server doesn't have yet) the message
+// is made on the phone from the bill and next visit on show; WhatsApp sends it once it has signal, and
+// "WhatsApp sent" is recorded when the app has signal again.
 export function SendWhatsApp({
   visit,
+  bill,
+  nextAppointment,
+  sentWaiting,
   kindOf,
   nameOf,
   uploads,
@@ -81,6 +90,12 @@ export function SendWhatsApp({
   sends,
 }: {
   visit: VisitDetail
+  // The bill on show, with any charges and payments still waiting on the phone
+  bill: ShownBill
+  // The next visit on show (an ISO moment), perhaps still waiting on the phone
+  nextAppointment: string | null
+  // "WhatsApp sent" was recorded on this phone and is waiting to be saved
+  sentWaiting: boolean
   kindOf: (photo: VisitPhoto) => PhotoKind | null
   // What a photo is called in the files and the message ("Prescription", the name he typed, "Photo")
   nameOf: (photo: VisitPhoto) => string
@@ -101,7 +116,8 @@ export function SendWhatsApp({
   // Waiting, and not yet long enough to offer another tap
   const busy = sending.state === 'waiting' && !sending.slow
   const tickedPhotos = visit.photos.filter(sends)
-  const sent = sentNow || !!visit.closed_at
+  const sent = sentNow || !!visit.closed_at || sentWaiting
+  const saves = useSaves()
   // Sent, but a charge or payment changed since (the database sets this): the patient's message is out of date
   const resend = sent && !!visit.resend_needed
   const upToDate = sent && !resend
@@ -218,11 +234,19 @@ export function SendWhatsApp({
       }),
     )
 
+  // The message made here, from the bill and next visit on show. Links to photos need the server, so
+  // with ticked photos only a phone that shares them as files can send this way (null otherwise).
+  const linkHere = () =>
+    !canShareFiles && tickedPhotos.length > 0
+      ? null
+      : linkWith({ charges: bill.charges, payments: bill.payments, summary: bill.summary, nextAppointment: nextAppointment ? { starts_at: nextAppointment } : null }, {})
+
   // WhatsApp is opening: record the send ("WhatsApp sent", "bill changed" cleared), then open it.
   // A slow reply doesn't hold WhatsApp back (the tap only counts for a few seconds); it is recorded
-  // when the reply comes. A refusal from the server is shown instead of opening.
+  // when the reply comes, and with no signal once it is back. A refusal from the server is shown
+  // instead of opening.
   async function recordAndOpen(link: string, onOpen?: () => void, waitMs = RECORD_WAIT_MS) {
-    const recorded = markWhatsappSent(visit.id).then(
+    const recorded = saves.markWhatsappSent(visit.id).then(
       (r) => r.error ?? null,
       () => "Couldn't reach the server. Check the internet and try again.",
     )
@@ -248,32 +272,41 @@ export function SendWhatsApp({
       if (tries.current === thisTry) setSending({ state: 'waiting', slow: true })
     }, STILL_TRYING_MS)
     setSending({ state: 'waiting', slow: false })
+    const fail = (message: string) => {
+      clearTimeout(timer)
+      clearTimeout(stillTrying)
+      if (tries.current === thisTry) setSending({ state: 'failed', message })
+    }
+    let link: string | null
     try {
       await whenSaved()
-      // Photos shared as files need no links, so none are made
-      const result = await prepareWhatsapp(visit.id, canShareFiles ? [] : tickedPhotos.map((p) => p.id))
-      clearTimeout(timer)
-      clearTimeout(stillTrying)
-      // He tapped again meanwhile: that try's reply is the one used
-      if (tries.current !== thisTry) return
-      if (result.error || !result.message) {
-        setSending({ state: 'failed', message: result.error ?? 'Could not prepare the message. Please try again.' })
-        return
+      if (navigator.onLine === false || readOutbox().some((i) => !i.error && i.visitId === visit.id)) link = linkHere()
+      else {
+        // Photos shared as files need no links, so none are made
+        const result = await prepareWhatsapp(visit.id, canShareFiles ? [] : tickedPhotos.map((p) => p.id))
+        if (result.error || !result.message) return fail(result.error ?? 'Could not prepare the message. Please try again.')
+        link = linkWith(result.message, result.message.links)
       }
-      const link = linkWith(result.message, result.message.links)
-      // Quick enough: open WhatsApp now, still counted as the doctor's tap. Otherwise "Message ready"
-      // waits for his tap, and only that tap records the send.
-      if (!tooSlow) {
-        // "Preparing…" stays until WhatsApp opens
-        await recordAndOpen(link, () => setSending({ state: 'idle' }), RECORD_WAIT_AFTER_PREPARE_MS)
-      } else {
-        setSending({ state: 'ready', link })
-      }
-    } catch {
-      clearTimeout(timer)
-      clearTimeout(stillTrying)
-      if (tries.current !== thisTry) return
-      setSending({ state: 'failed', message: "Couldn't reach the server. Check the internet and try again." })
+    } catch (e) {
+      if (!isNetworkError(e)) return fail("Couldn't reach the server. Check the internet and try again.")
+      // The server couldn't be reached: the message is made here instead
+      link = linkHere()
+    }
+    clearTimeout(timer)
+    clearTimeout(stillTrying)
+    // He tapped again meanwhile: that try's reply is the one used
+    if (tries.current !== thisTry) return
+    if (!link) {
+      setSending({ state: 'failed', message: "No signal, so the links to the photos can't be made. Untick the photos to send the message without them, or wait for the signal." })
+      return
+    }
+    // Quick enough: open WhatsApp now, still counted as the doctor's tap. Otherwise "Message ready"
+    // waits for his tap, and only that tap records the send.
+    if (!tooSlow) {
+      // "Preparing…" stays until WhatsApp opens
+      await recordAndOpen(link, () => setSending({ state: 'idle' }), RECORD_WAIT_AFTER_PREPARE_MS)
+    } else {
+      setSending({ state: 'ready', link })
     }
   }
 

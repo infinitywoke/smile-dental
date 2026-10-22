@@ -7,7 +7,7 @@ import type { VisitPhoto } from '@/lib/data/types'
 import type { VisitBill } from '@/lib/data/billing'
 import type { VisitPageData } from '@/lib/data/visits'
 import { deleteVisit } from '@/lib/actions/visits'
-import { applyOutbox } from '@/lib/offline/apply'
+import { applyOutbox, sentWaiting as sentWaitingIn, shownNextVisit } from '@/lib/offline/apply'
 import { paymentsHeldMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
 import { DEFAULT_LENGTH, formatTimeOf, formatWhen } from '@/lib/schedule'
@@ -87,6 +87,9 @@ export function VisitFlow({
   const saves = useQueuedSaves(visit.id, save)
   const outbox = useOutbox()
   const bill = useMemo(() => applyOutbox(serverBill, outbox), [serverBill, outbox])
+  // The next visit and "WhatsApp sent" too: booked or sent with no signal, they show at once
+  const next = shownNextVisit(visit.id, visit.next_appointment ?? null, outbox)
+  const sentWaiting = sentWaitingIn(visit.id, outbox)
 
   // Photos still uploading or failed: Send waits for them
   const [uploads, setUploads] = useState<UploadCounts>({ uploading: 0, failed: 0 })
@@ -143,7 +146,7 @@ export function VisitFlow({
   const hasContent = bill.charges.length > 0 || notesText.trim() !== ''
   const nextStep: NextStep | null =
     showPayment && dueNow > 0 && !paidHere ? { kind: 'collect', due: dueNow }
-      : visit.patient.phone && hasContent && ((!visit.closed_at && !sentHere) || visit.resend_needed) ? { kind: 'send' }
+      : visit.patient.phone && hasContent && ((!visit.closed_at && !sentHere && !sentWaiting) || visit.resend_needed) ? { kind: 'send' }
         : null
   const showSection = (id: string, block: ScrollLogicalPosition) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block })
 
@@ -229,13 +232,14 @@ export function VisitFlow({
       <div id="visit-next" className="scroll-mt-4">
         {/* A new suggestion from a recording starts the card afresh, with its length */}
         <NextVisit key={noteNext?.instant ?? 'worked-out'} visitId={visit.id} patientName={visit.patient.name}
-          upcoming={visit.next_appointment?.starts_at ?? null}
-          upcomingMinutes={visit.next_appointment?.duration_min ?? DEFAULT_LENGTH}
-          bookedHere={visit.next_booked_here} fromNotes={noteNext} save={save} />
+          upcoming={next?.startsAt ?? null}
+          upcomingMinutes={next?.minutes ?? DEFAULT_LENGTH}
+          bookedHere={visit.next_booked_here || !!next?.pending} waiting={!!next?.pending} fromNotes={noteNext} />
       </div>
 
       <div id="visit-sent" className="scroll-mt-4">
-        <SendWhatsApp visit={visit} kindOf={kindOf} nameOf={nameOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
+        <SendWhatsApp visit={visit} bill={bill} nextAppointment={next?.startsAt ?? null} sentWaiting={sentWaiting}
+          kindOf={kindOf} nameOf={nameOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
       </div>
 
       <DeleteVisit visit={visit} payments={heldPayments} />

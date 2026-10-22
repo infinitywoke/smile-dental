@@ -3,7 +3,15 @@
 // id made on the phone, so one sent twice is stored once, and taking back something still waiting
 // simply drops it. Kept in the browser's storage, so a closed tab or a restarted phone loses nothing.
 
-export type QueuedAction = 'addCharge' | 'removeCharge' | 'recordPayment' | 'removePayment' | 'setPhotoKind'
+export type QueuedAction =
+  | 'addCharge'
+  | 'removeCharge'
+  | 'recordPayment'
+  | 'removePayment'
+  | 'setPhotoKind'
+  | 'bookNextVisit'
+  | 'removeNextVisit'
+  | 'markWhatsappSent'
 
 export type QueuedSave = {
   id: string
@@ -57,7 +65,7 @@ export function subscribeOutbox(listener: () => void): () => void {
   }
 }
 
-// The id of the charge or payment a save is about ("" for a photo's kind)
+// The id of the charge, payment or photo a save is about; for the next visit and the WhatsApp, the visit's
 export function subjectOf(save: Pick<QueuedSave, 'action' | 'args'>): string {
   switch (save.action) {
     case 'addCharge':
@@ -67,8 +75,19 @@ export function subjectOf(save: Pick<QueuedSave, 'action' | 'args'>): string {
     case 'removeCharge':
     case 'removePayment':
     case 'setPhotoKind':
+    case 'bookNextVisit':
+    case 'removeNextVisit':
+    case 'markWhatsappSent':
       return String(save.args[0] ?? '')
   }
+}
+
+// Only the latest of these matters: a photo's kind, the next visit (booked, moved or removed), the send
+const LATEST_ONLY: Partial<Record<QueuedAction, QueuedAction[]>> = {
+  setPhotoKind: ['setPhotoKind'],
+  bookNextVisit: ['bookNextVisit', 'removeNextVisit'],
+  removeNextVisit: ['bookNextVisit', 'removeNextVisit'],
+  markWhatsappSent: ['markWhatsappSent'],
 }
 
 export function enqueue(save: Omit<QueuedSave, 'id' | 'at'>) {
@@ -81,8 +100,9 @@ export function enqueue(save: Omit<QueuedSave, 'id' | 'at'>) {
     write(items.filter((i) => i !== waiting))
     return
   }
-  // A photo's kind: only the latest choice matters
-  const kept = save.action === 'setPhotoKind' ? items.filter((i) => !(i.action === 'setPhotoKind' && subjectOf(i) === subject)) : items
+  // Removing the next visit drops a booking still waiting, and still goes itself (the server may have one)
+  const replaces = LATEST_ONLY[save.action] ?? []
+  const kept = items.filter((i) => !(replaces.includes(i.action) && subjectOf(i) === subject))
   write([...kept, { ...save, id: crypto.randomUUID(), at: Date.now() }])
 }
 
