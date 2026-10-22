@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, CheckCircle2, Clock, Flame, UserPlus } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, Clock, Flame, Package, Settings, UserPlus } from 'lucide-react'
 import { LUNCH_SPAN, ringDash, type StripBlock } from '@/lib/cockpit'
 import { formatRupees } from '@/lib/pricing'
 import { formatBlock, inIndia } from '@/lib/schedule'
@@ -21,6 +21,8 @@ type Props = {
   // Game touches (Settings): the ring glows when everyone today is seen; the all-sent streak in days
   fun: boolean
   streak: number
+  // How many stock items are low or expire soon (null until stock is switched on)
+  stock: { low: number; expiring: number } | null
 }
 
 const R = 92
@@ -29,8 +31,9 @@ const label = 'hud-mono text-[10px] tracking-[0.14em] text-gray-500'
 
 // Today at a glance, like an instrument panel: whether the clinic is open, how much of the day is done,
 // who is next, the money, what is waiting, and the day's appointments on one strip
-export function Cockpit({ status, seen, total, marks, next, collected, requests, owed, strip, late, fun, streak }: Props) {
+export function Cockpit({ status, seen, total, marks, next, collected, requests, owed, strip, late, fun, streak, stock }: Props) {
   const allSeen = fun && total > 0 && seen >= total
+  const stockText = stock ? [stock.low > 0 && `${stock.low} low`, stock.expiring > 0 && `${stock.expiring} expiring soon`].filter(Boolean).join(' · ') : ''
   return (
     <section aria-label="Cockpit" className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -39,6 +42,10 @@ export function Cockpit({ status, seen, total, marks, next, collected, requests,
           <span>{status.text}</span>
         </span>
         <LiveClock />
+        <Link href="/app/settings" aria-label="Settings"
+          className="-my-1 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100">
+          <Settings className="h-5 w-5" />
+        </Link>
       </div>
 
       <div className="relative mx-auto flex h-48 w-48 items-center justify-center">
@@ -109,6 +116,15 @@ export function Cockpit({ status, seen, total, marks, next, collected, requests,
           <p className="hud-mono text-lg font-bold">{formatRupees(owed)}</p>
         </a>
       </div>
+
+      {stockText && (
+        <Link href="/app/stock" className="flex min-h-12 items-center gap-2.5 rounded-[14px] bg-white px-3 ring-1 ring-red-200 transition-transform active:scale-[0.98]">
+          <Package className="h-5 w-5 shrink-0 text-red-600" aria-hidden="true" />
+          <span className={label}>STOCK</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-gray-900">{stockText}</span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
+        </Link>
+      )}
 
       <div aria-label="Today's appointments on the day" role="img">
         <div className="hud-mono relative h-3 text-[9px] text-gray-500" aria-hidden="true">

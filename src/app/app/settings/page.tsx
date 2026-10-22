@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { Bell, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { FUN_COOKIE, THEME_COOKIE, funFrom, themeFrom } from '@/lib/theme'
-import { Card, ScreenLoading } from '@/components/clinic/ui'
+import { BackLink, Card, ScreenLoading } from '@/components/clinic/ui'
 import { FunSwitch } from '@/components/clinic/FunSwitch'
 import { SignOutButton } from '@/components/clinic/SignOutButton'
 import { ThemeSwitch } from '@/components/clinic/ThemeSwitch'
@@ -15,6 +15,7 @@ async function SettingsContent() {
   const theme = themeFrom(store.get(THEME_COOKIE)?.value)
   return (
     <div className="space-y-5">
+      <BackLink href="/app" label="Today" />
       <h1 className="text-2xl font-bold tracking-tight text-gray-900">Settings</h1>
       <Card className="space-y-3">
         <div>

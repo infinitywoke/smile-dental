@@ -62,7 +62,7 @@ export async function cleanRun(runId: string) {
 export async function cleanTestAccount() {
   const { supabase, userId } = await testDb()
   const { data: photos } = await supabase.from('visit_photos').select('storage_path')
-  for (const table of ['booking_requests', 'appointments', 'time_off', 'patients']) {
+  for (const table of ['booking_requests', 'appointments', 'time_off', 'patients', 'stock_items']) {
     const { error } = await supabase.from(table).delete().not('id', 'is', null)
     if (error) throw new Error(`cleaning ${table}: ${error.message}`)
   }

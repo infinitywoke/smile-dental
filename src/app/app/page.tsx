@@ -25,6 +25,7 @@ import { missedMessage, recallMessage, reminderMessage, whatsappLink } from '@/l
 import { openStatus } from '@/lib/clinic-hours'
 import { nextAppointment, stripBlock } from '@/lib/cockpit'
 import { getSentStreak } from '@/lib/data/streak'
+import { getStockAlerts } from '@/lib/data/stock'
 import { FUN_COOKIE, funFrom } from '@/lib/theme'
 import { cookies } from 'next/headers'
 import { Cockpit } from '@/components/clinic/Cockpit'
@@ -45,7 +46,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   // Game touches (Settings): the ring that glows when everyone is seen, and the all-sent streak
   const fun = funFrom((await cookies()).get(FUN_COOKIE)?.value)
 
-  const [schedule, appointments, visits, requests, busy, dues, reminders, missed, recalls, money, streak] = await Promise.all([
+  const [schedule, appointments, visits, requests, busy, dues, reminders, missed, recalls, money, streak, stock] = await Promise.all([
     getDaySchedule(date),
     getAppointmentsOn(date),
     getVisitsOn(date),
@@ -58,6 +59,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     isToday ? getRecalls(today) : Promise.resolve([] as Recall[]),
     isToday ? getMoneyOn(today) : Promise.resolve(null),
     isToday && fun ? getSentStreak(today) : Promise.resolve(0),
+    isToday ? getStockAlerts(today) : Promise.resolve(null),
   ])
   // A booked appointment whose time is over and that has no visit: the patient may not have come
   const now = new Date().getTime()
@@ -125,6 +127,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
       .map((a) => ({ id: a.id, name: a.patient.name, startsAt: a.starts_at, phone: a.patient.phone! })),
     fun,
     streak,
+    stock,
   } : null
 
   return (

@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, Plus, Settings, Users, Wallet } from 'lucide-react'
+import { CalendarDays, Package, Plus, Users, Wallet } from 'lucide-react'
 
-// The places to be (Today, Patients, Money, Settings) and, in the middle, the button that adds a patient
+// The places to be (Today, Patients, Stock, Money) and, in the middle, the button that adds a patient.
+// Settings is the gear on Today's Cockpit.
 const isToday = (p: string) => p === '/app' || p.startsWith('/app/visits') || p.startsWith('/app/requests') || p.startsWith('/app/appointments') || p.startsWith('/app/book')
 const isPatients = (p: string) => p.startsWith('/app/patients') && p !== '/app/patients/new'
+const isStock = (p: string) => p.startsWith('/app/stock')
 const isMoney = (p: string) => p.startsWith('/app/insights') || p.startsWith('/app/tally')
-const isSettings = (p: string) => p.startsWith('/app/settings') || p.startsWith('/app/notifications')
 
 export function BottomNav() {
   const pathname = usePathname()
@@ -34,8 +35,8 @@ export function BottomNav() {
             <Plus className="h-7 w-7" strokeWidth={2.5} />
           </Link>
         </div>
+        {tab('/app/stock', 'Stock', Package, isStock(pathname))}
         {tab('/app/insights', 'Money', Wallet, isMoney(pathname))}
-        {tab('/app/settings', 'Settings', Settings, isSettings(pathname))}
       </div>
     </nav>
   )
