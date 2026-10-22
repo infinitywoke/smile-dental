@@ -7,6 +7,7 @@ import type { VisitPhoto } from '@/lib/data/types'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImage } from '@/lib/resize-image'
 import { PHOTO_BUCKET, PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
+import { forgetPhoto, keepPhoto, keptPhotos } from '@/lib/offline/photo-store'
 import { useBackToClose } from './FullScreen'
 
 // A photo that failed to upload is tried again this often (and as soon as the phone is back online)
@@ -100,6 +101,7 @@ export function PhotoGallery({
     }
     try {
       await withinTime(attempt(), TRY_MS)
+      void forgetPhoto(item.key)
       startTransition(() => {
         setUploading((list) => list.filter((u) => u.key !== item.key))
       })
@@ -133,10 +135,30 @@ export function PhotoGallery({
     input.value = ''
     const added = files.map((file) => ({ key: crypto.randomUUID(), file, preview: URL.createObjectURL(file), failed: false }))
     setUploading((list) => [...list, ...added])
+    // A copy stays on the phone until it has uploaded (no signal, a closed tab)
+    added.forEach((item) => void keepPhoto({ key: item.key, visitId, blob: item.file, name: item.file.name, type: item.file.type, at: Date.now() }))
     added.forEach((item) => void upload(item))
   }
 
+  // Photos taken on this visit that never finished uploading (the tab closed, the phone restarted) go again
+  const resumed = useRef(new Set<string>())
+  useEffect(() => {
+    let cancelled = false
+    void keptPhotos(visitId).then((kept) => {
+      const fresh = kept.filter((k) => !resumed.current.has(k.key) && !uploadingRef.current.some((u) => u.key === k.key))
+      if (cancelled || fresh.length === 0) return
+      fresh.forEach((k) => resumed.current.add(k.key))
+      const items = fresh.map((k) => ({ key: k.key, file: new File([k.blob], k.name || 'photo.jpg', { type: k.type }), preview: URL.createObjectURL(k.blob), failed: false }))
+      setUploading((list) => [...list, ...items])
+      items.forEach((item) => void upload(item))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [visitId, upload])
+
   const discard = (item: Uploading) => {
+    void forgetPhoto(item.key)
     removed.current.add(item.key)
     URL.revokeObjectURL(item.preview)
     setUploading((list) => list.filter((u) => u.key !== item.key))

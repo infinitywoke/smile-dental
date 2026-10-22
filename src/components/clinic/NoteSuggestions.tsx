@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { Check, Plus, Sparkles, X } from 'lucide-react'
 import type { NoteSuggestions as Suggestions } from '@/lib/actions/smart-notes'
-import { addCharge, removeCharge } from '@/lib/actions/billing'
 import { parseAmount } from '@/lib/billing'
 import { formatRupees } from '@/lib/pricing'
-import type { Save } from './BillTools'
 import { useUndo } from './UndoBar'
+import { useSaves } from './Outbox'
 
 // What Gemini heard in the recording, each part where it belongs: the charges in the Bill (here), the next
 // visit as the Next visit card's suggestion (NextVisit), and words it couldn't make out under the notes
@@ -16,16 +15,15 @@ export function NoteCharges({
   visitId,
   charges: suggested,
   notOnList,
-  save,
   onDismiss,
 }: {
   visitId: string
   charges: Suggestions['charges']
   notOnList: Suggestions['notOnList']
-  save: Save
   onDismiss: () => void
 }) {
   const offerUndo = useUndo()
+  const saves = useSaves()
   const [done, setDone] = useState<Record<string, boolean>>({})
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
@@ -46,13 +44,13 @@ export function NoteCharges({
     }
     setError(null)
     const id = otherIds[index]
-    const result = await save(() => addCharge(visitId, { description: description.charAt(0).toUpperCase() + description.slice(1), amount, treatmentSlug: null }, id))
+    const result = await saves.addCharge(visitId, { description: description.charAt(0).toUpperCase() + description.slice(1), amount, treatmentSlug: null }, id)
     if (result.error) {
       setError(result.error)
       return
     }
     setDone((d) => ({ ...d, [key]: true }))
-    offerUndo(`Added ${description}: ${formatRupees(amount)}`, () => save(() => removeCharge(id)))
+    offerUndo(`Added ${description}: ${formatRupees(amount)}`, () => saves.removeCharge(id))
   }
 
   async function add(c: Suggestions['charges'][number]) {
@@ -63,13 +61,13 @@ export function NoteCharges({
     }
     setError(null)
     const id = ids[c.key]
-    const result = await save(() => addCharge(visitId, { description: c.description, amount, treatmentSlug: c.treatmentSlug }, id))
+    const result = await saves.addCharge(visitId, { description: c.description, amount, treatmentSlug: c.treatmentSlug }, id)
     if (result.error) {
       setError(result.error)
       return
     }
     setDone((d) => ({ ...d, [c.key]: true }))
-    offerUndo(`Added ${c.description}: ${formatRupees(amount)}`, () => save(() => removeCharge(id)))
+    offerUndo(`Added ${c.description}: ${formatRupees(amount)}`, () => saves.removeCharge(id))
   }
 
   // Every charge with its price and no doubt about it, in one tap, with one Undo for them all
@@ -79,7 +77,7 @@ export function NoteCharges({
     const added: { key: string; id: string }[] = []
     for (const c of sure) {
       const id = ids[c.key]
-      const result = await save(() => addCharge(visitId, { description: c.description, amount: c.amount!, treatmentSlug: c.treatmentSlug }, id))
+      const result = await saves.addCharge(visitId, { description: c.description, amount: c.amount!, treatmentSlug: c.treatmentSlug }, id)
       if (result.error) {
         setError(result.error)
         break
@@ -90,7 +88,7 @@ export function NoteCharges({
     setDone((d) => ({ ...d, ...Object.fromEntries(added.map((a) => [a.key, true])) }))
     offerUndo(`Added ${added.length} charge${added.length === 1 ? '' : 's'} from your notes`, async () => {
       for (const a of added) {
-        const result = await save(() => removeCharge(a.id))
+        const result = await saves.removeCharge(a.id)
         if (result.error) return result
       }
       return {}

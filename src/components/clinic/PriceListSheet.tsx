@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import { AlertCircle, Loader2, Plus, Search } from 'lucide-react'
-import { addCharge, removeCharge } from '@/lib/actions/billing'
 import { useUndo } from './UndoBar'
+import { useSaves } from './Outbox'
 import { parseAmount } from '@/lib/billing'
 import { chargeName as nameOf, formatPrice, formatRupees, priceListOptions, type PriceListOption } from '@/lib/pricing'
-import type { Save, SaveId } from './BillTools'
+import type { SaveId } from './BillTools'
 import { FullScreen } from './FullScreen'
 
 const inputClass =
@@ -19,19 +19,18 @@ const keyOf = (o: PriceListOption) => `${o.slug}|${o.detail}`
 // asks for the agreed amount; "Other charge" asks what for and how much.
 export function PriceListSheet({
   visitId,
-  save,
   saveId,
   onAdded,
   onClose,
 }: {
   visitId: string
-  save: Save
   saveId: SaveId
   onAdded: () => void
   onClose: () => void
 }) {
   const options = useMemo(() => priceListOptions(), [])
   const offerUndo = useUndo()
+  const saves = useSaves()
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [amount, setAmount] = useState('')
@@ -49,11 +48,11 @@ export function PriceListSheet({
     // The same charge tapped again after a lost reply keeps its id, so it is saved once
     const chargeId = saveId.idFor(`${input.treatmentSlug}|${input.description}|${input.amount}`)
     try {
-      const result = await save(() => addCharge(visitId, input, chargeId))
+      const result = await saves.addCharge(visitId, input, chargeId)
       if (result.error) setError(result.error)
       else {
         saveId.done()
-        offerUndo(`Added ${input.description}: ${formatRupees(input.amount)}`, () => save(() => removeCharge(chargeId)))
+        offerUndo(`Added ${input.description}: ${formatRupees(input.amount)}`, () => saves.removeCharge(chargeId))
         onAdded()
       }
     } catch {

@@ -3,9 +3,9 @@
 import { useEffect, useImperativeHandle, useState, type Ref } from 'react'
 import QRCode from 'qrcode'
 import { AlertCircle, Banknote, Check, QrCode } from 'lucide-react'
-import type { VisitBill } from '@/lib/data/billing'
-import { recordPayment, removePayment } from '@/lib/actions/billing'
+import type { ShownBill } from '@/lib/offline/apply'
 import { useUndo } from './UndoBar'
+import { useSaves } from './Outbox'
 import { parseAmount } from '@/lib/billing'
 import { formatRupees } from '@/lib/pricing'
 import { upiLink } from '@/lib/upi'
@@ -31,7 +31,8 @@ export function PaymentCard({
 }: {
   visitId: string
   patientName: string
-  bill: VisitBill
+  // With any payment still waiting on the phone to be saved (pending)
+  bill: ShownBill
   save: Save
   // Told about a payment tapped here that the page doesn't have yet, so Delete visit counts it at once
   onSaving?: (payment: SavingPayment | null) => void
@@ -54,6 +55,7 @@ export function PaymentCard({
   const qr = useBackToClose()
   const saveId = useSaveId()
   const offerUndo = useUndo()
+  const saves = useSaves()
 
   const parsed = parseAmount(amount)
   const valid = parsed !== null && parsed > 0
@@ -61,7 +63,7 @@ export function PaymentCard({
   // Taking a payment back: the saving row must not come back with it
   const takeBack = (paymentId: string) => {
     setSaving(null)
-    return save(() => removePayment(paymentId))
+    return saves.removePayment(paymentId)
   }
 
   // The full-screen UPI QR for the amount in the box, or the one given (typed notes are sent first)
@@ -92,7 +94,7 @@ export function PaymentCard({
     setSaving({ id: paymentId, amount: value, method })
     navigator.vibrate?.(10)
     try {
-      const result = await save(() => recordPayment(visitId, value, method, paymentId))
+      const result = await saves.recordPayment(visitId, value, method, paymentId)
       if (result.error) {
         setSaving(null)
         setError(result.error)
@@ -118,7 +120,7 @@ export function PaymentCard({
           {payments.map((payment) => (
             <div key={payment.id} className="-my-1 flex items-center gap-2">
               <p className="min-w-0 flex-1 text-gray-700">
-                Paid by {payment.method === 'upi' ? 'UPI' : 'cash'} <span className="text-sm text-gray-400">· {formatTimeOf(payment.received_at)}</span>
+                Paid by {payment.method === 'upi' ? 'UPI' : 'cash'} <span className="text-sm text-gray-400">· {payment.pending ? 'waiting to save' : formatTimeOf(payment.received_at)}</span>
               </p>
               <p className="font-semibold tabular-nums text-green-700">{formatRupees(payment.amount)}</p>
               <RemoveButton label={`Remove payment ${formatRupees(payment.amount)}`}

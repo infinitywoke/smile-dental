@@ -10,6 +10,7 @@ import { THEME_COOKIE, themeFrom } from '@/lib/theme'
 import { BottomNav } from '@/components/clinic/BottomNav'
 import { PageTransition } from '@/components/clinic/PageTransition'
 import { ThemeColor } from '@/components/clinic/ThemeColor'
+import { OutboxSync } from '@/components/clinic/Outbox'
 import { WhatsAppBusiness } from '@/components/clinic/WhatsAppBusiness'
 
 const body = Manrope({ subsets: ['latin'], variable: '--font-hud-body' })
@@ -52,6 +53,8 @@ async function DoctorGate({ children }: { children: React.ReactNode }) {
   return (
     <div id="hud-root" className="hud hud-grid flex flex-1 flex-col text-gray-900" data-theme={theme}>
       <ThemeColor />
+      {/* Sends what was saved with no signal once it is back, and says how it stands */}
+      <OutboxSync />
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-28"><PageTransition>{children}</PageTransition></main>
       <BottomNav stockAlert={!!stock && stock.low + stock.expiring > 0} />
       <WhatsAppBusiness />

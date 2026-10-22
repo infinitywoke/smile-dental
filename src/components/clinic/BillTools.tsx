@@ -1,14 +1,14 @@
 'use client'
 
 import { useMemo, useRef, useState, useTransition } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
-import type { VisitBill } from '@/lib/data/billing'
-import { addCharge, removeCharge } from '@/lib/actions/billing'
+import { CloudOff, Plus, Trash2 } from 'lucide-react'
+import type { ShownCharge } from '@/lib/offline/apply'
 import { formatRupees } from '@/lib/pricing'
 import type { UsualCharge } from '@/lib/usual-charges'
 import { useBackToClose } from './FullScreen'
 import { PriceListSheet } from './PriceListSheet'
 import { useUndo } from './UndoBar'
+import { useSaves } from './Outbox'
 
 // Runs a save after the typed notes, and lets Send on WhatsApp wait for it (see VisitFlow)
 export type Save = <T>(action: () => Promise<T>) => Promise<T>
@@ -47,7 +47,8 @@ export function BillSection({
   children,
 }: {
   visitId: string
-  charges: VisitBill['charges']
+  // With any still waiting on the phone to be saved (pending)
+  charges: ShownCharge[]
   total: number
   // The price-list items he bills most (src/lib/usual-charges.ts)
   usual: UsualCharge[]
@@ -61,6 +62,7 @@ export function BillSection({
   // Kept here, not in the sheet, so closing and reopening the list still recognises a retry
   const saveId = useSaveId()
   const offerUndo = useUndo()
+  const saves = useSaves()
   const [adding, setAdding] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,12 +73,12 @@ export function BillSection({
     setAdding(item.description)
     const chargeId = saveId.idFor(`${item.slug}|${item.description}|${item.amount}`)
     try {
-      const result = await save(() => addCharge(visitId, { description: item.description, amount: item.amount, treatmentSlug: item.slug }, chargeId))
+      const result = await saves.addCharge(visitId, { description: item.description, amount: item.amount, treatmentSlug: item.slug }, chargeId)
       if (result.error) setError(result.error)
       else {
         saveId.done()
         navigator.vibrate?.(10)
-        offerUndo(`Added ${item.description}: ${formatRupees(item.amount)}`, () => save(() => removeCharge(chargeId)))
+        offerUndo(`Added ${item.description}: ${formatRupees(item.amount)}`, () => saves.removeCharge(chargeId))
       }
     } catch {
       setError("Couldn't reach the server. Check the internet and try again.")
@@ -93,10 +95,13 @@ export function BillSection({
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
           {charges.map((charge) => (
             <div key={charge.id} className="flex items-center gap-2 border-b border-gray-100 py-1 pl-4 pr-1">
-              <p className="min-w-0 flex-1 text-base text-gray-900">{charge.description}</p>
+              <p className="min-w-0 flex-1 text-base text-gray-900">
+                {charge.description}
+                {charge.pending && <span className="flex items-center gap-1 text-xs font-semibold text-gray-500"><CloudOff className="h-3.5 w-3.5" aria-hidden="true" />Waiting to save</span>}
+              </p>
               <p className="shrink-0 text-base font-semibold tabular-nums text-gray-900">{formatRupees(charge.amount)}</p>
               <RemoveButton label={`Remove ${charge.description}`} confirm={`Remove "${charge.description}" from the bill?`}
-                onRemove={() => save(() => removeCharge(charge.id))} />
+                onRemove={() => saves.removeCharge(charge.id)} />
             </div>
           ))}
           {charges.length > 0 && (
@@ -133,7 +138,7 @@ export function BillSection({
         className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-200 hover:bg-gray-50">
         <Plus className="h-5 w-5 text-gray-500" aria-hidden="true" /> Add charge
       </button>
-      {sheet.open && <PriceListSheet visitId={visitId} save={save} saveId={saveId} onAdded={sheet.close} onClose={sheet.close} />}
+      {sheet.open && <PriceListSheet visitId={visitId} saveId={saveId} onAdded={sheet.close} onClose={sheet.close} />}
     </section>
   )
 }

@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ChevronRight } from 'lucide-react'
 import type { VisitPhoto } from '@/lib/data/types'
 import type { VisitBill } from '@/lib/data/billing'
 import type { VisitPageData } from '@/lib/data/visits'
-import { deleteVisit, setPhotoKind } from '@/lib/actions/visits'
+import { deleteVisit } from '@/lib/actions/visits'
+import { applyOutbox } from '@/lib/offline/apply'
 import { paymentsHeldMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
 import { DEFAULT_LENGTH, formatTimeOf, formatWhen } from '@/lib/schedule'
@@ -25,13 +26,14 @@ import { MedicalAlert } from './ui'
 import { UndoProvider } from './UndoBar'
 import { NoteCharges, NoteUnclear } from './NoteSuggestions'
 import { PrescriptionCard } from './PrescriptionCard'
+import { SavesProvider, useOutbox, useQueuedSaves } from './Outbox'
 import type { NoteSuggestions as Suggestions } from '@/lib/actions/smart-notes'
 
 // A visit is one page that saves by itself: notes, photos, bill, payment, next visit, WhatsApp.
 export function VisitFlow({
   doctorId,
   visit,
-  bill,
+  bill: serverBill,
   medicines,
   usual,
   focus,
@@ -80,6 +82,12 @@ export function VisitFlow({
     while (pendingSaves.current.size > 0) await Promise.allSettled([...pendingSaves.current])
   }, [])
 
+  // With no signal, charges, payments and photo kinds wait on the phone and save when it is back
+  // (src/lib/offline); the page shows the bill with them, marked as waiting
+  const saves = useQueuedSaves(visit.id, save)
+  const outbox = useOutbox()
+  const bill = useMemo(() => applyOutbox(serverBill, outbox), [serverBill, outbox])
+
   // Photos still uploading or failed: Send waits for them
   const [uploads, setUploads] = useState<UploadCounts>({ uploading: 0, failed: 0 })
 
@@ -96,7 +104,7 @@ export function VisitFlow({
     setKindError(null)
     setCaptions((c) => ({ ...c, [photo.id]: photoCaption(kind, name) }))
     try {
-      const result = await save(() => setPhotoKind(photo.id, kind, name))
+      const result = await saves.setPhotoKind(photo.id, kind, name)
       if (result.error) throw new Error(result.error)
     } catch {
       setCaptions((k) => {
@@ -141,6 +149,7 @@ export function VisitFlow({
 
   return (
     <UndoProvider>
+    <SavesProvider value={saves}>
     <div className="space-y-7 pb-4">
       <div className="space-y-3">
         <div className="flex items-end justify-between gap-3">
@@ -201,7 +210,7 @@ export function VisitFlow({
         <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} usual={usual} save={save}
           fromNotes={noteCharges && (
             <NoteCharges key={noteCharges.round} visitId={visit.id} charges={noteCharges.charges} notOnList={noteCharges.notOnList}
-              save={save} onDismiss={() => setNoteCharges(null)} />
+              onDismiss={() => setNoteCharges(null)} />
           )}>
           {showPayment && (
             <PaymentCard
@@ -240,6 +249,7 @@ export function VisitFlow({
           onSend={() => { sendRef.current?.send(); showSection('visit-sent', 'end') }} />
       )}
     </div>
+    </SavesProvider>
     </UndoProvider>
   )
 }
