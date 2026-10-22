@@ -87,7 +87,7 @@ test('Practice holds Money, Costs, Stock and Settings; the look is light until c
   const look = page.getByRole('radiogroup', { name: 'Look' })
   await expect(look.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
   await expect(root).toHaveAttribute('data-theme', 'light')
-  expect(await root.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(243, 246, 252)')
+  expect(await root.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(250, 246, 238)')
 
   await look.getByRole('radio', { name: 'Dark' }).click()
   await expect(root).toHaveAttribute('data-theme', 'dark')
@@ -95,7 +95,7 @@ test('Practice holds Money, Costs, Stock and Settings; the look is light until c
   await page.goto('/app')
   await expect(page.locator('#hud-root')).toHaveAttribute('data-theme', 'dark')
   // Dark really is dark: the page behind the panels is navy
-  expect(await page.locator('#hud-root').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(5, 13, 36)')
+  expect(await page.locator('#hud-root').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(7, 21, 52)')
 
   await page.goto('/app/settings')
   await visible(page.getByRole('radio', { name: 'Light' })).click()
@@ -104,7 +104,7 @@ test('Practice holds Money, Costs, Stock and Settings; the look is light until c
   await expect(page.locator('#hud-root')).toHaveAttribute('data-theme', 'system')
   await expect.poll(async () => (await page.context().cookies()).find((c) => c.name === 'clinic-theme')?.value).toBe('system')
   // Phone follows this phone, which is in dark mode here
-  expect(await page.locator('#hud-root').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(5, 13, 36)')
+  expect(await page.locator('#hud-root').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(7, 21, 52)')
 })
 
 test('the Visit: a usual charge is one tap with Undo, the next visit can be a month on, and the next step stays in reach: collect, then send', async ({ page }) => {

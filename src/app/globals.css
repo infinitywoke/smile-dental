@@ -20,35 +20,40 @@ body {
 
 /* ---- Clinic OS, the Cockpit (the HUD) ----------------------------------------------------------
    The Tailwind colours the app's screens use, redefined for the Cockpit's light and dark themes, so
-   every screen follows: navy, with grays tinted toward navy. data-theme on .hud is the dentist's
+   every screen follows. Colours A, "Clinic colours" (owner, 22 Oct 2026): navy and gold on cream, from
+   the clinic's logo and printed price list; gold only for small brand touches (the open tab's mark, the
+   Walk-in button in dark), never for meaning. data-theme on .hud is the dentist's
    choice in Settings ("system" follows the phone). In dark, white becomes the panel colour and the
    grays run the other way, so light text sits on dark panels; blue (the app's primary) is navy in
    light and near-white in dark. The Quiet Cockpit (docs/BUILD_LOG.md): calm screens, and amber only
    for what needs him (a request waiting, money due, a visit not sent, low stock). */
 .hud {
-  --hud-bg: #F3F6FC;
+  --hud-bg: #FAF6EE;
   --hud-grid: transparent;
   --hud-amber: #F0A63A;
-  --hud-amber-text: #8A5A12;
+  --hud-amber-text: #7A4A00;
   --hud-green: #22A06B;
   --hud-green-text: #1D7A55;
+  --hud-gold: #B98535;
+  --hud-walkin: #0B2357;
+  --hud-walkin-text: #FFFFFF;
   color-scheme: light;
   font-family: var(--font-hud-body), system-ui, sans-serif;
   background-color: var(--hud-bg);
   --color-white: #FFFFFF;
-  --color-gray-50: #F3F6FC;
-  --color-gray-100: #E8EDF6;
-  --color-gray-200: #DAE1EE;
-  --color-gray-300: #C2CDE1;
-  --color-gray-400: #8D9BB8;
-  --color-gray-500: #5B6B8E;
-  --color-gray-600: #4A5C84;
-  --color-gray-700: #304370;
-  --color-gray-800: #1A2C56;
+  --color-gray-50: #FAF6EE;
+  --color-gray-100: #F2EADA;
+  --color-gray-200: #E6DCCB;
+  --color-gray-300: #D8CCB4;
+  --color-gray-400: #77746B;
+  --color-gray-500: #5A6478;
+  --color-gray-600: #4A5470;
+  --color-gray-700: #34405E;
+  --color-gray-800: #1E2B4F;
   --color-gray-900: #0B2357;
-  --color-blue-50: #EEF2FA;
-  --color-blue-100: #E0E7F5;
-  --color-blue-200: #C7D3EC;
+  --color-blue-50: #EEF1F7;
+  --color-blue-100: #E2E7F1;
+  --color-blue-200: #C9D2E4;
   --color-blue-300: #A2B4DA;
   --color-blue-400: #6B83B6;
   --color-blue-500: #2D4B8A;
@@ -56,37 +61,47 @@ body {
   --color-blue-700: #0B2357;
   --color-blue-800: #08193F;
   --color-blue-900: #061331;
+  --color-amber-50: #FFF4DE;
+  --color-amber-100: #FFEAC2;
+  --color-amber-200: #F2D290;
+  --color-amber-300: #E9C27A;
+  --color-amber-700: #8A5A12;
+  --color-amber-800: #7A4A00;
+  --color-amber-900: #5C3800;
 }
 
 /* The same dark palette twice: once when the dentist chose Dark, once when the phone is dark and the
    choice is System */
 .hud[data-theme="dark"] {
-  --hud-bg: #050D24;
+  --hud-bg: #071534;
   --hud-grid: transparent;
   --hud-amber: #FFC46B;
-  --hud-amber-text: #FFC46B;
+  --hud-amber-text: #FFCF7A;
   --hud-green: #3DDC97;
   --hud-green-text: #3DDC97;
+  --hud-gold: #D4A24C;
+  --hud-walkin: #D4A24C;
+  --hud-walkin-text: #071534;
   color-scheme: dark;
-  --color-white: #0B1A3F;
-  --color-gray-50: #050D24;
-  --color-gray-100: #0F2150;
-  --color-gray-200: #1B3162;
-  --color-gray-300: #2A4378;
-  --color-gray-400: #7084AE;
-  --color-gray-500: #8FA3CC;
-  --color-gray-600: #A8B8DA;
-  --color-gray-700: #C6D2EB;
-  --color-gray-800: #DCE4F4;
-  --color-gray-900: #EAF0FB;
-  --color-blue-50: #13244F;
-  --color-blue-100: #1B2E5E;
-  --color-blue-200: #2B4172;
-  --color-blue-300: #3F5689;
-  --color-blue-400: #8FA3CC;
-  --color-blue-500: #C6D2EB;
-  --color-blue-600: #EAF0FB;
-  --color-blue-700: #EAF0FB;
+  --color-white: #0E214B;
+  --color-gray-50: #071534;
+  --color-gray-100: #132B5C;
+  --color-gray-200: #1D3466;
+  --color-gray-300: #2E4A80;
+  --color-gray-400: #8592AE;
+  --color-gray-500: #AEB9D0;
+  --color-gray-600: #C2CBDC;
+  --color-gray-700: #D9DFEA;
+  --color-gray-800: #EDE8DE;
+  --color-gray-900: #F5EFE3;
+  --color-blue-50: #15295A;
+  --color-blue-100: #1C3266;
+  --color-blue-200: #2C4475;
+  --color-blue-300: #40588B;
+  --color-blue-400: #AEB9D0;
+  --color-blue-500: #D9DFEA;
+  --color-blue-600: #F5EFE3;
+  --color-blue-700: #F5EFE3;
   --color-blue-800: #FFFFFF;
   --color-blue-900: #FFFFFF;
   --color-red-50: #2B1624;
@@ -113,14 +128,14 @@ body {
   --color-emerald-700: #7EE8BA;
   --color-teal-200: #1E4B52;
   --color-teal-700: #7FDCE6;
-  --color-amber-50: #2A2414;
-  --color-amber-100: #382F17;
-  --color-amber-200: #594820;
-  --color-amber-300: #85692B;
+  --color-amber-50: #3B2B0E;
+  --color-amber-100: #4A360F;
+  --color-amber-200: #6B5020;
+  --color-amber-300: #8A6420;
   --color-amber-500: #FFC46B;
   --color-amber-700: #FFD796;
-  --color-amber-800: #FFE2AE;
-  --color-amber-900: #FFEBC7;
+  --color-amber-800: #FFCF7A;
+  --color-amber-900: #FFE2AE;
   --color-violet-50: #1D1A3B;
   --color-violet-100: #28234F;
   --color-violet-200: #3B336E;
@@ -131,32 +146,35 @@ body {
 }
 @media (prefers-color-scheme: dark) {
   .hud[data-theme="system"] {
-    --hud-bg: #050D24;
+    --hud-bg: #071534;
     --hud-grid: transparent;
     --hud-amber: #FFC46B;
-    --hud-amber-text: #FFC46B;
+    --hud-amber-text: #FFCF7A;
     --hud-green: #3DDC97;
     --hud-green-text: #3DDC97;
+    --hud-gold: #D4A24C;
+    --hud-walkin: #D4A24C;
+    --hud-walkin-text: #071534;
     color-scheme: dark;
-    --color-white: #0B1A3F;
-    --color-gray-50: #050D24;
-    --color-gray-100: #0F2150;
-    --color-gray-200: #1B3162;
-    --color-gray-300: #2A4378;
-    --color-gray-400: #7084AE;
-    --color-gray-500: #8FA3CC;
-    --color-gray-600: #A8B8DA;
-    --color-gray-700: #C6D2EB;
-    --color-gray-800: #DCE4F4;
-    --color-gray-900: #EAF0FB;
-    --color-blue-50: #13244F;
-    --color-blue-100: #1B2E5E;
-    --color-blue-200: #2B4172;
-    --color-blue-300: #3F5689;
-    --color-blue-400: #8FA3CC;
-    --color-blue-500: #C6D2EB;
-    --color-blue-600: #EAF0FB;
-    --color-blue-700: #EAF0FB;
+    --color-white: #0E214B;
+    --color-gray-50: #071534;
+    --color-gray-100: #132B5C;
+    --color-gray-200: #1D3466;
+    --color-gray-300: #2E4A80;
+    --color-gray-400: #8592AE;
+    --color-gray-500: #AEB9D0;
+    --color-gray-600: #C2CBDC;
+    --color-gray-700: #D9DFEA;
+    --color-gray-800: #EDE8DE;
+    --color-gray-900: #F5EFE3;
+    --color-blue-50: #15295A;
+    --color-blue-100: #1C3266;
+    --color-blue-200: #2C4475;
+    --color-blue-300: #40588B;
+    --color-blue-400: #AEB9D0;
+    --color-blue-500: #D9DFEA;
+    --color-blue-600: #F5EFE3;
+    --color-blue-700: #F5EFE3;
     --color-blue-800: #FFFFFF;
     --color-blue-900: #FFFFFF;
     --color-red-50: #2B1624;
@@ -183,14 +201,14 @@ body {
     --color-emerald-700: #7EE8BA;
     --color-teal-200: #1E4B52;
     --color-teal-700: #7FDCE6;
-    --color-amber-50: #2A2414;
-    --color-amber-100: #382F17;
-    --color-amber-200: #594820;
-    --color-amber-300: #85692B;
+    --color-amber-50: #3B2B0E;
+    --color-amber-100: #4A360F;
+    --color-amber-200: #6B5020;
+    --color-amber-300: #8A6420;
     --color-amber-500: #FFC46B;
     --color-amber-700: #FFD796;
-    --color-amber-800: #FFE2AE;
-    --color-amber-900: #FFEBC7;
+    --color-amber-800: #FFCF7A;
+    --color-amber-900: #FFE2AE;
     --color-violet-50: #1D1A3B;
     --color-violet-100: #28234F;
     --color-violet-200: #3B336E;

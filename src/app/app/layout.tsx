@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 
 // Light until the page knows his choice (ThemeColor then follows it)
 export const viewport: Viewport = {
-  themeColor: '#F3F6FC',
+  themeColor: '#FAF6EE',
 }
 
 // The Cockpit: light until the session is checked; then the dentist's choice for this phone (Settings)

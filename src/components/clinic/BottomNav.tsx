@@ -24,7 +24,8 @@ export function BottomNav({ stockAlert }: { stockAlert: boolean }) {
           <span className="sr-only">, stock low</span>
         </span>
       )}
-      <span className={`h-[3px] w-4 rounded-full transition-colors ${active ? 'bg-gray-900' : 'bg-transparent'}`} aria-hidden="true" />
+      {/* The clinic's gold, a brand touch only (data-brand: not counted as a warning by the walk-through) */}
+      <span data-brand className={`h-[3px] w-4 rounded-full transition-colors ${active ? 'bg-[var(--hud-gold)]' : 'bg-transparent'}`} aria-hidden="true" />
     </Link>
   )
 
@@ -34,8 +35,8 @@ export function BottomNav({ stockAlert }: { stockAlert: boolean }) {
         {tab('/app', 'Today', CalendarDays, isToday(pathname))}
         {tab('/app/patients', 'Patients', Users, isPatients(pathname))}
         {tab('/app/insights', 'Practice', BriefcaseMedical, isPractice(pathname), stockAlert)}
-        <Link href="/app/patients/new"
-          className="flex min-h-12 shrink-0 items-center gap-1.5 rounded-[14px] bg-blue-600 px-4 text-[15px] font-extrabold text-white transition-transform active:scale-95">
+        <Link href="/app/patients/new" data-brand
+          className="flex min-h-12 shrink-0 items-center gap-1.5 rounded-[14px] bg-[var(--hud-walkin)] px-4 text-[15px] font-extrabold text-[var(--hud-walkin-text)] transition-transform active:scale-95">
           <Plus className="h-5 w-5" strokeWidth={2.6} aria-hidden="true" />Walk-in
         </Link>
       </div>

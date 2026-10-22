@@ -6,8 +6,8 @@
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F3F6FC",
-  "theme_color": "#F3F6FC",
+  "background_color": "#FAF6EE",
+  "theme_color": "#FAF6EE",
   "icons": [
     {
       "src": "/icons/clinic-192.png",

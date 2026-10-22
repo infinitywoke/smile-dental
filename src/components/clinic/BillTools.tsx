@@ -100,7 +100,7 @@ export function BillSection({
             </div>
           ))}
           {charges.length > 0 && (
-            <div className="flex items-center justify-between bg-gray-50 px-4 py-3">
+            <div className="flex items-center justify-between bg-gray-100 px-4 py-3">
               <p className="font-semibold text-gray-900">Total</p>
               <p className="text-lg font-bold tabular-nums text-gray-900">{formatRupees(total)}</p>
             </div>

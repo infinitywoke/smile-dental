@@ -30,9 +30,14 @@ export function LengthPicker({
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current)
   }, [])
+  // The page's address as it is when the change goes (he may have moved to another day meanwhile)
+  const latest = useRef(linkTo)
+  useEffect(() => {
+    latest.current = linkTo
+  }, [linkTo])
 
-  const hrefFor = (minutes: number) =>
-    !linkTo || minutes === linkTo.defaultLength ? (linkTo?.path ?? '') : `${linkTo.path}${linkTo.path.includes('?') ? '&' : '?'}len=${minutes}`
+  const hrefFor = (minutes: number, link = linkTo) =>
+    !link || minutes === link.defaultLength ? (link?.path ?? '') : `${link.path}${link.path.includes('?') ? '&' : '?'}len=${minutes}`
   const stepTo = (minutes: number) => {
     setShown(minutes)
     if (!linkTo) {
@@ -40,7 +45,7 @@ export function LengthPicker({
       return
     }
     if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => router.replace(hrefFor(minutes), { scroll: false }), 400)
+    timer.current = setTimeout(() => router.replace(hrefFor(minutes, latest.current), { scroll: false }), 400)
   }
 
   const chip = (active: boolean) =>

@@ -144,7 +144,8 @@ async function measure(page: Page) {
     }
     const hasAmber = (value: string) => [...value.matchAll(/(rgba?|oklch|oklab|lch|lab)\(([^)]*)\)/g)].some((m) => amberColour(m[1], m[2]))
     const amber = [...document.querySelectorAll('body *')].filter((el) => {
-      if (!isVisible(el)) return false
+      // The clinic's gold (a brand touch, marked data-brand) is not a warning
+      if (!isVisible(el) || el.closest('[data-brand]')) return false
       const s = getComputedStyle(el)
       const hasText = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())
       return hasAmber(s.backgroundColor) || hasAmber(s.backgroundImage) || hasAmber(s.fill) || hasAmber(s.stroke) || (hasText && hasAmber(s.color)) ||
