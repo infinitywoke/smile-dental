@@ -64,7 +64,7 @@ test('Money leads to Costs; a cost is saved with a photo of its bill', async () 
 
 test('a regular bill is added, then marked paid once this month with the amount actually paid', async () => {
   await page.goto('/app/costs')
-  await visible(page.getByRole('link', { name: 'Regular bills' })).click()
+  await visible(page.getByRole('link', { name: 'Regular bills', exact: true })).click()
   await expect(page).toHaveURL(/\/app\/costs\/regular$/)
   await visible(page.getByRole('link', { name: 'Add', exact: true })).click()
   await visible(page.getByLabel('Bill', { exact: true })).fill(rent)
