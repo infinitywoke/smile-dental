@@ -9,7 +9,7 @@ import { CalendarDays, Package, Plus, Users, Wallet } from 'lucide-react'
 const isToday = (p: string) => p === '/app' || p.startsWith('/app/visits') || p.startsWith('/app/requests') || p.startsWith('/app/appointments') || p.startsWith('/app/book')
 const isPatients = (p: string) => p.startsWith('/app/patients') && p !== '/app/patients/new'
 const isStock = (p: string) => p.startsWith('/app/stock')
-const isMoney = (p: string) => p.startsWith('/app/insights') || p.startsWith('/app/tally')
+const isMoney = (p: string) => p.startsWith('/app/insights') || p.startsWith('/app/tally') || p.startsWith('/app/costs')
 
 export function BottomNav() {
   const pathname = usePathname()

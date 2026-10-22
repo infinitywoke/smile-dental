@@ -42,6 +42,10 @@ export function StockItemForm({ item }: { item?: StockLevel }) {
         const result = await addStockItem(fields, { qty, expiresOn })
         if (!result.ok) return setError(result.error)
         navigator.vibrate?.(10)
+        // The screen may be kept for later: the next item starts empty
+        setFields((f) => ({ ...f, name: '', lowLevel: '', price: '' }))
+        setQty('')
+        setExpiresOn('')
         router.replace('/app/stock')
       }
     })

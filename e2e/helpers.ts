@@ -62,7 +62,7 @@ export async function cleanRun(runId: string) {
 export async function cleanTestAccount() {
   const { supabase, userId } = await testDb()
   const { data: photos } = await supabase.from('visit_photos').select('storage_path')
-  for (const table of ['booking_requests', 'appointments', 'time_off', 'patients', 'stock_items']) {
+  for (const table of ['booking_requests', 'appointments', 'time_off', 'patients', 'stock_items', 'costs', 'fixed_costs']) {
     const { error } = await supabase.from(table).delete().not('id', 'is', null)
     if (error) throw new Error(`cleaning ${table}: ${error.message}`)
   }
@@ -74,6 +74,9 @@ export async function cleanTestAccount() {
     for (const file of files ?? []) paths.add(`${userId}/${folder.name}/${file.name}`)
   }
   if (paths.size > 0) await supabase.storage.from(PHOTO_BUCKET).remove([...paths])
+  // Bill photos sit straight in the account's folder
+  const { data: bills } = await supabase.storage.from('cost-bills').list(userId)
+  if (bills?.length) await supabase.storage.from('cost-bills').remove(bills.map((f) => `${userId}/${f.name}`))
 }
 
 // An open clinic day at least `daysAhead` days from now

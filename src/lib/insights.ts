@@ -26,7 +26,7 @@ export const nextMonth = (month: string) => {
   const [y, m] = month.split('-').map(Number)
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
 }
-const lastDay = (month: string) => `${month}-${String(daysIn(month)).padStart(2, '0')}`
+export const lastDay = (month: string) => `${month}-${String(daysIn(month)).padStart(2, '0')}`
 
 // The month asked for (never one still to come), and what it is compared with
 export function monthPeriods(asked: string | null | undefined, today: string): MonthPeriods {

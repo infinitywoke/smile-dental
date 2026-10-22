@@ -2,7 +2,9 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
+import { getCosts } from '@/lib/data/costs'
 import { getInsights } from '@/lib/data/insights'
+import { total } from '@/lib/costs'
 import { formatDate, todayInIndia } from '@/lib/dates'
 import { monthPeriods, nextMonth, previousMonth } from '@/lib/insights'
 import { formatRupees } from '@/lib/pricing'
@@ -23,7 +25,10 @@ async function InsightsContent({ searchParams }: PageProps<'/app/insights'>) {
   await getDoctor()
   const { m } = await searchParams
   const periods = monthPeriods(typeof m === 'string' ? m : null, todayInIndia())
-  const { insights: s, owed } = await getInsights(periods)
+  const [{ insights: s, owed }, costs] = await Promise.all([getInsights(periods), getCosts(periods)])
+  const spent = total(costs.costs)
+  // What is left of the money collected once the month's costs are paid
+  const left = Math.round((s.money.total - spent) * 100) / 100
   const monthName = formatDate(`${periods.month}-01`, { month: 'long', year: 'numeric' })
   const sinceWhen = periods.running ? 'same days last month' : 'the month before'
 
@@ -82,6 +87,25 @@ async function InsightsContent({ searchParams }: PageProps<'/app/insights'>) {
           </p>
           <Versus text={versus(s.money.total, s.money.before, true)} />
         </section>
+      )}
+
+      {costs.ready && (
+        <Link href={periods.running ? '/app/costs' : `/app/costs?m=${periods.month}`} className={`${card} block hover:ring-blue-300`} aria-label="Costs and what is left">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className={label}>Spent</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-gray-900">{formatRupees(spent)}</p>
+            </div>
+            <div>
+              <p className={label}>Left after costs</p>
+              <p className={`mt-1 text-2xl font-bold tabular-nums tracking-tight ${left < 0 ? 'text-red-700' : 'text-gray-900'}`}>{formatRupees(left)}</p>
+            </div>
+          </div>
+          <p className="mt-2 flex items-center justify-between gap-2 text-sm font-semibold text-blue-700">
+            {spent === 0 ? 'Record what you spend to see what is left' : 'Costs and regular bills'}
+            <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+          </p>
+        </Link>
       )}
 
       {parts.owed && owed && (
