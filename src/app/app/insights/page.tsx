@@ -11,8 +11,8 @@ import { formatRupees } from '@/lib/pricing'
 import { ScreenLoading } from '@/components/clinic/ui'
 
 const card = 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200'
-const label = 'text-sm font-semibold text-gray-500'
-const big = 'mt-1 text-3xl font-bold tabular-nums tracking-tight text-gray-900'
+const label = 'hud-mono text-[11px] font-bold tracking-[0.14em] text-gray-500 uppercase'
+const big = 'hud-mono mt-1 text-3xl font-bold tracking-tight text-gray-900'
 
 // The line under a number: how it compares with the same days of last month
 function Versus({ text }: { text: string | null }) {
@@ -94,11 +94,11 @@ async function InsightsContent({ searchParams }: PageProps<'/app/insights'>) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <p className={label}>Spent</p>
-              <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-gray-900">{formatRupees(spent)}</p>
+              <p className="hud-mono mt-1 text-2xl font-bold tracking-tight text-gray-900">{formatRupees(spent)}</p>
             </div>
             <div>
               <p className={label}>Left after costs</p>
-              <p className={`mt-1 text-2xl font-bold tabular-nums tracking-tight ${left < 0 ? 'text-red-700' : 'text-gray-900'}`}>{formatRupees(left)}</p>
+              <p className={`hud-mono mt-1 text-2xl font-bold tracking-tight ${left < 0 ? 'text-red-700' : 'text-gray-900'}`}>{formatRupees(left)}</p>
             </div>
           </div>
           <p className="mt-2 flex items-center justify-between gap-2 text-sm font-semibold text-blue-700">
@@ -109,9 +109,9 @@ async function InsightsContent({ searchParams }: PageProps<'/app/insights'>) {
       )}
 
       {parts.owed && owed && (
-        <Link href="/app" className={`${card} block ring-red-200 hover:ring-red-400`} aria-label="Owed to you">
+        <Link href="/app" className={`${card} block ring-amber-200 hover:ring-[var(--hud-amber)]`} aria-label="Owed to you">
           <p className={label}>Owed to you right now</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-red-700">{formatRupees(owed.amount)}</p>
+          <p className="hud-mono mt-1 text-3xl font-bold tracking-tight text-[var(--hud-amber-text)]">{formatRupees(owed.amount)}</p>
           <p className="mt-1 text-sm text-gray-700">by {owed.patients} patient{owed.patients === 1 ? '' : 's'} · see who on Today</p>
         </Link>
       )}
@@ -142,7 +142,7 @@ async function InsightsContent({ searchParams }: PageProps<'/app/insights'>) {
           <ul className="mt-3 space-y-2">
             {s.newPatients.sources.map((source) => (
               <li key={source.label} className="text-sm">
-                <div className="flex justify-between gap-3"><span className="text-gray-800">{source.label}</span><span className="font-semibold tabular-nums text-gray-900">{source.count}</span></div>
+                <div className="flex justify-between gap-3"><span className="text-gray-800">{source.label}</span><span className="hud-mono font-semibold text-gray-900">{source.count}</span></div>
                 <div className="mt-1 h-2 rounded-full bg-gray-100"><div className="h-2 rounded-full bg-blue-600" style={{ width: `${(source.count / topSource) * 100}%` }} /></div>
               </li>
             ))}
@@ -175,7 +175,7 @@ async function InsightsContent({ searchParams }: PageProps<'/app/insights'>) {
             {s.treatments.map((t) => (
               <li key={t.name} className="flex items-baseline justify-between gap-3 py-2 text-sm">
                 <span className="min-w-0 text-gray-800">{t.name} <span className="text-gray-500">× {t.count}</span></span>
-                <span className="shrink-0 font-semibold tabular-nums text-gray-900">{formatRupees(t.amount)}</span>
+                <span className="hud-mono shrink-0 font-semibold text-gray-900">{formatRupees(t.amount)}</span>
               </li>
             ))}
           </ul>

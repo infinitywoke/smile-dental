@@ -2,13 +2,13 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Camera, CalendarClock, ChevronDown, ChevronRight, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { getPatientHub } from '@/lib/data/patient-hub'
-import { formatDate } from '@/lib/dates'
+import { formatDate, todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
 import { formatRupees } from '@/lib/pricing'
 import { endOf, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { whatsappLink } from '@/lib/whatsapp'
-import { BackLink, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
+import { BackLink, MedicalAlert, Readout, ScreenLoading } from '@/components/clinic/ui'
 import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
 import { StartVisitButton } from '@/components/clinic/StartVisitButton'
 import { CancelAppointmentButton } from '@/components/clinic/CalendarActions'
@@ -19,7 +19,11 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
   const { id } = await params
   const { patient, visits, coming, balance, todayVisitId, appointmentTodayId, due } = await getPatientHub(id)
   const age = patientAge(patient)
-  const startClass = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-70'
+  const today = todayInIndia()
+  // Visits come newest first
+  const lastVisit = visits[0]?.visit_date ?? null
+  const nextUp = coming[0] ? inIndia(coming[0].starts_at).date : null
+  const startClass = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC46B] px-5 py-4 text-lg font-extrabold text-[#0B2357] shadow-sm hover:bg-[#FFD08A] disabled:opacity-70'
 
   return (
     <div className="space-y-5">
@@ -27,7 +31,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
 
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-gray-900">
+          <h1 className="flex items-center gap-2 text-[26px] font-extrabold tracking-tight text-gray-900">
             <span className="truncate">{patient.name}</span>
           </h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -50,6 +54,12 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
 
       <MedicalAlert alerts={patient.medical_alerts} />
 
+      <div className="grid grid-cols-3 gap-2.5">
+        <Readout label="Visits" value={String(visits.length)} />
+        <Readout label="Last visit" value={lastVisit ? (lastVisit === today ? 'Today' : formatDate(lastVisit, { day: 'numeric', month: 'short' })) : '—'} />
+        <Readout label="Next" value={nextUp ? formatDate(nextUp, { day: 'numeric', month: 'short' }) : 'None'} />
+      </div>
+
       {/* Start visit first, always */}
       <div className="space-y-2">
         {todayVisitId ? (
@@ -60,8 +70,8 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
         {/* One money rule (src/lib/billing.ts): Collect when something is owed, Advance when paid ahead, never both */}
         {due ? (
           <Link href={`/app/visits/${due.visitId}?step=bill`}
-            className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-red-600 px-5 py-4 text-lg font-semibold text-white shadow-sm hover:bg-red-700">
-            Collect {formatRupees(due.amount)}
+            className="flex min-h-14 w-full items-center justify-center gap-1.5 rounded-2xl bg-white px-5 py-4 text-lg font-bold text-gray-900 shadow-sm ring-2 ring-[var(--hud-amber)] ring-inset">
+            Collect <span className="hud-mono text-[var(--hud-amber-text)]">{formatRupees(due.amount)}</span>
           </Link>
         ) : balance < 0 ? (
           <p className="rounded-xl bg-green-50 px-3 py-2 text-sm font-semibold text-green-800 ring-1 ring-green-200">
@@ -77,15 +87,15 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
       {/* Coming up */}
       {coming.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-lg font-bold text-gray-900">Coming up</h2>
+          <h2 className="hud-heading">Coming up</h2>
           {coming.map((appointment) => {
             const { date, time } = inIndia(appointment.starts_at)
             return (
               <div key={appointment.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
                 <div className="flex items-center gap-3">
-                  <CalendarClock className="h-5 w-5 shrink-0 text-blue-600" />
+                  <CalendarClock className="h-5 w-5 shrink-0 text-[var(--hud-amber-text)]" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-gray-900">{formatDay(date)}, {formatBlock(time)} – {formatBlock(endOf(time, appointment.duration_min))}</p>
+                    <p className="hud-mono text-[15px] font-bold text-gray-900">{formatDay(date)}, {formatBlock(time)} – {formatBlock(endOf(time, appointment.duration_min))}</p>
                     {appointment.reason && <p className="truncate text-sm text-gray-500">{appointment.reason}</p>}
                   </div>
                 </div>
@@ -104,7 +114,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
 
       {/* Visits */}
       <section className="space-y-3">
-        <h2 className="text-lg font-bold text-gray-900">Visits ({visits.length})</h2>
+        <h2 className="hud-heading">Visits ({visits.length})</h2>
         {visits.length === 0 && <p className="text-sm text-gray-500">No visits yet.</p>}
         {visits.map((visit) => (
           <Link key={visit.id} href={`/app/visits/${visit.id}`}
@@ -115,7 +125,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
                 <VisitStatusBadge status={visit.status} />
               </p>
               {visit.total > 0 && (
-                <p className="mt-0.5 text-xs font-medium text-gray-600">
+                <p className="hud-mono mt-0.5 text-xs font-medium text-gray-600">
                   {formatRupees(visit.total)} billed{visit.status.due > 0 ? ` · ${formatRupees(visit.status.due)} due` : ''}
                 </p>
               )}

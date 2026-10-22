@@ -179,7 +179,7 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
     - Rahil's user guide rewritten for the current app: `../for-dr-rahil/Clinic-OS-User-Guide.pdf` (the old one is in `old-2026-10-10/`).
 - Plan: `docs/build/PLAN-2026-10-next.md` (backups to Google Drive, delete patient, undo/remove, website wording + fallback + abuse guards, WhatsApp-verified holds, patient voice note test, appointment lengths, smart voice notes, extras). Waiting for the owner's go-ahead; built directly by the orchestrator, one item at a time, pushed after each.
 
-#### Agent-ready, notifications, HUD, stock and costs (owner-approved 21 Oct) — **resume here: P3c**
+#### Agent-ready, notifications, HUD, stock and costs (owner-approved 21 Oct) — **all built 22 Oct; next is the owner's call (see "After P1–P4" below)**
 The owner said "Go" on 21 Oct, with one change: **the 3-second anti-bot rule stays for now.** The orchestrator builds one phase at a time and pushes after each step.
 
 Choices (the plan's recommendations, accepted):
@@ -303,7 +303,7 @@ The multi-clinic foundation comes after this. New tables follow the existing own
         - **Regular bills:** Bill, Kind (Rent, Electricity, Internet and phone, Software, Equipment payment, Repairs, Other: the `fixed_costs` categories; no Salary, he works alone), Amount (₹), Every (Month or Year), Usually paid on (day of the month).
         - **Lab fees:** Work, Lab, Fee (₹). No table holds these yet: decide whether they become a cost per visit or a fee per treatment for margins. Until then the load counts them and says they aren't loaded, and Rahil adds a lab fee under Costs → Lab when he pays it.
         - **Materials per treatment:** the 35 price-list options, named exactly as the sheet names charges, then Item used and How much per treatment (extra rows for extra items).
-- [ ] **P3c. The HUD for Visit, Patients, Requests and Money.**
+- [x] **P3c. The HUD for Visit, Patients, Requests and Money (22 Oct).**
     - **Part 1, Visit (22 Oct),** after board A's Visit screens (`A-Visit.dc.html`, `A-Visit-Light.dc.html`):
         - **Header:**
             - the name, then "34 yrs · Visit 3 · Thu, 22 Oct" (`getVisit` now reads the birth year and counts the patient's visits up to this one);
@@ -316,7 +316,28 @@ The multi-clinic foundation comes after this. New tables follow the existing own
         - **Section headings** are the Cockpit's instrument labels (`.hud-heading` in `globals.css`: monospace, spaced capitals). The text is unchanged, so the tests and screen readers read the same names.
         - **Still due** is a large amber readout and an advance a green one (`--hud-green-text`, new, a darker green for text in light).
         - **Send on WhatsApp**, Open WhatsApp and the photo button are amber like Start visit; the second-choice Send is a plain outline.
-        - **Tests:** `src/lib/visit-progress.test.ts` (6); `visit.spec.ts` now checks that Send is the amber main button again after a bill change. Gates: tsc, 272 unit, lint, build, and all 92 browser tests. One full run hit a network drop to Supabase (`fetch failed`), so its 6 failures and 9 not run were re-run and passed; the only real failure was the old green-button check.
+        - **Tests:** `src/lib/visit-progress.test.ts` (6); `visit.spec.ts` now checks that Send is the amber main button again after a bill change.
+    - **Part 2, Patients, Requests and Money (22 Oct),** in the same language (the board drew only Today and Visit):
+        - **`Readout`** (`ui.tsx`): the Cockpit's tile, a small label over a monospace value, with label and value read as one sentence.
+        - **Patient page:**
+            - a 26 px name;
+            - tiles for Visits, Last visit ("Today" or "16 Oct") and Next ("25 Oct" or None);
+            - Start visit / Open today's visit amber;
+            - Collect outlined in amber with the amount in mono (its name is still "Collect ₹1,850");
+            - Coming up and Visits as instrument labels, appointment times and visit amounts in mono.
+            - Money isn't a tile, so no amount shows twice: Collect, or "Advance with us", stays the one place.
+        - **Request page:**
+            - the details are an instrument list: Asked for (amber mono), Hold (the same words as Today's card, now worked out by `getBookingRequest`), Reason, Heard from, Address, Note;
+            - each row reads as one sentence, so "Asked for Tue, 28 Oct, 10:30 AM" is still one line to tests and screen readers;
+            - the old amber "Asked for" box is gone.
+        - **Money and Costs:** labels in spaced mono capitals, every amount in mono, "Owed to you right now" amber with an amber border (was red), "Every cost" as an instrument label.
+        - Patients list and the forms are unchanged: they already follow the Cockpit colours, and readouts would add nothing there. Gates: tsc, 272 unit, lint, build, and all 92 browser tests. One full run hit a network drop to Supabase (`fetch failed`), so its 6 failures and 9 not run were re-run and passed; the only real failure was the old green-button check.
+
+#### After P1–P4 (22 Oct): waiting on the owner
+- **Multi-clinic foundation** (planned "after this"): not started. It overlaps the commercialisation discovery week (19–25 Oct, `../commercialisation`), whose rule is no features before a validated problem, so it needs the owner's go-ahead.
+- **Lab fees:** a cost per visit, or a fee per treatment that counts in its margin? (P4 above.)
+- **Rahil:** fill in `for-dr-rahil/Stock-and-costs-to-fill.xlsx`, then Stock → Load the spreadsheet.
+- **Phone checks** still open: Waves 1–3, the logic fixes, the share sheet, and now the Cockpit Visit, patient, request and Money screens on the OnePlus 13 and Rahil's Poco.
 
 ## Logic fixes (owner's bug: deleting a visit showed an advance)
 - [x] Logic audit (Opus, max): `docs/build/review-logic.md` (25 findings, invariants 1-31, one migration)
@@ -369,3 +390,4 @@ The multi-clinic foundation comes after this. New tables follow the existing own
 - 2026-10-15 Session ended while builder L1 was working. Orchestrator saved its uncommitted work as WIP ac8fea4 on `worktree-agent-ac5d33b6c9ca428f4` (pushed) and resumed the builder: merge origin/main (L2), finish, run all gates.
 - 2026-10-15 Builder L1 done (54125a0): findings 1, 3-7, 13, 14, 18-21, 23a; one money rule `patientAccount` (src/lib/billing.ts, sums from the `visit_money` view) used by Today, the patient page, the visit page and the WhatsApp message; Send now prepares (`prepareWhatsapp`) and records the send (`markWhatsappSent`) when WhatsApp opens. Orchestrator review: shortened the record wait on the automatic path to 1.5 s so WhatsApp still opens within Android's few seconds after the tap. Merged. Gates on `main`: tsc, 162 unit, lint, build, **e2e 41/41**; tour all jobs ok, no console errors. Pushed. **All 25 logic-audit findings are fixed** (#25 needs nothing until a Delete patient exists).
 - 2026-10-15 Website: new photo of Dr. Rahil pushed (side photo and its unused setting removed). Owner's answers on the next items recorded in `docs/build/PLAN-2026-10-next.md`; no agents from now on.
+- 2026-10-22 Owner: "resume the build". P3b part 3 ticked (pause live, instant payments pushed). P4 2d: Stock → Load the spreadsheet (9c7771a). The full suite caught a race in Delete visit right after a payment; fixed (168b78a). P3c part 1, the Visit page in the Cockpit look (a5d72a6), and part 2, patient, request and Money screens. Gates on each: tsc, unit (272), lint, build, all 92 browser tests (one run hit a network drop to Supabase; its failures were re-run and passed). Next: the owner's call on the multi-clinic foundation.

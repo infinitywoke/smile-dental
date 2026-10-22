@@ -11,7 +11,7 @@ import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { MarkPaidButton } from '@/components/clinic/CostButtons'
 
 const card = 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200'
-const label = 'text-sm font-semibold text-gray-500'
+const label = 'hud-mono text-[11px] font-bold tracking-[0.14em] text-gray-500 uppercase'
 const short = (date: string) => formatDate(date, { day: 'numeric', month: 'short' })
 
 // A month's costs: what was spent and on what, the regular bills due (marked paid with one tap), and every cost
@@ -56,13 +56,13 @@ async function CostsContent({ searchParams }: PageProps<'/app/costs'>) {
         <>
           <section className={card} aria-label="Spent">
             <p className={label}>Spent</p>
-            <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-gray-900">{formatRupees(spent)}</p>
+            <p className="hud-mono mt-1 text-3xl font-bold tracking-tight text-gray-900">{formatRupees(spent)}</p>
             {versus && <p className="mt-1 text-sm text-gray-500">{versus}</p>}
             {kinds.length > 0 && (
               <ul className="mt-3 space-y-2">
                 {kinds.map((k) => (
                   <li key={k.category} className="text-sm">
-                    <div className="flex justify-between gap-3"><span className="text-gray-800">{k.label}</span><span className="font-semibold tabular-nums text-gray-900">{formatRupees(k.amount)}</span></div>
+                    <div className="flex justify-between gap-3"><span className="text-gray-800">{k.label}</span><span className="hud-mono font-semibold text-gray-900">{formatRupees(k.amount)}</span></div>
                     <div className="mt-1 h-2 rounded-full bg-gray-100"><div className="h-2 rounded-full bg-[var(--hud-amber)]" style={{ width: `${(k.amount / top) * 100}%` }} /></div>
                   </li>
                 ))}
@@ -110,7 +110,7 @@ async function CostsContent({ searchParams }: PageProps<'/app/costs'>) {
           )}
 
           <section aria-label="Costs this month" className="space-y-2">
-            <h2 className="text-lg font-bold text-gray-900">Every cost</h2>
+            <h2 className="hud-heading">Every cost</h2>
             {costs.length === 0 ? (
               <p className="text-base text-gray-500">Nothing recorded for {monthName}.</p>
             ) : (
@@ -125,7 +125,7 @@ async function CostsContent({ searchParams }: PageProps<'/app/costs'>) {
                         </span>
                       </span>
                       {c.bill_path && <Paperclip className="h-4 w-4 shrink-0 text-gray-400" aria-label="Has a bill photo" />}
-                      <span className="shrink-0 text-base font-semibold tabular-nums text-gray-900">{formatRupees(c.amount)}</span>
+                      <span className="hud-mono shrink-0 text-base font-semibold text-gray-900">{formatRupees(c.amount)}</span>
                     </Link>
                   </li>
                 ))}

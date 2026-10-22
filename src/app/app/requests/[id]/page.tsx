@@ -30,7 +30,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
       <div className="space-y-4">
         <BackLink href="/app" label="Today" />
         <Card className="space-y-3">
-          <h1 className="text-xl font-bold text-gray-900">{request.name}</h1>
+          <h1 className="text-[22px] font-extrabold tracking-tight text-gray-900">{request.name}</h1>
           <p className="text-sm text-gray-600">
             {booked
               ? `Booked for ${formatDay(booked.date)}, ${formatBlock(booked.time)}.`
@@ -62,10 +62,10 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
     <div className="space-y-5">
       <BackLink href="/app" label="Today" />
 
-      <Card className="space-y-2">
+      <Card className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-gray-900">{request.name}</h1>
+            <h1 className="truncate text-[22px] font-extrabold tracking-tight text-gray-900">{request.name}</h1>
             <p className="text-sm text-gray-500">
               {[age !== null && `${age} yrs`, genderLabel(request.gender), formatPhone(request.phone)].filter(Boolean).join(' · ')}
             </p>
@@ -76,10 +76,22 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
           </a>
         </div>
         <MedicalAlert alerts={request.medical_alerts} />
-        <p className="text-sm text-gray-700"><span className="text-gray-500">Address:</span> {address || '—'}</p>
-        <p className="text-sm text-gray-700"><span className="text-gray-500">Heard from:</span> {request.heard_from || '—'}</p>
-        <p className="text-sm text-gray-700"><span className="text-gray-500">Reason:</span> {request.reason || '—'}</p>
-        {request.notes && <p className="text-sm text-gray-700"><span className="text-gray-500">Note:</span> {request.notes}</p>}
+        {/* The request as an instrument list; each row reads as one sentence ("Asked for Tue, 28 Oct, 10:30 AM") */}
+        <dl className="space-y-2.5 text-sm">
+          {([
+            ['Asked for', requested ? `${formatDay(requested.date)}, ${formatBlock(requested.time)}` : 'No time chosen', true],
+            ['Hold', request.notice?.text, false],
+            ['Reason', request.reason || '—', false],
+            ['Heard from', request.heard_from || '—', false],
+            ['Address', address || '—', false],
+            ['Note', request.notes, false],
+          ] as const).filter(([, value]) => value).map(([name, value, lead]) => (
+            <div key={name} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-3">
+              <dt className="hud-mono text-[10px] font-bold tracking-[0.14em] text-gray-500 uppercase">{name}</dt>{' '}
+              <dd className={lead ? 'hud-mono font-bold text-[var(--hud-amber-text)]' : 'text-gray-900'}>{value}</dd>
+            </div>
+          ))}
+        </dl>
         {request.voice_url && (
           <div className="space-y-1">
             <p className="text-sm font-semibold text-gray-800">🎤 Voice note</p>
@@ -88,11 +100,6 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
         )}
         {!request.voice_url && request.voice_variant === 'whatsapp' && (
           <p className="text-sm text-gray-700">🎤 Asked to send a voice note on WhatsApp</p>
-        )}
-        {requested && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
-            Asked for {formatDay(requested.date)}, {formatBlock(requested.time)}
-          </p>
         )}
       </Card>
 

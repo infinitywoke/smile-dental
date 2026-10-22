@@ -226,7 +226,7 @@ export async function getPendingRequests(): Promise<PendingRequest[]> {
   }))
 }
 
-export async function getBookingRequest(id: string): Promise<BookingRequest & { voice_url: string | null }> {
+export async function getBookingRequest(id: string): Promise<BookingRequest & { voice_url: string | null; notice: RequestNotice | null }> {
   await getDoctor()
   if (!UUID.test(id)) notFound()
   const supabase = await createClient()
@@ -235,5 +235,10 @@ export async function getBookingRequest(id: string): Promise<BookingRequest & { 
   if (!data) notFound()
   const request = data as BookingRequest
   const urls = request.voice_note ? await voiceNoteUrls([request.voice_note]) : {}
-  return { ...request, voice_url: request.voice_note ? (urls[request.voice_note] ?? null) : null }
+  return {
+    ...request,
+    voice_url: request.voice_note ? (urls[request.voice_note] ?? null) : null,
+    // Whether its time is held, as Today's card says it
+    notice: requestNotice(request.requested_start, request.created_at, request.received_at, Date.now()),
+  }
 }
