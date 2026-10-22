@@ -20,7 +20,7 @@ async function SettingsContent() {
       <Card className="space-y-3">
         <div>
           <p className="font-semibold text-gray-900">Look</p>
-          <p className="text-sm text-gray-500">Phone follows this phone&apos;s dark or light mode.</p>
+          <p className="text-sm text-gray-500">Light reads best in a bright surgery. Phone follows this phone&apos;s dark or light mode.</p>
         </div>
         <ThemeSwitch initial={theme} />
       </Card>

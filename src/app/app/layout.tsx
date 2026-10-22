@@ -25,18 +25,15 @@ export const metadata: Metadata = {
   },
 }
 
+// Light until the page knows his choice (ThemeColor then follows it)
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F3F6FC' },
-    { media: '(prefers-color-scheme: dark)', color: '#050D24' },
-  ],
+  themeColor: '#F3F6FC',
 }
 
-// The Cockpit: until the session is checked it follows the phone's own mode; then the dentist's choice
-// for this phone (Settings) takes over
+// The Cockpit: light until the session is checked; then the dentist's choice for this phone (Settings)
 export default function ClinicLayout({ children }: LayoutProps<'/app'>) {
   return (
-    <div className={`hud hud-grid flex min-h-dvh flex-col ${body.variable} ${mono.variable}`} data-theme="system">
+    <div className={`hud hud-grid flex min-h-dvh flex-col ${body.variable} ${mono.variable}`} data-theme="light">
       <Suspense fallback={<LoadingScreen />}>
         <DoctorGate>{children}</DoctorGate>
       </Suspense>

@@ -45,13 +45,16 @@ test('the Cockpit says whether the website takes bookings, and only the clinicâ€
   await expect(sheet.getByRole('alert')).toHaveText('Only the clinicâ€™s own login can pause online booking.')
 })
 
-test('Settings: the look follows the phone, or is light or dark, and stays chosen for this phone', async ({ page }) => {
+test('Settings: the look is light until changed, or dark, or follows the phone, and stays chosen for this phone', async ({ page }) => {
+  // A phone in dark mode still opens light until he chooses
+  await page.emulateMedia({ colorScheme: 'dark' })
   await signIn(page)
   await page.goto('/app/settings')
   const root = page.locator('#hud-root')
   const look = page.getByRole('radiogroup', { name: 'Look' })
-  await expect(look.getByRole('radio', { name: 'Phone' })).toHaveAttribute('aria-checked', 'true')
-  await expect(root).toHaveAttribute('data-theme', 'system')
+  await expect(look.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
+  await expect(root).toHaveAttribute('data-theme', 'light')
+  expect(await root.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(243, 246, 252)')
 
   await look.getByRole('radio', { name: 'Dark' }).click()
   await expect(root).toHaveAttribute('data-theme', 'dark')
@@ -67,6 +70,8 @@ test('Settings: the look follows the phone, or is light or dark, and stays chose
   await page.getByRole('radio', { name: 'Phone' }).click()
   await expect(page.locator('#hud-root')).toHaveAttribute('data-theme', 'system')
   await expect.poll(async () => (await page.context().cookies()).find((c) => c.name === 'clinic-theme')?.value).toBe('system')
+  // Phone follows this phone, which is in dark mode here
+  expect(await page.locator('#hud-root').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(5, 13, 36)')
 
   // Game touches: on until turned off, and kept for this phone
   const fun = page.getByRole('switch', { name: /Game touches/ })
