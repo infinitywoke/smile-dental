@@ -29,10 +29,16 @@ export function PaymentCard({
   save: Save
 }) {
   const { charges, payments, summary } = bill
+  // A payment just tapped shows at once, marked as saving, and comes off what is due; the server's
+  // copy (same id) then takes its place. If the save fails, it goes again.
+  const [saving, setSaving] = useState<{ id: string; amount: number; method: 'cash' | 'upi' } | null>(null)
+  const savingShown = saving && !payments.some((p) => p.id === saving.id) ? saving : null
+  const owed = Math.round((summary.due - (savingShown?.amount ?? 0)) * 100) / 100
   // What the patient owes, all visits together (one money rule, src/lib/billing.ts): the bottom
   // line and the amount box use it, so the box never asks for more than is owed
-  const due = Math.max(summary.due, 0)
-  const hasBill = charges.length > 0 || payments.length > 0
+  const due = Math.max(owed, 0)
+  const paid = summary.paid + (savingShown?.amount ?? 0)
+  const hasBill = charges.length > 0 || payments.length > 0 || savingShown !== null
   const [amount, setAmount] = useState(due > 0 ? String(due) : '')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -42,6 +48,12 @@ export function PaymentCard({
 
   const parsed = parseAmount(amount)
   const valid = parsed !== null && parsed > 0
+
+  // Taking a payment back: the saving row must not come back with it
+  const takeBack = (paymentId: string) => {
+    setSaving(null)
+    return save(() => removePayment(paymentId))
+  }
 
   async function receive(method: 'cash' | 'upi'): Promise<boolean> {
     if (!valid) {
@@ -53,16 +65,20 @@ export function PaymentCard({
     // The same amount tapped again after a lost reply keeps its id, so the money is recorded once
     // (also when he then taps the other method)
     const paymentId = saveId.idFor(String(parsed))
+    setSaving({ id: paymentId, amount: parsed!, method })
+    navigator.vibrate?.(10)
     try {
       const result = await save(() => recordPayment(visitId, parsed!, method, paymentId))
       if (result.error) {
+        setSaving(null)
         setError(result.error)
         return false
       }
       saveId.done()
-      offerUndo(`${formatRupees(parsed!)} ${method === 'upi' ? 'UPI' : 'cash'} recorded`, () => save(() => removePayment(paymentId)))
+      offerUndo(`${formatRupees(parsed!)} ${method === 'upi' ? 'UPI' : 'cash'} recorded`, () => takeBack(paymentId))
       return true
     } catch {
+      setSaving(null)
       setError("Couldn't reach the server. Check the internet and try again.")
       return false
     } finally {
@@ -84,9 +100,18 @@ export function PaymentCard({
               <p className="font-semibold tabular-nums text-green-700">{formatRupees(payment.amount)}</p>
               <RemoveButton label={`Remove payment ${formatRupees(payment.amount)}`}
                 confirm={`Remove this payment (${formatRupees(payment.amount)})? Only do this to fix a mistake.`}
-                onRemove={() => save(() => removePayment(payment.id))} />
+                onRemove={() => takeBack(payment.id)} />
             </div>
           ))}
+          {savingShown && (
+            <div className="-my-1 flex items-center gap-2" role="status">
+              <p className="min-w-0 flex-1 text-gray-700">
+                Paid by {savingShown.method === 'upi' ? 'UPI' : 'cash'} <span className="text-sm text-gray-400">· Saving…</span>
+              </p>
+              <p className="font-semibold tabular-nums text-green-700 opacity-70">{formatRupees(savingShown.amount)}</p>
+              <span className="h-12 w-12 shrink-0" aria-hidden="true" />
+            </div>
+          )}
           {/* The patient's other visits, in one line, whichever way it goes */}
           {summary.earlier > 0 ? (
             <Row label="Due from other visits" value={formatRupees(summary.earlier)} muted />
@@ -94,17 +119,17 @@ export function PaymentCard({
             <Row label="Advance from other visits" value={formatRupees(-summary.earlier)} muted />
           ) : null}
           <div className="flex items-center justify-between border-t border-gray-100 pt-2">
-            {summary.due > 0 ? (
+            {owed > 0 ? (
               <>
                 <p className="font-semibold text-gray-900">Still due</p>
-                <p className="text-xl font-bold tabular-nums text-red-700">{formatRupees(summary.due)}</p>
+                <p className="text-xl font-bold tabular-nums text-red-700">{formatRupees(owed)}</p>
               </>
-            ) : summary.due < 0 ? (
+            ) : owed < 0 ? (
               <>
                 <p className="font-semibold text-gray-900">Advance with us</p>
-                <p className="text-xl font-bold tabular-nums text-green-700">{formatRupees(-summary.due)}</p>
+                <p className="text-xl font-bold tabular-nums text-green-700">{formatRupees(-owed)}</p>
               </>
-            ) : summary.total === 0 && summary.paid === 0 ? (
+            ) : summary.total === 0 && paid === 0 ? (
               <p className="text-lg font-bold text-gray-700">No charge</p>
             ) : (
               <p className="flex items-center gap-1.5 text-lg font-bold text-green-700"><Check className="h-5 w-5" /> Paid in full</p>
@@ -146,8 +171,10 @@ export function PaymentCard({
           patientName={patientName}
           pending={pending}
           error={error}
-          onReceived={async () => {
-            if (await receive('upi')) qr.close()
+          onReceived={() => {
+            // The payment shows on the card at once; a failed save shows its error there
+            qr.close()
+            void receive('upi')
           }}
           onClose={qr.close}
         />

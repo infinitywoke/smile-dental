@@ -325,6 +325,8 @@ test('Delete visit is refused while it holds a payment; once removed, it goes an
   await expect(visible(page.locator('#payment-amount'))).toHaveValue('200')
   await visible(page.getByRole('button', { name: 'Cash received' })).click()
   await expect(visible(page.getByText('Paid in full'))).toBeVisible()
+  // The payment shows at once; the Undo offer means the server has it
+  await expect(visible(page.getByText('₹200 cash recorded'))).toBeVisible()
 
   // Refused at once, naming the money; nothing is asked and nothing is deleted
   await visible(page.getByRole('button', { name: 'Delete visit' })).click()
