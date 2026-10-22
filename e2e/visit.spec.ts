@@ -44,7 +44,7 @@ async function patientIdOf(name: string) {
 
 test('saving New patient opens the Visit page, and Back goes to Today, not the form', async () => {
   // "+" in the bottom bar opens New patient straight away
-  await visible(page.getByRole('link', { name: 'New patient' })).click()
+  await visible(page.getByRole('link', { name: 'Walk-in' })).click()
   await expect(page).toHaveURL(/\/app\/patients\/new$/)
 
   await visible(page.getByLabel('Name', { exact: true })).fill(patientName)
@@ -416,7 +416,7 @@ test('Send leaves a later booking today booked; deleting the sent visit empties 
 
   // Start from the earlier booking
   await page.goto('/app')
-  const firstRow = visible(page.locator('div.rounded-2xl').filter({ hasText: name }).filter({ hasText: formatBlock(first!.time) }))
+  const firstRow = visible(page.getByRole('list', { name: 'Schedule' }).getByRole('listitem').filter({ hasText: name }).filter({ hasText: formatBlock(first!.time) }))
   await firstRow.getByRole('button', { name: 'Start', exact: true }).click()
   await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
   const id = page.url().split('/').pop()!
@@ -440,7 +440,7 @@ test('Send leaves a later booking today booked; deleting the sent visit empties 
   expect(await statusOf(later!.id)).toBe('booked')
 
   await page.goto('/app')
-  const laterRow = visible(page.locator('div.rounded-2xl').filter({ hasText: name }).filter({ hasText: formatBlock(later!.time) }))
+  const laterRow = visible(page.getByRole('list', { name: 'Schedule' }).getByRole('listitem').filter({ hasText: name }).filter({ hasText: formatBlock(later!.time) }))
   await expect(laterRow.getByRole('button', { name: 'Start', exact: true })).toBeVisible()
   await expect(visible(page.getByRole('link').filter({ hasText: name }).filter({ hasText: 'WhatsApp sent' }))).toHaveCount(1)
 

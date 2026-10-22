@@ -292,7 +292,7 @@ test('evidence tour', async ({ page }) => {
       const link = visible(page.getByRole('link', { name: /New patient/ }))
       if (await link.count()) await tap(link)
     } else {
-      await tap(visible(page.getByRole('link', { name: /New patient|Add/ })))
+      await tap(visible(page.getByRole('link', { name: /Walk-in|New patient/ })))
     }
     await page.waitForURL(/patients\/new/); await snap(page, 'new-patient-empty')
   })
@@ -467,6 +467,9 @@ test('evidence tour', async ({ page }) => {
       await tap(add)
       await tap(visible(page.getByRole('link', { name: /Book|Appointment/ }))); await page.waitForTimeout(1500)
     }
+    // Since the Quiet Cockpit, today's free times are folded: open them (a tap)
+    const freeTimes = page.locator('details#free-times')
+    if ((await freeTimes.count()) && !(await freeTimes.evaluate((el) => (el as HTMLDetailsElement).open))) await tap(freeTimes.locator('summary'))
     await snap(page, 'book-1-times')
     // Late in the day there may be no times left today: look at the next day (not counted as a tap)
     for (let i = 0; i < 4 && (await times.count()) === 0; i++) {
@@ -548,7 +551,7 @@ test('evidence tour', async ({ page }) => {
   await step('back: + button', async () => {
     await page.goto('/app/patients'); await page.goto('/app')
     const add = visible(page.getByRole('button', { name: 'Add' }))
-    if (await add.count()) await add.click(); else await visible(page.getByRole('link', { name: 'New patient' })).click()
+    if (await add.count()) await add.click(); else await visible(page.getByRole('link', { name: /Walk-in|New patient/ })).click()
     await page.waitForTimeout(1000)
     await page.goBack(); await page.waitForTimeout(1000)
     back.push({ where: '"+" tapped on Today, then Back', after: new URL(page.url()).pathname })
@@ -567,7 +570,7 @@ test('evidence tour', async ({ page }) => {
     const add = async () => {
       const button = visible(page.getByRole('button', { name: 'Add' }))
       if (await button.count()) { await button.click(); await visible(page.getByRole('link', { name: /New patient/ })).click() }
-      else await visible(page.getByRole('link', { name: 'New patient' })).click()
+      else await visible(page.getByRole('link', { name: /Walk-in|New patient/ })).click()
       await page.waitForURL(/\/app\/patients\/new$/)
     }
     await add()

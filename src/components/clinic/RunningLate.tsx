@@ -1,59 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { MessageCircle, Timer } from 'lucide-react'
-import { dayPosition } from '@/lib/cockpit'
 import { inIndia, formatBlock } from '@/lib/schedule'
 import { runningLateMessage, whatsappLink } from '@/lib/whatsapp'
 import { FullScreen, useBackToClose } from './FullScreen'
 
-// The Cockpit's live parts: worked out on the phone, again and again, and blank until then, so the page
-// as sent and the page in the browser agree
-
-export function useNow(everyMs: number): Date | null {
-  const [now, setNow] = useState<Date | null>(null)
-  useEffect(() => {
-    const tick = () => setNow(new Date())
-    tick()
-    const timer = setInterval(tick, everyMs)
-    return () => clearInterval(timer)
-  }, [everyMs])
-  return now
-}
-
-// "10:42" with a small "AM"
-export function LiveClock() {
-  const now = useNow(15_000)
-  const [h, m] = now ? inIndia(now).time.split(':').map(Number) : [0, 0]
-  return (
-    <span className="hud-mono inline-flex min-w-[6.5rem] items-baseline justify-end gap-1 text-4xl leading-none font-bold" aria-label="Time now">
-      {now && <>{h % 12 || 12}:{String(m).padStart(2, '0')}<span className="text-sm font-bold text-gray-500">{h < 12 ? 'AM' : 'PM'}</span></>}
-    </span>
-  )
-}
-
-// "in 28 min", "now", "12 min late"
-export function Countdown({ startsAt }: { startsAt: string }) {
-  const now = useNow(30_000)
-  if (!now) return null
-  const minutes = Math.round((new Date(startsAt).getTime() - now.getTime()) / 60_000)
-  const text = minutes > 59 ? `in ${Math.floor(minutes / 60)} h ${minutes % 60} min` : minutes > 0 ? `in ${minutes} min` : minutes === 0 ? 'now' : `${-minutes} min late`
-  return <> · {text.toUpperCase()}</>
-}
-
-// The green line on the day strip where the time is now
-export function NowMarker() {
-  const now = useNow(60_000)
-  if (!now) return null
-  const left = dayPosition(now)
-  if (left <= 0 || left >= 100) return null
-  return <span className="absolute -top-1.5 -bottom-1.5 w-0.5 rounded-full bg-[var(--hud-green)]" style={{ left: `${left}%` }} aria-hidden="true" />
-}
-
 const LATE_BY = [10, 15, 20, 30]
 
-// Running late: a WhatsApp message to each patient still to come today, written for them; he taps Send
-export function RunningLate({ patients }: { patients: { id: string; name: string; startsAt: string; phone: string }[] }) {
+// Running late: a WhatsApp message to each patient still to come today, written for them; he taps Send.
+// The button turns amber once the next patient's time has passed (he is running behind).
+export function RunningLate({ patients, behind }: { patients: { id: string; name: string; startsAt: string; phone: string }[]; behind: boolean }) {
   const sheet = useBackToClose()
   const [minutes, setMinutes] = useState(15)
   const [sent, setSent] = useState<string[]>([])
@@ -61,8 +18,10 @@ export function RunningLate({ patients }: { patients: { id: string; name: string
   return (
     <>
       <button type="button" onClick={() => { navigator.vibrate?.(8); sheet.show() }}
-        className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl bg-white text-[11px] font-bold text-gray-900 ring-1 ring-gray-200 transition-transform active:scale-[0.97]">
-        <Timer className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" />Running late
+        className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-bold transition-transform active:scale-[0.97] ${
+          behind ? 'bg-amber-100 text-amber-900' : 'bg-white text-gray-900 ring-1 ring-gray-300'
+        }`}>
+        <Timer className="h-4 w-4" aria-hidden="true" />Running late
       </button>
       {sheet.open && (
         <FullScreen title="Running late" onClose={sheet.close}>

@@ -89,7 +89,7 @@ test("a patient's visit is listed and their later booking that day still shows, 
   await page.goto('/app')
   const seen = visible(page.getByRole('link').filter({ hasText: bothName }).filter({ hasText: '₹500 due' }))
   await expect(seen).toHaveCount(1)
-  const booked = visible(page.locator('div.rounded-2xl').filter({ hasText: bothName }).filter({ has: page.getByRole('button', { name: 'Start', exact: true }) }))
+  const booked = visible(page.getByRole('list', { name: 'Schedule' }).getByRole('listitem').filter({ hasText: bothName }).filter({ has: page.getByRole('button', { name: 'Start', exact: true }) }))
   await expect(booked).toHaveCount(1)
   await expect(booked).toContainText(formatBlock(bothBookedAt!))
   // The row shows the whole amount owed, so Needs you doesn't repeat it
@@ -99,7 +99,7 @@ test("a patient's visit is listed and their later booking that day still shows, 
 test('a booked patient has a Start button that opens the visit', async () => {
   test.skip(!bookedToday, 'Nothing could be booked for 7:00 PM today (the clinic is closed, or that time is over)')
   await page.goto('/app')
-  const row = visible(page.locator('div.rounded-2xl').filter({ hasText: bookedName }))
+  const row = visible(page.getByRole('list', { name: 'Schedule' }).getByRole('listitem').filter({ hasText: bookedName }))
   await expect(row).toHaveCount(1)
   await row.getByRole('button', { name: 'Start', exact: true }).click()
   await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]+$/)
@@ -154,7 +154,7 @@ test('the patient page leads with Start visit, and Move and Cancel sit side by s
 
 test('"+" opens New patient directly, spots a returning number, and keeps typing after Back', async () => {
   await page.goto('/app')
-  await visible(page.getByRole('link', { name: 'New patient' })).click()
+  await visible(page.getByRole('link', { name: 'Walk-in' })).click()
   await expect(page).toHaveURL(/\/app\/patients\/new$/)
   await visible(page.getByLabel('WhatsApp number')).fill(phone)
   await expect(visible(page.getByText('Already a patient with this number'))).toBeVisible()
@@ -167,7 +167,7 @@ test('"+" opens New patient directly, spots a returning number, and keeps typing
   await visible(page.getByLabel('Name')).fill(`${runId} half typed`)
   await visible(page.getByLabel('Medical alerts')).fill('Asthma')
   await page.goBack()
-  await visible(page.getByRole('link', { name: 'New patient' })).click()
+  await visible(page.getByRole('link', { name: 'Walk-in' })).click()
   await expect(visible(page.getByLabel('Name'))).toHaveValue(`${runId} half typed`)
   // Coming back, the form says whose typing it is
   await expect(visible(page.getByText(`Continuing ${runId} half typed`))).toBeVisible()
@@ -210,7 +210,7 @@ test('saves with a name and gender, stores the age as a birth year and opens the
 
   // Back never returns to a form that would save the patient again, and the next form starts empty
   await visible(page.getByRole('link', { name: 'Patients', exact: true })).click()
-  await visible(page.getByRole('link', { name: 'New patient' })).click()
+  await visible(page.getByRole('link', { name: 'Walk-in' })).click()
   await expect(visible(page.getByLabel('Name'))).toHaveValue('')
   await expect(visible(page.getByRole('button', { name: 'Start fresh' }))).toHaveCount(0)
 })

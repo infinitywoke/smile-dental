@@ -7,6 +7,7 @@ import { todayInIndia } from '@/lib/dates'
 import { EXPIRY_WARNING_DAYS, sortStock, stockAlerts } from '@/lib/stock'
 import { ScreenLoading } from '@/components/clinic/ui'
 import { StockList } from '@/components/clinic/StockList'
+import { PracticeTabs } from '@/components/clinic/PracticeTabs'
 
 // What the clinic keeps: how much is left of each thing, what is low and what expires soon
 async function StockContent() {
@@ -21,6 +22,7 @@ async function StockContent() {
 
   return (
     <div className="space-y-4">
+      <PracticeTabs />
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Stock</h1>
         {ready && (

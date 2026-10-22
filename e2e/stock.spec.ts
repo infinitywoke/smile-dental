@@ -32,9 +32,10 @@ test.afterAll(async () => {
 const stockRow = () => visible(page.getByRole('list', { name: 'Stock' }).getByRole('link', { name: new RegExp(name) }))
 const onHand = () => visible(page.getByRole('region', { name: 'On hand' }))
 
-test('Stock is on the bottom bar; an item is added with what is on the shelf', async () => {
+test('Stock is under Practice; an item is added with what is on the shelf', async () => {
   await page.goto('/app')
-  await visible(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stock' })).click()
+  await visible(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Practice/ })).click()
+  await visible(page.getByRole('navigation', { name: 'Practice' }).getByRole('link', { name: 'Stock' })).click()
   await expect(page).toHaveURL(/\/app\/stock$/)
   await visible(page.getByRole('link', { name: 'Add item' })).click()
   await expect(page).toHaveURL(/\/app\/stock\/new$/)
@@ -93,16 +94,17 @@ test('Add stock, Used and Count change what is on hand; a move can be taken back
   await expect(history).toContainText('Added 10 capsules at ₹120 each')
 })
 
-test("low stock shows on Today's Cockpit and leads to the list; Settings is the Cockpit's gear", async () => {
+test('low stock puts a dot on Practice, and Stock lists it first; Settings is under Practice too', async () => {
   await page.goto('/app')
-  const stockLink = visible(page.getByRole('region', { name: 'Cockpit' }).getByRole('link', { name: /STOCK/ }))
-  await expect(stockLink).toContainText(/\d+ low/)
-  await stockLink.click()
+  const practiceLink = visible(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Practice/ }))
+  await expect(practiceLink).toHaveAccessibleName(/stock low/)
+  await practiceLink.click()
+  const practice = visible(page.getByRole('navigation', { name: 'Practice' }))
+  await practice.getByRole('link', { name: 'Stock' }).click()
   await expect(page).toHaveURL(/\/app\/stock$/)
   await expect(stockRow()).toContainText('Low')
 
-  await page.goto('/app')
-  await visible(page.getByRole('link', { name: 'Settings' })).click()
+  await visible(page.getByRole('navigation', { name: 'Practice' }).getByRole('link', { name: 'Settings' })).click()
   await expect(page).toHaveURL(/\/app\/settings$/)
   await expect(visible(page.getByRole('heading', { name: 'Settings' }))).toBeVisible()
 })

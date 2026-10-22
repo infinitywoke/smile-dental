@@ -4,6 +4,8 @@ import type { Metadata, Viewport } from 'next'
 import { JetBrains_Mono, Manrope } from 'next/font/google'
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
+import { getStockAlerts } from '@/lib/data/stock'
+import { todayInIndia } from '@/lib/dates'
 import { THEME_COOKIE, themeFrom } from '@/lib/theme'
 import { BottomNav } from '@/components/clinic/BottomNav'
 import { PageTransition } from '@/components/clinic/PageTransition'
@@ -45,11 +47,13 @@ export default function ClinicLayout({ children }: LayoutProps<'/app'>) {
 async function DoctorGate({ children }: { children: React.ReactNode }) {
   await getDoctor()
   const theme = themeFrom((await cookies()).get(THEME_COOKIE)?.value)
+  // Stock low or expiring soon: a dot on Practice (stock actions refresh the layout, so it stays right)
+  const stock = await getStockAlerts(todayInIndia())
   return (
     <div id="hud-root" className="hud hud-grid flex flex-1 flex-col text-gray-900" data-theme={theme}>
       <ThemeColor />
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-28"><PageTransition>{children}</PageTransition></main>
-      <BottomNav />
+      <BottomNav stockAlert={!!stock && stock.low + stock.expiring > 0} />
       <WhatsAppBusiness />
     </div>
   )

@@ -7,7 +7,8 @@ import { formatDate, todayInIndia } from '@/lib/dates'
 import { monthPeriods, nextMonth, previousMonth } from '@/lib/insights'
 import { formatRupees } from '@/lib/pricing'
 import { billsFor, byCategory, categoryLabel, total } from '@/lib/costs'
-import { BackLink, ScreenLoading } from '@/components/clinic/ui'
+import { ScreenLoading } from '@/components/clinic/ui'
+import { PracticeTabs } from '@/components/clinic/PracticeTabs'
 import { MarkPaidButton } from '@/components/clinic/CostButtons'
 
 const card = 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200'
@@ -32,7 +33,7 @@ async function CostsContent({ searchParams }: PageProps<'/app/costs'>) {
 
   return (
     <div className="space-y-4 pb-4">
-      <BackLink href={periods.running ? '/app/insights' : `/app/insights?m=${periods.month}`} label="Money" />
+      <PracticeTabs />
       <div className="flex items-center justify-between">
         <Link href={`/app/costs?m=${previousMonth(periods.month)}`} aria-label="Previous month"
           className="-ml-3 flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50">

@@ -100,7 +100,7 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
   const hasDetails = details.age || details.address || details.heardFrom || details.notes
 
   return (
-    <div className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-300">
+    <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-semibold text-gray-900">{name}</p>
@@ -125,8 +125,8 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
       </div>
 
       {notice && (
-        <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-gray-700">
-          <Clock className="h-4 w-4 shrink-0" /> {notice.text}
+        <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium text-gray-600">
+          <Clock className="h-4 w-4 shrink-0" aria-hidden="true" /> {notice.text}
         </p>
       )}
 
@@ -140,7 +140,7 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
       ) : null}
 
       {alerts && (
-        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-sm text-red-800 ring-1 ring-red-200">
+        <p className="mt-1.5 flex items-start gap-1.5 text-sm text-red-700">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span><span className="font-semibold">Medical alert:</span> {alerts}</span>
         </p>
@@ -161,20 +161,20 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
         </p>
       )}
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-2.5 flex gap-2">
         {canConfirm && (
           <button type="button" onClick={confirm} disabled={pending}
-            className="min-h-12 flex-1 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
+            className="min-h-11 flex-1 rounded-xl bg-blue-600 px-4 py-2 text-[15px] font-bold text-white hover:bg-blue-700 disabled:opacity-60">
             {pending ? 'Booking…' : 'Confirm'}
           </button>
         )}
         <Link href={otherTimeHref}
-          className="flex min-h-12 flex-1 items-center justify-center rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-gray-900 ring-1 ring-gray-300">
+          className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-white px-4 py-2 text-center text-[15px] font-semibold text-gray-900 ring-1 ring-gray-300">
           Other time
         </Link>
         {notice?.stale && (
           <button type="button" onClick={decline} disabled={pending}
-            className="min-h-12 flex-1 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60">
+            className="min-h-11 flex-1 rounded-xl bg-white px-4 py-2 text-[15px] font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60">
             Decline
           </button>
         )}

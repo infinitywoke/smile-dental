@@ -9,6 +9,7 @@ import { formatDate, todayInIndia } from '@/lib/dates'
 import { monthPeriods, nextMonth, previousMonth } from '@/lib/insights'
 import { formatRupees } from '@/lib/pricing'
 import { ScreenLoading } from '@/components/clinic/ui'
+import { PracticeTabs } from '@/components/clinic/PracticeTabs'
 
 const card = 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200'
 const label = 'text-sm font-bold text-gray-500'
@@ -53,6 +54,7 @@ async function InsightsContent({ searchParams }: PageProps<'/app/insights'>) {
 
   return (
     <div className="space-y-4 pb-4">
+      <PracticeTabs />
       <div className="flex items-center justify-between">
         <Link href={`/app/insights?m=${previousMonth(periods.month)}`} aria-label="Previous month"
           className="-ml-3 flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50">

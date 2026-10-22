@@ -69,11 +69,11 @@ export function RemindersCard({ dayLabel, items }: { dayLabel: string; items: Re
   }
 
   return (
-    <details className="rounded-2xl bg-white shadow-sm ring-1 ring-blue-200">
+    <details className="rounded-2xl bg-white ring-1 ring-gray-200">
       <summary className="flex min-h-14 cursor-pointer items-center gap-2 px-4 text-base font-semibold text-gray-900">
-        <Bell className="h-5 w-5 text-blue-700" />
+        <Bell className="h-5 w-5 text-gray-500" aria-hidden="true" />
         <span className="flex-1">Remind {dayLabel}&apos;s patients</span>
-        <span className="text-sm font-semibold text-blue-700">{left === 0 ? 'All sent' : `${left} to send`}</span>
+        <span className="text-sm font-semibold text-gray-500">{left === 0 ? 'All sent' : `${left} to send`}</span>
       </summary>
       <ul className="space-y-2 px-3 pb-3">
         {items.map((r) => (
@@ -160,11 +160,11 @@ export function RecallCard({ items }: { items: RecallItem[] }) {
     return markSent('recalled', r.patientId)
   }
   return (
-    <details className="rounded-2xl bg-white shadow-sm ring-1 ring-teal-200">
+    <details className="rounded-2xl bg-white ring-1 ring-gray-200">
       <summary className="flex min-h-14 cursor-pointer items-center gap-2 px-4 text-base font-semibold text-gray-900">
-        <Stethoscope className="h-5 w-5 text-teal-700" />
+        <Stethoscope className="h-5 w-5 text-gray-500" aria-hidden="true" />
         <span className="flex-1">Check-ups due</span>
-        <span className="text-sm font-semibold text-teal-700">{left.length}</span>
+        <span className="text-sm font-semibold text-gray-500">{left.length}</span>
       </summary>
       <ul className="space-y-2 px-3 pb-3">
         {left.map((r) => (

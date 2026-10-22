@@ -2,7 +2,7 @@
 
 import { inIndia, formatBlock } from '@/lib/schedule'
 import { chairTime, type VisitStep, type VisitStepKey } from '@/lib/visit-progress'
-import { useNow } from './CockpitLive'
+import { useNow } from './useNow'
 
 const label = 'text-xs font-bold'
 

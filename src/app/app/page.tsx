@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Camera, ChevronLeft, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Camera, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getVisitsOn } from '@/lib/data/visits'
 import { getDues, type Due } from '@/lib/data/dues'
@@ -23,45 +23,40 @@ import { UndoProvider } from '@/components/clinic/UndoBar'
 import { getMoneyOn } from '@/lib/data/tally'
 import { missedMessage, recallMessage, reminderMessage, whatsappLink } from '@/lib/whatsapp'
 import { openStatus } from '@/lib/clinic-hours'
-import { nextAppointment, stripBlock } from '@/lib/cockpit'
-import { getSentStreak } from '@/lib/data/streak'
-import { getStockAlerts } from '@/lib/data/stock'
+import { nextAppointment } from '@/lib/next-patient'
 import { getBookingPause } from '@/lib/actions/booking'
 import { pauseText } from '@/lib/booking-pause'
-import { FUN_COOKIE, funFrom } from '@/lib/theme'
-import { cookies } from 'next/headers'
-import { Cockpit } from '@/components/clinic/Cockpit'
+import { ClinicStatus, MoneyPill } from '@/components/clinic/TodayStatus'
+import { NextPatient } from '@/components/clinic/NextPatient'
+import { DayPicker } from '@/components/clinic/DayPicker'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
 const DUES_SHOWN = 5
 const RECALLS_SHOWN = 10
 
-// Today is the day sheet: who needs a decision, who is coming and has been seen (one list), and what is free.
+// Today is the day sheet, quiet unless something needs him (the Quiet Cockpit): whether the clinic is
+// open, what needs a decision, everyone on the day in one list, and the next patient docked at the thumb.
 async function TodayContent({ searchParams }: PageProps<'/app'>) {
   // The session check comes first: it makes this screen request-time before the date is read
   await getDoctor()
-  const { d } = await searchParams
+  const { d, free } = await searchParams
   const today = todayInIndia()
   const date = typeof d === 'string' && DATE.test(d) ? d : today
   const isToday = date === today
-  // Game touches (Settings): the ring that glows when everyone is seen, and the all-sent streak
-  const fun = funFrom((await cookies()).get(FUN_COOKIE)?.value)
 
-  const [schedule, appointments, visits, requests, busy, dues, reminders, missed, recalls, money, streak, stock, pause] = await Promise.all([
+  const [schedule, appointments, visits, requests, busy, dues, reminders, missed, recalls, money, pause] = await Promise.all([
     getDaySchedule(date),
     getAppointmentsOn(date),
     getVisitsOn(date),
     getPendingRequests(),
     getBusyCounts(today, STRIP_DAYS),
-    // Everyone who owes, for the Cockpit's total; Needs you shows the first few
+    // Everyone who owes, for the money pill's total; Needs you shows the first few
     isToday ? getDues(1000) : Promise.resolve([] as Due[]),
     isToday ? getReminders(today) : Promise.resolve(null),
     isToday ? getMissed() : Promise.resolve([] as Missed[]),
     isToday ? getRecalls(today) : Promise.resolve([] as Recall[]),
     isToday ? getMoneyOn(today) : Promise.resolve(null),
-    isToday && fun ? getSentStreak(today) : Promise.resolve(0),
-    isToday ? getStockAlerts(today) : Promise.resolve(null),
     isToday ? getBookingPause() : Promise.resolve(null),
   ])
   // A booked appointment whose time is over and that has no visit: the patient may not have come
@@ -81,8 +76,18 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     href: whatsappLink(r.phone!, recallMessage({ name: r.name, lastVisit: r.lastVisit })),
   }))
 
-  const strip = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i))
+  // The next two weeks, behind the date under the day's title
+  const pickerDays = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i)).map((day) => ({
+    href: day === today ? '/app' : `/app?d=${day}`,
+    name: day === today ? 'Today' : formatDay(day).split(',')[0],
+    number: Number(day.slice(8)),
+    note: weekday(day) === 5 ? 'off' : busy[day] ? `${busy[day]} booked` : '–',
+    active: day === date,
+    closed: weekday(day) === 5,
+  }))
   const poolBlocks = schedule.blocks.filter((b) => b.state === 'free' || b.state === 'blocked' || b.state === 'request')
+  const freeCount = poolBlocks.filter((b) => b.state === 'free').length
+  const freeSummary = schedule.closed ? 'Closed on Fridays' : schedule.dayOff ? 'Blocked off' : freeCount === 0 ? 'None left' : `${freeCount} free`
 
   // Money owed is a today thing: other days show only who is coming. A due is left out of Needs you
   // only when a row below already shows the whole amount (one money rule, src/lib/billing.ts).
@@ -100,82 +105,54 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     ...visits.map((visit) => ({ kind: 'seen' as const, at: new Date(visit.created_at).getTime(), visit })),
   ].sort((x, y) => x.at - y.at)
 
-  // The Cockpit (today only): the same people and money as the lists below, at a glance
+  // Today only: the clinic's state, the money (hidden until tapped) and the next patient
   const at = new Date(now)
   const booked = rows.flatMap((row) => (row.kind === 'booked' ? [row.appointment] : []))
-  const next = nextAppointment(booked, at)
-  const cockpit = isToday ? {
-    status: openStatus(at),
-    seen: visits.length,
-    total: rows.length,
-    marks: rows.map((row) => row.kind === 'seen'),
-    next: next && {
-      appointmentId: next.id,
-      patientId: next.patient_id,
-      name: next.patient.name,
-      startsAt: next.starts_at,
-      detail: [next.reason, lengthLabel(next.duration_min)].filter(Boolean).join(' · '),
-      alert: Boolean(next.patient.medical_alerts),
-    },
-    collected: (money?.cash ?? 0) + (money?.upi ?? 0),
-    requests: requests.length,
-    owed: dues.reduce((total, due) => total + due.amount, 0),
-    // Appointments where they were booked; a walk-in's visit where it began
-    strip: [
-      ...appointments.map((a) => stripBlock(a.starts_at, a.duration_min, at)),
-      ...visits.filter((v) => !appointments.some((a) => a.visit_id === v.id)).map((v) => stripBlock(v.created_at, DEFAULT_LENGTH, at)),
-    ],
-    late: booked
-      .filter((a) => new Date(a.starts_at).getTime() > now && a.patient.phone)
-      .map((a) => ({ id: a.id, name: a.patient.name, startsAt: a.starts_at, phone: a.patient.phone! })),
-    fun,
-    streak,
-    stock,
-    website: pause?.ready ? { paused: pause.until !== null, text: pauseText(pause.until, at) } : null,
-  } : null
+  const next = isToday ? nextAppointment(booked, at) : null
+  const later = booked
+    .filter((a) => new Date(a.starts_at).getTime() > now && a.patient.phone)
+    .map((a) => ({ id: a.id, name: a.patient.name, startsAt: a.starts_at, phone: a.patient.phone! }))
+  const website = pause?.ready ? { paused: pause.until !== null, text: pauseText(pause.until, at) } : null
+  const needsYou = requests.length > 0 || showDues.length > 0 || missedItems.length > 0
 
   return (
     <UndoProvider>
     <div className="space-y-6">
-      {/* Day header and strip */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Link href={`/app?d=${addDays(date, -1)}`} className="-ml-3 flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Previous day">
-            <ChevronLeft className="h-6 w-6" />
-          </Link>
-          <div className="text-center">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">{isToday ? 'Today' : formatDay(date)}</h1>
-            {isToday && <p className="text-sm font-medium text-gray-500">{formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}</p>}
+      {/* The day's name, its date (a tap shows the next two weeks) and the arrows */}
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">{isToday ? 'Today' : formatDay(date)}</h1>
+            <DayPicker label={isToday ? formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' }) : 'Pick a day'} days={pickerDays} />
           </div>
-          <Link href={`/app?d=${addDays(date, 1)}`} className="-mr-3 flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Next day">
-            <ChevronRight className="h-6 w-6" />
-          </Link>
+          <div className="-mr-2 flex shrink-0">
+            <Link href={`/app?d=${addDays(date, -1)}`} className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100" aria-label="Previous day">
+              <ChevronLeft className="h-6 w-6" />
+            </Link>
+            <Link href={`/app?d=${addDays(date, 1)}`} className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100" aria-label="Next day">
+              <ChevronRight className="h-6 w-6" />
+            </Link>
+          </div>
         </div>
-
-        {cockpit && <Cockpit {...cockpit} />}
-
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-          {strip.map((day) => {
-            const active = day === date
-            const closed = weekday(day) === 5
-            return (
-              <Link key={day} href={day === today ? '/app' : `/app?d=${day}`}
-                className={`flex min-h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl px-1 py-2 text-xs ring-1 ring-inset ${
-                  active ? 'bg-blue-600 text-white ring-blue-600' : closed ? 'bg-gray-100 text-gray-400 ring-gray-200' : 'bg-white text-gray-700 ring-gray-300'
-                }`}>
-                <span className="font-semibold">{day === today ? 'Today' : formatDay(day).split(',')[0]}</span>
-                <span className="text-base font-bold">{Number(day.slice(8))}</span>
-                <span className={active ? 'text-blue-100' : 'text-gray-400'}>{closed ? 'off' : busy[day] ? `${busy[day]} booked` : '–'}</span>
-              </Link>
-            )
-          })}
-        </div>
+        {isToday && (
+          <div className="flex flex-col items-start gap-2">
+            <ClinicStatus status={openStatus(at)} website={website} />
+            <div className="flex w-full items-center gap-2">
+              {rows.length > 0 && (
+                <span className="flex min-h-10 items-center gap-1 rounded-full bg-gray-100 px-3 text-[13px] font-bold text-gray-900">
+                  <span className="hud-mono">{visits.length}/{rows.length}</span> seen
+                </span>
+              )}
+              <MoneyPill collected={(money?.cash ?? 0) + (money?.upi ?? 0)} owed={dues.reduce((total, due) => total + due.amount, 0)} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Needs you */}
-      {(requests.length > 0 || showDues.length > 0 || missedItems.length > 0 || showReminders || recallItems.length > 0) && (
-        <section id="needs-you" className="scroll-mt-4 space-y-2">
-          <h2 className="text-lg font-bold text-gray-900">Needs you</h2>
+      {/* What needs a decision: shown only when something does */}
+      {needsYou && (
+        <section id="needs-you" aria-label="Needs you" className="scroll-mt-4 space-y-2">
+          <h2 className="hud-heading">Needs you</h2>
           {requests.map((request) => {
             const wanted = request.requested_start ? inIndia(request.requested_start) : null
             const age = patientAge(request)
@@ -205,123 +182,133 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
           })}
           {showDues.map((due) => (
             <Link key={due.patientId} href={`/app/visits/${due.visitId}?step=bill`}
-              className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-red-200 hover:ring-red-400">
+              className="flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-amber-200 hover:ring-amber-300">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-base font-semibold text-gray-900">{due.patientName}</span>
-                <span className="block text-sm font-semibold text-red-700">{formatRupees(due.amount)} due</span>
+                <span className="hud-mono block text-sm font-semibold text-amber-800">{formatRupees(due.amount)} due</span>
               </span>
-              <span className="flex min-h-12 items-center rounded-full bg-red-600 px-5 text-base font-semibold text-white">Collect</span>
+              <span className="flex min-h-11 items-center rounded-xl bg-blue-600 px-4 text-base font-bold text-white">Collect</span>
             </Link>
           ))}
           <MissedList items={missedItems} />
+        </section>
+      )}
+
+      {/* Everyone on this day, in time order: booked, in the chair, finished */}
+      <section aria-labelledby="schedule-heading" className="space-y-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="schedule-heading" className="hud-heading">{rows.length === 0 ? `No patients ${isToday ? 'today' : 'this day'}` : 'Schedule'}</h2>
+          {rows.length > 0 && <span className="text-[13px] font-semibold text-gray-500">{rows.length} {rows.length === 1 ? 'patient' : 'patients'}</span>}
+        </div>
+        {rows.length > 0 && (
+          <ul aria-label="Schedule" className="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white ring-1 ring-gray-200">
+            {rows.map((row) =>
+              row.kind === 'booked' ? (
+                <li key={`a-${row.appointment.id}`} className="flex items-center gap-2 py-1.5 pr-2 pl-4">
+                  <Link href={`/app/patients/${row.appointment.patient_id}`} className="flex min-h-12 min-w-0 flex-1 flex-col justify-center">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-base font-semibold text-gray-900">{row.appointment.patient.name}</span>
+                      {row.appointment.patient.medical_alerts && <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
+                    </span>
+                    <span className="truncate text-sm text-gray-500">
+                      <span className="hud-mono font-semibold text-gray-900">{formatBlock(inIndia(row.appointment.starts_at).time)}</span>
+                      {[row.appointment.reason, row.appointment.duration_min !== DEFAULT_LENGTH && lengthLabel(row.appointment.duration_min)].filter(Boolean).map((part) => ` · ${part}`).join('')}
+                    </span>
+                  </Link>
+                  {/* Start (today), and once the time is over, "Didn't come" under it */}
+                  {(isToday || over(row.appointment.starts_at, row.appointment.duration_min)) && (
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {isToday && (
+                        <StartVisitButton patientId={row.appointment.patient_id} appointmentId={row.appointment.id} label="Start"
+                          className="flex min-h-11 min-w-16 items-center justify-center rounded-xl px-4 text-sm font-bold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-70" />
+                      )}
+                      {over(row.appointment.starts_at, row.appointment.duration_min) && (
+                        <DidntComeButton appointmentId={row.appointment.id} name={row.appointment.patient.name} />
+                      )}
+                    </div>
+                  )}
+                </li>
+              ) : (
+                <li key={`v-${row.visit.id}`}>
+                  <Link href={`/app/visits/${row.visit.id}`} className="block min-h-14 px-4 py-3 hover:bg-gray-50">
+                    {/* The whole name on its own line; the time and the badges under it */}
+                    <p className="flex items-start gap-2">
+                      <span className="min-w-0 text-base font-semibold break-words text-gray-900">{row.visit.patient.name}</span>
+                      {row.visit.patient.medical_alerts && <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
+                    </p>
+                    <p className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="hud-mono text-sm font-semibold text-gray-900">
+                        {new Date(row.visit.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                      </span>
+                      <VisitStatusBadge status={row.visit.status} />
+                      {row.visit.photo_count > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500">
+                          <Camera className="h-3.5 w-3.5" aria-hidden="true" /> {row.visit.photo_count} photo{row.visit.photo_count === 1 ? '' : 's'}
+                        </span>
+                      )}
+                    </p>
+                  </Link>
+                </li>
+              ),
+            )}
+          </ul>
+        )}
+      </section>
+
+      {/* WhatsApp to send today: tomorrow's reminders and check-ups, folded until opened */}
+      {(showReminders || recallItems.length > 0) && (
+        <section aria-label="To send" className="space-y-2">
           {showReminders && <RemindersCard dayLabel={reminders!.tomorrow ? 'tomorrow' : formatDay(reminders!.date).split(',')[0]} items={reminderItems} />}
           {recallItems.length > 0 && <RecallCard items={recallItems} />}
         </section>
       )}
 
-      {/* Everyone on this day, in time order: booked, in the chair, finished */}
-      <section className="space-y-2">
-        <h2 className="text-lg font-bold text-gray-900">
-          {rows.length === 0
-            ? `No patients ${isToday ? 'today' : 'this day'}`
-            : `${rows.length} patient${rows.length === 1 ? '' : 's'}${isToday ? ' today' : ''}`}
-        </h2>
-        {rows.map((row) =>
-          row.kind === 'booked' ? (
-            <div key={`a-${row.appointment.id}`} className="flex items-center gap-2 rounded-2xl bg-white py-2 pr-2 pl-4 shadow-sm ring-1 ring-gray-200">
-              <Link href={`/app/patients/${row.appointment.patient_id}`} className="flex min-h-12 min-w-0 flex-1 items-center gap-3">
-                <span className="w-[4.5rem] shrink-0 text-sm font-semibold tabular-nums text-gray-900">
-                  {formatBlock(inIndia(row.appointment.starts_at).time)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="truncate text-base font-semibold text-gray-900">{row.appointment.patient.name}</span>
-                    {row.appointment.patient.medical_alerts && <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
-                  </span>
-                  {(row.appointment.reason || row.appointment.duration_min !== DEFAULT_LENGTH) && (
-                    <span className="block truncate text-sm text-gray-500">
-                      {[row.appointment.reason, row.appointment.duration_min !== DEFAULT_LENGTH && lengthLabel(row.appointment.duration_min)].filter(Boolean).join(' · ')}
-                    </span>
-                  )}
-                </span>
-              </Link>
-              {/* Start (today), and once the time is over, "Didn't come" under it */}
-              {(isToday || over(row.appointment.starts_at, row.appointment.duration_min)) && (
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  {isToday && (
-                    <StartVisitButton patientId={row.appointment.patient_id} appointmentId={row.appointment.id} label="Start"
-                      className="flex min-h-12 min-w-20 items-center justify-center rounded-full bg-blue-600 px-5 text-base font-semibold text-white hover:bg-blue-700 disabled:opacity-70" />
-                  )}
-                  {over(row.appointment.starts_at, row.appointment.duration_min) && (
-                    <DidntComeButton appointmentId={row.appointment.id} name={row.appointment.patient.name} />
-                  )}
-                </div>
-              )}
-            </div>
+      {/* Free times: folded on today (booking from here is the rare job), open on other days */}
+      <details id="free-times" open={!isToday || free === '1'} className="group scroll-mt-4 rounded-2xl bg-white ring-1 ring-gray-200">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 text-base font-semibold text-gray-900">
+          <span className="flex-1">Free times</span>
+          <span className="text-sm font-semibold text-gray-500">{freeSummary}</span>
+          <ChevronDown className="h-5 w-5 text-gray-400 transition group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="space-y-3 px-4 pb-4">
+          {schedule.closed ? (
+            <p className="rounded-xl bg-gray-100 p-4 text-center text-sm font-medium text-gray-600">The clinic is closed on Fridays.</p>
           ) : (
-            <Link key={`v-${row.visit.id}`} href={`/app/visits/${row.visit.id}`} className="block min-h-14 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 hover:ring-blue-400">
-              {/* The whole name on its own line; the time and the badges under it */}
-              <p className="flex items-start gap-2">
-                <span className="min-w-0 text-base font-semibold break-words text-gray-900">{row.visit.patient.name}</span>
-                {row.visit.patient.medical_alerts && <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
-              </p>
-              <p className="mt-1 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold tabular-nums text-gray-900">
-                  {new Date(row.visit.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
-                </span>
-                <VisitStatusBadge status={row.visit.status} />
-              </p>
-              {row.visit.notes && <p className="mt-1 line-clamp-2 text-sm text-gray-600">{row.visit.notes}</p>}
-              {row.visit.photo_count > 0 && (
-                <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500">
-                  <Camera className="h-3.5 w-3.5" /> {row.visit.photo_count} photo{row.visit.photo_count === 1 ? '' : 's'}
-                </p>
+            <>
+              {schedule.dayOff && <p className="rounded-xl bg-gray-100 p-3 text-center text-sm font-medium text-gray-600">This day is blocked off.</p>}
+              {poolBlocks.length === 0 ? (
+                <p className="text-sm text-gray-500">Nothing free left{isToday ? ' today' : ''}.</p>
+              ) : (
+                <SlotGrid
+                  blocks={poolBlocks}
+                  hrefs={Object.fromEntries(
+                    poolBlocks.map((b) => [
+                      b.instant,
+                      b.state === 'request' ? `/app/requests/${b.requestId}?d=${date}` : `/app/book?at=${encodeURIComponent(b.instant)}`,
+                    ]),
+                  )}
+                />
               )}
-            </Link>
-          ),
-        )}
-      </section>
+              <DayOffButton date={date} dayOff={schedule.dayOff} />
+            </>
+          )}
+        </div>
+      </details>
 
-      {/* Free times */}
-      <section id="free-times" className="scroll-mt-4 space-y-3">
-        <h2 className="text-lg font-bold text-gray-900">Free times</h2>
-        {schedule.closed ? (
-          <p className="rounded-xl bg-gray-100 p-4 text-center text-sm font-medium text-gray-600">The clinic is closed on Fridays.</p>
-        ) : (
-          <>
-            {schedule.dayOff && <p className="rounded-xl bg-gray-100 p-3 text-center text-sm font-medium text-gray-600">This day is blocked off.</p>}
-            {poolBlocks.length === 0 ? (
-              <p className="text-sm text-gray-500">Nothing free left{isToday ? ' today' : ''}.</p>
-            ) : (
-              <SlotGrid
-                blocks={poolBlocks}
-                hrefs={Object.fromEntries(
-                  poolBlocks.map((b) => [
-                    b.instant,
-                    b.state === 'request' ? `/app/requests/${b.requestId}?d=${date}` : `/app/book?at=${encodeURIComponent(b.instant)}`,
-                  ]),
-                )}
-              />
-            )}
-            <DayOffButton date={date} dayOff={schedule.dayOff} />
-          </>
-        )}
-      </section>
-
-      {/* The day's money; this month's numbers and Send to Tally are one tap away */}
-      {money && (
-        <section className="space-y-2">
-          <h2 className="text-lg font-bold text-gray-900">Money today</h2>
-          <Link href="/app/insights" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 hover:ring-blue-400">
-            <span className="min-w-0 flex-1">
-              <span className="block text-base font-semibold text-gray-900">
-                {money.count === 0 ? 'No payments yet' : `${formatRupees(money.cash)} cash · ${formatRupees(money.upi)} UPI`}
-              </span>
-              <span className="block text-sm text-gray-500">{money.count} payment{money.count === 1 ? '' : 's'} · This month&apos;s numbers</span>
-            </span>
-            <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
-          </Link>
-        </section>
+      {/* Room at the foot of the page for the next patient's card */}
+      {next && <div className="h-52" aria-hidden="true" />}
+      {next && (
+        <NextPatient
+          next={{
+            appointmentId: next.id,
+            patientId: next.patient_id,
+            name: next.patient.name,
+            startsAt: next.starts_at,
+            detail: [next.reason, lengthLabel(next.duration_min)].filter(Boolean).join(' · '),
+            alert: Boolean(next.patient.medical_alerts),
+          }}
+          later={later}
+        />
       )}
     </div>
     </UndoProvider>

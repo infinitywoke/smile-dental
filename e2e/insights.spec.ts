@@ -22,7 +22,7 @@ test.afterAll(async () => {
   await page.close()
 })
 
-test('Money today opens this month: money, new patients and where they heard of you, bookings, missed visits, treatments', async () => {
+test('Practice opens this month: money, new patients and where they heard of you, bookings, missed visits, treatments', async () => {
   const { supabase } = await testDb()
   const { data: patient, error } = await supabase.from('patients')
     .insert({ name: `${runId} Numbers`, phone: newPhone('6'), gender: 'female', heard_from: `${runId} flyer` }).select('id').single()
@@ -33,7 +33,7 @@ test('Money today opens this month: money, new patients and where they heard of 
   await supabase.from('booking_requests').insert({ name: `${runId} Web`, phone: newPhone('8'), gender: 'male', reason: 'Check-up', requested_start: blockInstant(today, '23:00'), status: 'declined' })
 
   await page.goto('/app')
-  await visible(page.getByRole('link', { name: /This month's numbers/ })).click()
+  await visible(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Practice/ })).click()
   await expect(page).toHaveURL(/\/app\/insights$/)
   await expect(visible(page.getByRole('heading', { name: 'This month' }))).toBeVisible()
 
