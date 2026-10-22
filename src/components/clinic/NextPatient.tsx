@@ -2,7 +2,7 @@
 
 import { AlertTriangle } from 'lucide-react'
 import { LATE_MINUTES, NO_SHOW_MINUTES, nextTiming } from '@/lib/next-patient'
-import { formatBlock, inIndia } from '@/lib/schedule'
+import { formatTimeOf } from '@/lib/schedule'
 import { DidntComeButton } from './FollowUps'
 import { RunningLate } from './RunningLate'
 import { StartVisitButton } from './StartVisitButton'
@@ -23,7 +23,7 @@ export function NextPatient({ next, later }: { next: Next; later: Later[] }) {
         <div className="space-y-2.5 rounded-[20px] bg-white p-3.5 shadow-[0_8px_24px_rgba(11,35,87,0.14)] ring-1 ring-gray-200">
           <div className="min-w-0">
             <p className="text-[13px] font-bold text-gray-500">
-              Next · <span className="hud-mono">{formatBlock(inIndia(next.startsAt).time)}</span>
+              Next · <span className="hud-mono">{formatTimeOf(next.startsAt)}</span>
               {timing && <> · <span className={behind ? 'text-amber-800' : undefined}>{timing.text}</span></>}
             </p>
             <p className="flex items-center gap-1.5 text-xl font-extrabold text-gray-900">

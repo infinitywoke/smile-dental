@@ -8,10 +8,10 @@ import { saveTallySettings } from '@/lib/actions/tally'
 import type { TallyOverview, TallySettings } from '@/lib/data/tally'
 import { formatDate } from '@/lib/dates'
 import { formatRupees } from '@/lib/pricing'
-import { inIndia } from '@/lib/schedule'
+import { formatTimeOf, inIndia } from '@/lib/schedule'
 
 const when = (iso: string) =>
-  `${formatDate(inIndia(iso).date)}, ${new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}`
+  `${formatDate(inIndia(iso).date)}, ${formatTimeOf(iso)}`
 const monthName = (month: string) => formatDate(`${month}-01`, { month: 'long', year: 'numeric' })
 const input = 'block min-h-12 w-full rounded-xl border-0 px-3 text-base text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-600'
 const button = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold disabled:opacity-60'

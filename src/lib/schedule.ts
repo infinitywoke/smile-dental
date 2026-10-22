@@ -5,7 +5,7 @@
 const TIME_ZONE = 'Asia/Kolkata'
 const IST_OFFSET = '+05:30'
 
-export const BLOCK_MINUTES = 40
+export const BLOCK_MINUTES = 30
 // How long before a block starts it can still be requested online. None (owner, 21 Oct 2026): any block
 // that hasn't started can be booked; someone coming in sooner can call the clinic.
 export const MIN_LEAD_MINUTES = 0
@@ -14,21 +14,24 @@ export const ONLINE_CUTOFF = '19:00'
 // How far ahead the website offers blocks, counting today
 export const WINDOW_DAYS = 28
 
-// Block start times, matching the Google Business Profile hours (8:30 AM-1:00 PM, 2:30-7:30 PM).
-// The last block of each session may run a little past closing (12:30 ends 1:10, 7:10 PM ends 7:50).
-export const MORNING_BLOCKS = ['08:30', '09:10', '09:50', '10:30', '11:10', '11:50', '12:30']
-export const AFTERNOON_BLOCKS = ['14:30', '15:10', '15:50', '16:30', '17:10', '17:50', '18:30', '19:10']
+// Block start times, every 30 minutes within the Google Business Profile hours (8:30 AM-1:00 PM,
+// 2:30-7:30 PM): the last block of each session ends at closing (12:30 ends 1:00, 7:00 PM ends 7:30).
+export const MORNING_BLOCKS = ['08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30']
+export const AFTERNOON_BLOCKS = ['14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00']
 export const ALL_BLOCKS = [...MORNING_BLOCKS, ...AFTERNOON_BLOCKS]
 
-// Appointment lengths (Dr. Rahil picks one; 40 minutes, one block, unless he chooses otherwise).
-// Clinic OS starts appointments on a 20-minute grid within the two sessions; an appointment must end by
-// the session's last end (the last 40-minute block of each session already ran a little past closing:
-// 12:30-1:10 PM and 7:10-7:50 PM). The website keeps the 40-minute blocks above.
-export const SLOT_MINUTES = 20
-export const LENGTHS = [20, 40, 60, 80, 120] as const
-export type Length = (typeof LENGTHS)[number]
-export const DEFAULT_LENGTH: Length = 40
-const SESSIONS: [string, string][] = [['08:30', '13:10'], ['14:30', '19:50']]
+// Appointment lengths: Dr. Rahil chooses any length from 10 minutes to 4 hours in 5-minute steps (30
+// minutes, one block, unless he chooses otherwise); the quick picks are the common ones. Clinic OS offers
+// the 30-minute grid within the two sessions, and the moment something ends (so a 45-minute appointment
+// at 9:00 leaves 9:45 free); an appointment may start on any 5-minute mark and must end by closing
+// (1:00 PM, 7:30 PM). The database enforces the same rule (is_clinic_start in supabase/schema.sql).
+export const SLOT_MINUTES = 30
+export const LENGTH_STEP = 5
+export const MIN_LENGTH = 10
+export const MAX_LENGTH = 240
+export const QUICK_LENGTHS = [30, 60, 90, 120] as const
+export const DEFAULT_LENGTH = 30
+const SESSIONS: [string, string][] = [['08:30', '13:00'], ['14:30', '19:30']]
 
 export const toMinutes = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number)
@@ -36,16 +39,25 @@ export const toMinutes = (hhmm: string) => {
 }
 export const fromMinutes = (total: number) => `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 
-export function isLength(value: unknown): value is Length {
-  return LENGTHS.includes(Number(value) as Length)
+export function isLength(value: unknown): value is number {
+  const n = Number(value)
+  return Number.isInteger(n) && n % LENGTH_STEP === 0 && n >= MIN_LENGTH && n <= MAX_LENGTH
 }
 
-// A length from a link or form ("80"), or the default
-export function lengthFrom(value: unknown): Length {
-  return isLength(value) ? (Number(value) as Length) : DEFAULT_LENGTH
+// A length from a link or form ("45"), or the default
+export function lengthFrom(value: unknown): number {
+  return isLength(value) ? Number(value) : DEFAULT_LENGTH
 }
 
-// "20 min", "40 min", "1 hour", "1 h 20 min", "2 hours"
+// Whether an appointment of this length may start at this time (Clinic OS): a 5-minute mark of a
+// session, ending by closing, not on a Friday
+export function isClinicStart(date: string, time: string, length: number): boolean {
+  if (isClosedDay(date) || !isLength(length)) return false
+  const t = toMinutes(time)
+  return t % LENGTH_STEP === 0 && SESSIONS.some(([from, until]) => t >= toMinutes(from) && t + length <= toMinutes(until))
+}
+
+// "30 min", "1 hour", "1 h 30 min", "2 hours"
 export function lengthLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} min`
   const h = Math.floor(minutes / 60)
@@ -53,7 +65,7 @@ export function lengthLabel(minutes: number): string {
   return m === 0 ? `${h} hour${h === 1 ? '' : 's'}` : `${h} h ${m} min`
 }
 
-// Every start on the 20-minute grid where an appointment of this length fits (none on a Friday)
+// Every start on the 30-minute grid where an appointment of this length fits (none on a Friday)
 export function startsFor(date: string, length: number): string[] {
   if (isClosedDay(date)) return []
   return SESSIONS.flatMap(([from, until]) => {
@@ -66,13 +78,13 @@ export function startsFor(date: string, length: number): string[] {
 // A start where an appointment of this length may begin (Clinic OS), else null
 export function clinicStartOf(startsAt: string, length: number): { iso: string; date: string; time: string } | null {
   const d = new Date(startsAt)
-  if (Number.isNaN(d.getTime()) || !isLength(length)) return null
+  if (Number.isNaN(d.getTime()) || d.getUTCSeconds() !== 0 || d.getUTCMilliseconds() !== 0) return null
   const { date, time } = inIndia(d)
-  if (!startsFor(date, length).includes(time)) return null
+  if (!isClinicStart(date, time, length)) return null
   return { iso: d.toISOString(), date, time }
 }
 
-// "09:10" + 60 -> "10:10"
+// "09:30" + 60 -> "10:30"
 export function endOf(hhmm: string, minutes: number): string {
   return fromMinutes(toMinutes(hhmm) + minutes)
 }
@@ -124,7 +136,7 @@ export function isClosedDay(date: string): boolean {
   return weekday(date) === 5
 }
 
-// The blocks of a day: all 15, or none on a Friday
+// The blocks of a day: all 19, or none on a Friday
 export function blocksFor(date: string): string[] {
   return isClosedDay(date) ? [] : ALL_BLOCKS
 }
@@ -137,7 +149,7 @@ export function formatBlock(hhmm: string): string {
   return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`
 }
 
-// The end of a block, "09:50" -> "10:30"
+// The end of a block, "09:30" -> "10:00"
 export function blockEnd(hhmm: string): string {
   const [h, m] = hhmm.split(':').map(Number)
   const total = h * 60 + m + BLOCK_MINUTES
@@ -169,4 +181,15 @@ export function confirmationPromise(now: Date): string {
 // Day and date for headings, "Thu, 15 Oct"
 export function formatDay(date: string): string {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+}
+
+// A moment's India clock time, "2:40 PM"
+export function formatTimeOf(moment: Date | string): string {
+  return formatBlock(inIndia(moment).time)
+}
+
+// A moment's India day and time, "Thu, 15 Oct, 2:40 PM"
+export function formatWhen(moment: Date | string): string {
+  const { date, time } = inIndia(moment)
+  return `${formatDay(date)}, ${formatBlock(time)}`
 }

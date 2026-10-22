@@ -31,6 +31,9 @@ export const PHOTO_BUCKET = 'visit-photos'
 export const PHOTO_KINDS = ['Prescription', 'X-ray', 'Other'] as const
 export type PhotoKind = (typeof PHOTO_KINDS)[number]
 
+// What a photo is called on screen and in WhatsApp: "Prescription", "X-ray", or just "Photo"
+export const photoLabel = (kind: PhotoKind | null) => (kind === 'Prescription' || kind === 'X-ray' ? kind : 'Photo')
+
 // Reads a caption back as a kind (older photos have typed captions)
 export function photoKind(caption: string | null | undefined): PhotoKind | null {
   const text = (caption ?? '').trim()

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Bell, Check, MessageCircle, Phone, Stethoscope, UserX } from 'lucide-react'
 import { markNoShow, setFollowedUp, setRecalled, setReminded, undoNoShow } from '@/lib/actions/follow-ups'
 import { formatDate } from '@/lib/dates'
-import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { formatTimeOf, formatWhen } from '@/lib/schedule'
 import { firstName } from '@/lib/whatsapp'
 import { openWhatsApp } from '@/lib/whatsapp-business'
 import { markSent } from '@/lib/mark-sent'
@@ -14,10 +14,6 @@ import { useUndo } from './UndoBar'
 // Today's lists that empty themselves as he taps. A WhatsApp tap counts as done (the message is in
 // front of him to send); each tap can be undone from the bar at the bottom.
 
-const whenLabel = (iso: string) => {
-  const { date, time } = inIndia(iso)
-  return `${formatDay(date)}, ${formatBlock(time)}`
-}
 // The tap is saved first (briefly: Android lets a tap open WhatsApp only for a few seconds), so leaving
 // the page for WhatsApp can't cut the save off
 const RECORD_WAIT_MS = 1500
@@ -78,7 +74,7 @@ export function RemindersCard({ dayLabel, items }: { dayLabel: string; items: Re
       <ul className="space-y-2 px-3 pb-3">
         {items.map((r) => (
           <li key={r.id} className="flex items-center gap-2 rounded-xl bg-gray-50 py-1 pr-1 pl-3">
-            <span className="w-[4.5rem] shrink-0 text-sm font-semibold tabular-nums text-gray-900">{formatBlock(inIndia(r.startsAt).time)}</span>
+            <span className="w-[4.5rem] shrink-0 text-sm font-semibold tabular-nums text-gray-900">{formatTimeOf(r.startsAt)}</span>
             <Link href={`/app/patients/${r.patientId}`} className="min-w-0 flex-1 truncate text-base text-gray-900">{r.name}</Link>
             {!r.href ? (
               <span className="px-2 text-sm text-gray-500">No phone</span>
@@ -121,7 +117,7 @@ export function MissedList({ items }: { items: MissedItem[] }) {
         <div key={m.id} className="space-y-2 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-amber-200">
           <Link href={`/app/patients/${m.patientId}`} className="block">
             <span className="block truncate text-base font-semibold text-gray-900">{m.name}</span>
-            <span className="block text-sm text-amber-800">Didn&apos;t come · {whenLabel(m.startsAt)}</span>
+            <span className="block text-sm text-amber-800">Didn&apos;t come · {formatWhen(m.startsAt)}</span>
           </Link>
           <div className="flex flex-wrap gap-2">
             {m.phone && (

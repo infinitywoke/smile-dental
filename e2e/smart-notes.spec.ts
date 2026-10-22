@@ -3,7 +3,8 @@ import { NO_TEST_LOGIN, testLogin } from './env'
 import { cleanRun, createPatient, createVisit, newPhone, newRunId, openDay, signIn, testDb, visible } from './helpers'
 
 // Record notes: the visit's recording goes to Gemini (a pretend answer in tests: GEMINI_FAKE), the
-// sorted notes are added to the notes box, and the charge and next visit are only suggestions.
+// sorted notes are added to the notes box, and the charges (in the Bill) and the next visit (in Next
+// visit) are only suggestions; what it couldn't make out shows under the notes.
 const runId = newRunId()
 
 test.describe.configure({ mode: 'serial' })
@@ -36,7 +37,7 @@ test('record, stop: the notes are written out and sorted; the charge and next vi
   await visible(page.getByRole('button', { name: 'Stop' })).click()
 
   await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(/Complaint: Pain lower right back tooth[\s\S]*Prescription:\n- Amoxicillin/, { timeout: 30_000 })
-  const card = visible(page.getByRole('region', { name: 'Suggestions from your notes' }))
+  const card = visible(page.getByRole('region', { name: 'Charges from your notes' }))
   await expect(card).toContainText('Root Canal Treatment – Standard Treatment (46)')
   await expect(card).toContainText('₹3,500')
   await expect(card).toContainText('X-Ray – Standard X-Ray (46)')
@@ -54,12 +55,17 @@ test('record, stop: the notes are written out and sorted; the charge and next vi
   // What Gemini couldn't match or make out is said plainly
   await expect(card).toContainText('occlusal adjustment on 16')
   await expect(card).toContainText('Not on your price list')
-  await expect(card).toContainText('the mouthwash name in the advice')
+  await expect(visible(page.getByRole('note'))).toContainText('the mouthwash name in the advice')
 
   // The clinic keeps the recording with the visit
   expect((await supabase.from('visit_recordings').select('id').eq('visit_id', visitId)).data).toHaveLength(1)
 
-  await card.getByRole('button', { name: 'Book next visit' }).click()
+  // The next visit it heard is Next visit's suggestion, with its length
+  const next = visible(page.locator('#visit-next'))
+  await expect(next).toContainText('From your notes:')
+  await expect(next).toContainText('second RCT sitting')
+  await expect(next.locator('output[aria-label="Length"]')).toHaveText('1 h')
+  await next.getByRole('button', { name: 'Book it' }).click()
   await expect.poll(async () => (await supabase.from('appointments').select('duration_min').eq('from_visit_id', visitId).eq('status', 'booked')).data?.[0]?.duration_min).toBe(60)
   await page.reload()
   await expect(visible(page.getByText(/Recordings \(1\)/))).toBeVisible()

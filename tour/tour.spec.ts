@@ -510,7 +510,7 @@ test('evidence tour', async ({ page }) => {
   // ---------------------------------------------------------------- jobs D / E (website requests)
   startJob('D. Website request: confirm the time asked for')
   await step('confirm request', async () => {
-    const { requestName } = await makeRequest('Quick', '15:10', 0)
+    const { requestName } = await makeRequest('Quick', '15:00', 0)
     await page.goto('/app')
     current.taps = 0; current.typed = 0; current.screens = ['/app']
     await visible(page.getByText(requestName)).first().waitFor({ timeout: 20_000 })
@@ -533,7 +533,7 @@ test('evidence tour', async ({ page }) => {
     await page.waitForURL(new RegExp(`/app/requests/${id}`)); await page.waitForTimeout(1500)
     await snap(page, 'request-page')
     current.notes.push(`"Save and confirm" enabled before any tap: ${await visible(page.getByRole('button', { name: 'Save and confirm' })).isEnabled().catch(() => false)}`)
-    await tap(visible(page.getByRole('button', { name: /^11:10 AM/ })))
+    await tap(visible(page.getByRole('button', { name: /^11:00 AM/ })))
     await snap(page, 'request-picked')
     await captureWhatsapp(page, 'request-other-time')
     await tap(visible(page.getByRole('button', { name: 'Save and confirm' })))

@@ -1,6 +1,6 @@
 import 'server-only'
 import { priceListOptions, type PriceListOption } from '@/lib/pricing'
-import { LENGTHS } from '@/lib/schedule'
+import { isLength } from '@/lib/schedule'
 
 // Dr. Rahil records his notes after a visit; Gemini writes them out and sorts them, and suggests charges
 // (by price-list item, never an amount) and a next visit (in how many days, how long). Only the
@@ -61,9 +61,9 @@ Rules:
   "guess". When treatment done today matches nothing on the list, do not force it: add it to
   NOT_ON_LIST in a few words (e.g. "gum flap surgery on 36").
 - Next visit: only if he mentions one ("review in a week", "next sitting on Thursday"). Give the
-  number of days from today, and a length from 20, 40, 60, 80 or 120 minutes: what he says,
-  otherwise the usual one (review or stitch removal 20; filling, scaling or extraction 40; root
-  canal sitting 60; crown or bridge preparation 80).
+  number of days from today, and a length in minutes, in 5-minute steps: what he says, otherwise
+  the usual one (review, stitch removal, filling, scaling or extraction 30; root
+  canal sitting 60; crown or bridge preparation 90).
 - If the recording has nothing clinical in it, return everything empty.
 
 PRICE LIST (ID | treatment | option):
@@ -128,7 +128,7 @@ export function checkSorted(raw: unknown): SortedNotes {
   const inDays = Number(nv?.in_days)
   const minutes = Number(nv?.length_minutes)
   const nextVisit =
-    nv && Number.isInteger(inDays) && inDays >= 1 && inDays <= 365 && (LENGTHS as readonly number[]).includes(minutes)
+    nv && Number.isInteger(inDays) && inDays >= 1 && inDays <= 365 && isLength(minutes)
       ? { inDays, minutes, why: text(nv.why, 120) }
       : null
   return {

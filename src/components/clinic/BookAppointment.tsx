@@ -6,6 +6,7 @@ import { AlertCircle, CalendarCheck, MessageCircle, Search } from 'lucide-react'
 import { bookAppointment, bookNewPatient, findPatientsToBook } from '@/lib/actions/appointments'
 import { GenderChoice } from '@/components/GenderChoice'
 import type { Gender } from '@/lib/gender'
+import { DEFAULT_LENGTH } from '@/lib/schedule'
 
 type PatientOption = { id: string; name: string; phone: string | null; age: number | null }
 
@@ -29,7 +30,7 @@ const inputClass =
 
 // Phone booking from the calendar: pick a patient already in the app, or add a new one with just a
 // name and number. A new patient's number is looked up first, so a known patient is never doubled.
-export function BookAppointment({ startsAt, when, patients: initialPatients, backTo, backLabel = 'Today', only, notice, minutes = 40 }: Props) {
+export function BookAppointment({ startsAt, when, patients: initialPatients, backTo, backLabel = 'Today', only, notice, minutes = DEFAULT_LENGTH }: Props) {
   const [mode, setMode] = useState<'existing' | 'new'>(only || initialPatients.length > 0 ? 'existing' : 'new')
   const [patientId, setPatientId] = useState<string | null>(only?.id ?? null)
   const [reason, setReason] = useState('')

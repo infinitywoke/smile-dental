@@ -1,18 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { getScheduleForDate } from '@/lib/actions/appointments'
 import type { DaySchedule } from '@/lib/data/appointments'
-import { addDays, formatDay } from '@/lib/schedule'
+import { DEFAULT_LENGTH, addDays, formatDay } from '@/lib/schedule'
 import { SlotGrid } from './SlotGrid'
+import { WhenPicker } from './WhenPicker'
 
-// Day arrows and the day's free times: pick one and it is handed back
+// How long, the day, and that day's free times (the same picker as every booking screen): the time
+// picked is handed back
 export function NextVisitPicker({
   startDate,
   minDate,
   patientName,
-  minutes = 40,
+  minutes = DEFAULT_LENGTH,
+  onMinutes,
   onPick,
 }: {
   startDate: string
@@ -20,6 +22,7 @@ export function NextVisitPicker({
   patientName: string
   // How long the visit is: only times where it fits are offered
   minutes?: number
+  onMinutes: (minutes: number) => void
   onPick: (instant: string) => void
 }) {
   const [date, setDate] = useState(startDate)
@@ -47,19 +50,13 @@ export function NextVisitPicker({
   const free = schedule && schedule.date === date && schedule.length === minutes ? schedule.blocks.filter((b) => b.state === 'free') : []
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={() => setDate(addDays(date, -1))} disabled={date <= minDate} aria-label="Previous day"
-          className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50 disabled:opacity-30">
-          <ChevronLeft className="h-6 w-6" />
-        </button>
-        <p className="text-base font-bold text-gray-900">{formatDay(date)}</p>
-        <button type="button" onClick={() => setDate(addDays(date, 1))} aria-label="Next day"
-          className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50">
-          <ChevronRight className="h-6 w-6" />
-        </button>
-      </div>
-
+    <WhenPicker
+      length={minutes}
+      onLength={onMinutes}
+      day={formatDay(date)}
+      prev={date > minDate ? { onClick: () => setDate(addDays(date, -1)) } : null}
+      next={{ onClick: () => setDate(addDays(date, 1)) }}
+    >
       {failed && <p className="text-sm text-red-700">Could not load times. Check the connection and try again.</p>}
       {loading && <p className="text-sm text-gray-500">Checking availability…</p>}
       {schedule && !loading && (
@@ -71,6 +68,6 @@ export function NextVisitPicker({
           <SlotGrid blocks={free} label={patientName} onPick={onPick} />
         )
       )}
-    </div>
+    </WhenPicker>
   )
 }

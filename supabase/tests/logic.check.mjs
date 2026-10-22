@@ -157,7 +157,7 @@ let appt
   const day = await h.q(`delete from public.time_off where starts_at <= $1 and ends_at >= $2 returning note`, [at(SAT, '00:00'), at('2026-10-18', '00:00')])
   await h.admin()
   const after = await h.q(`select slot_start from public.get_open_slots($1::date, 1)`, [SAT])
-  check('"Reopen the day" opens it again', day.length === 1 && after.length === 14, `${day.length} removed, ${after.length} offered`)
+  check('"Reopen the day" opens it again', day.length === 1 && after.length === 18, `${day.length} removed, ${after.length} offered`)
   await h.doctor()
 }
 

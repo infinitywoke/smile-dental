@@ -28,7 +28,8 @@ describe('smart notes', () => {
     expect(sorted.notOnList).toEqual(['gum flap surgery on 36'])
     expect(sorted.unclear).toEqual(['the medicine name after tablet'])
     expect(sorted.nextVisit).toEqual({ inDays: 7, minutes: 60, why: 'second sitting' })
-    expect(checkSorted({ next_visit: { in_days: 7, length_minutes: 45 } }).nextVisit).toBeNull()
+    expect(checkSorted({ next_visit: { in_days: 7, length_minutes: 45 } }).nextVisit?.minutes).toBe(45)
+    expect(checkSorted({ next_visit: { in_days: 7, length_minutes: 47 } }).nextVisit).toBeNull()
     expect(checkSorted('nonsense').charges).toEqual([])
   })
 

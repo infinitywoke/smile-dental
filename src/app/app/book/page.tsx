@@ -1,14 +1,14 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getPatient, searchPatients } from '@/lib/data/patients'
 import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
 import { todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
-import { ALL_BLOCKS, DEFAULT_LENGTH, addDays, clinicStartOf, endOf, formatBlock, formatDay, lengthFrom, lengthLabel } from '@/lib/schedule'
-import { LengthChips } from '@/components/clinic/LengthChips'
+import { ALL_BLOCKS, DEFAULT_LENGTH, addDays, clinicStartOf, endOf, formatBlock, formatDay, formatWhen, lengthFrom, lengthLabel } from '@/lib/schedule'
+import { WhenPicker } from '@/components/clinic/WhenPicker'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { BookAppointment } from '@/components/clinic/BookAppointment'
 import { BlockThisTimeButton, DayOffButton, UnblockButton } from '@/components/clinic/CalendarActions'
@@ -25,7 +25,7 @@ const hasFreeTime = (schedule: DaySchedule) => !schedule.closed && !schedule.day
 async function BookContent({ searchParams }: PageProps<'/app/book'>) {
   await getDoctor()
   const { at, d, patient: patientParam, len } = await searchParams
-  // How long the appointment is (40 minutes unless chosen)
+  // How long the appointment is (30 minutes unless chosen)
   const minutes = lengthFrom(len)
   const withLength = minutes === DEFAULT_LENGTH ? '' : `&len=${minutes}`
   // Booking for a patient already known (from their page)
@@ -41,7 +41,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
 
     const schedule = await getDaySchedule(date, minutes)
     const block = schedule.blocks.find((b) => b.time === time)
-    const when = `${formatDay(date)}, ${formatBlock(time)} – ${formatBlock(endOf(time, minutes))} (${lengthLabel(minutes)})`
+    const when = `${formatWhen(start)} – ${formatBlock(endOf(time, minutes))} (${lengthLabel(minutes)})`
     const backTo = `/app?d=${date}`
 
     // Shown instead of the form while the time is taken. The panel itself stays mounted, so a
@@ -108,22 +108,13 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
       <BackLink href={known ? `/app/patients/${known.id}` : '/app'} label={known ? known.name : 'Today'} />
       <h1 className="text-2xl font-bold tracking-tight text-gray-900">{known ? `Book ${known.name}` : 'Book an appointment'}</h1>
 
-      <div className="flex items-center justify-between">
-        {date > today ? (
-          <Link href={`/app/book?d=${addDays(date, -1)}${withPatient}${withLength}`} className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Previous day">
-            <ChevronLeft className="h-6 w-6" />
-          </Link>
-        ) : <span className="w-12" />}
-        <p className="text-base font-bold text-gray-900">{date === today ? `Today, ${formatDay(date)}` : formatDay(date)}</p>
-        {schedule.closed || nothingLeft ? <span className="w-12" /> : (
-          <Link href={nextDayHref} className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Next day">
-            <ChevronRight className="h-6 w-6" />
-          </Link>
-        )}
-      </div>
-
-      <LengthChips value={minutes} href={(m) => `/app/book?d=${date}${withPatient}${m === DEFAULT_LENGTH ? '' : `&len=${m}`}`} />
-
+      <WhenPicker
+        length={minutes}
+        lengthHref={(m) => `/app/book?d=${date}${withPatient}${m === DEFAULT_LENGTH ? '' : `&len=${m}`}`}
+        day={date === today ? `Today, ${formatDay(date)}` : formatDay(date)}
+        prev={date > today ? { href: `/app/book?d=${addDays(date, -1)}${withPatient}${withLength}` } : null}
+        next={schedule.closed || nothingLeft ? null : { href: nextDayHref }}
+      >
       {skippedToday && date !== today && (
         <p className="rounded-xl bg-blue-50 p-3 text-center text-sm font-medium text-blue-900">No times left today.</p>
       )}
@@ -148,6 +139,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
           )}
         />
       )}
+      </WhenPicker>
     </div>
   )
 }

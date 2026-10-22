@@ -7,7 +7,7 @@ import { getDues, type Due } from '@/lib/data/dues'
 import { getAppointmentsOn, getBusyCounts, getDaySchedule, getPendingRequests } from '@/lib/data/appointments'
 import { formatDate, todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
-import { DEFAULT_LENGTH, addDays, formatBlock, formatDay, inIndia, lengthLabel, weekday } from '@/lib/schedule'
+import { DEFAULT_LENGTH, addDays, formatDay, formatTimeOf, formatWhen, inIndia, lengthLabel, weekday } from '@/lib/schedule'
 import { formatRupees } from '@/lib/pricing'
 import { ScreenLoading } from '@/components/clinic/ui'
 import { RequestCard } from '@/components/clinic/RequestCard'
@@ -161,7 +161,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                 key={request.id}
                 id={request.id}
                 name={request.name}
-                whenLabel={wanted ? `${formatDay(wanted.date)}, ${formatBlock(wanted.time)}` : null}
+                whenLabel={request.requested_start ? formatWhen(request.requested_start) : null}
                 reason={request.reason}
                 alerts={request.medical_alerts}
                 canConfirm={request.confirmable}
@@ -198,7 +198,8 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
       <section aria-labelledby="schedule-heading" className="space-y-2">
         <div className="flex items-baseline justify-between gap-3">
           <h2 id="schedule-heading" className="hud-heading">{rows.length === 0 ? `No patients ${isToday ? 'today' : 'this day'}` : 'Schedule'}</h2>
-          {rows.length > 0 && <span className="text-[13px] font-semibold text-gray-500">{rows.length} {rows.length === 1 ? 'patient' : 'patients'}</span>}
+          {/* Today says it once, in 'seen' above */}
+          {rows.length > 0 && !isToday && <span className="text-[13px] font-semibold text-gray-500">{rows.length} {rows.length === 1 ? 'patient' : 'patients'}</span>}
         </div>
         {rows.length > 0 && (
           <ul aria-label="Schedule" className="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white ring-1 ring-gray-200">
@@ -211,7 +212,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                       {row.appointment.patient.medical_alerts && <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-label="Has medical alert" />}
                     </span>
                     <span className="truncate text-sm text-gray-500">
-                      <span className="hud-mono font-semibold text-gray-900">{formatBlock(inIndia(row.appointment.starts_at).time)}</span>
+                      <span className="hud-mono font-semibold text-gray-900">{formatTimeOf(row.appointment.starts_at)}</span>
                       {[row.appointment.reason, row.appointment.duration_min !== DEFAULT_LENGTH && lengthLabel(row.appointment.duration_min)].filter(Boolean).map((part) => ` · ${part}`).join('')}
                     </span>
                   </Link>
@@ -238,7 +239,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                     </p>
                     <p className="mt-1 flex flex-wrap items-center gap-2">
                       <span className="hud-mono text-sm font-semibold text-gray-900">
-                        {new Date(row.visit.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                        {formatTimeOf(row.visit.created_at)}
                       </span>
                       <VisitStatusBadge status={row.visit.status} />
                       {row.visit.photo_count > 0 && (

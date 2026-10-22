@@ -6,7 +6,7 @@ import { AlertCircle, ArrowLeft, CalendarCheck, CalendarDays, MessageCircle, Mic
 import { bookingReasons, homeServices } from '@/config/site'
 import { attachVoiceNote, submitBookingRequest } from '@/lib/actions/booking'
 import { checkOtherDate, dayLabel, daysWithSlots, otherTimeMessage, partOfDay, preferredTimeOptions, slotsOn } from '@/lib/booking-days'
-import { addDays, formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { addDays, formatBlock, formatDay, formatTimeOf, inIndia } from '@/lib/schedule'
 import { formatPhone, isValidPhone, normalizePhone } from '@/lib/phone'
 import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
 import { SOURCE_KEY } from '@/components/site/SourceTracker'
@@ -136,7 +136,7 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
 
   // The earliest free time, one tap away; "Today, 4:30 PM"
   const earliest = slots.length > 0 ? [...slots].sort()[0] : null
-  const when = (iso: string) => `${dayLabel(inIndia(iso).date, today)}, ${formatBlock(inIndia(iso).time)}`
+  const when = (iso: string) => `${dayLabel(inIndia(iso).date, today)}, ${formatTimeOf(iso)}`
   // A line that fits the reason: its price, or for pain the earliest time
   const service = homeServices.find((s) => s.id === choice.reason)
   const hint = choice.reason === 'toothache'
@@ -292,7 +292,7 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
   const trail = [
     step > 1 && reasonText ? { label: 'For', value: reasonText, change: 'Change what you need', to: 1 as Step } : null,
     step > 2 && chosenDate ? { label: 'Day', value: formatDay(chosenDate), change: 'Change the day', to: 2 as Step } : null,
-    step > 3 && picked ? { label: 'Time', value: formatBlock(inIndia(picked).time), change: 'Change the time', to: 3 as Step } : null,
+    step > 3 && picked ? { label: 'Time', value: formatTimeOf(picked), change: 'Change the time', to: 3 as Step } : null,
   ].filter((row) => row !== null)
 
   return (
@@ -397,7 +397,7 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
                       {list.map((slot) => (
                         <button key={slot} type="button" className={`h-chip${picked === slot ? ' on' : ''}`}
                           aria-pressed={picked === slot} onClick={() => chooseTime(slot)}>
-                          {formatBlock(inIndia(slot).time)}
+                          {formatTimeOf(slot)}
                         </button>
                       ))}
                     </div>

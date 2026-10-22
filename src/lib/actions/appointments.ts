@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { BLOCK_MINUTES, DEFAULT_LENGTH, blockInstant, clinicBlockOf, clinicStartOf, formatBlock, inIndia, isLength, lengthLabel } from '@/lib/schedule'
+import { BLOCK_MINUTES, DEFAULT_LENGTH, blockInstant, clinicBlockOf, clinicStartOf, formatTimeOf, isLength, lengthLabel } from '@/lib/schedule'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { confirmationMessage, declineMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 import { parseGender } from '@/lib/gender'
@@ -252,20 +252,21 @@ export async function cancelAppointment(appointmentId: string): Promise<Result> 
   return {}
 }
 
-export async function moveAppointment(appointmentId: string, startsAt: string): Promise<WithWhatsapp> {
+// Moves an appointment to another time, and to another length if he chose one (else it keeps its own)
+export async function moveAppointment(appointmentId: string, startsAt: string, minutes?: number): Promise<WithWhatsapp> {
   await getDoctor()
   if (!UUID.test(appointmentId)) return { error: 'Something went wrong.' }
 
   const supabase = await createClient()
-  // It keeps its own length
   const { data: current } = await supabase.from('appointments').select('duration_min').eq('id', appointmentId).maybeSingle()
   if (!current) return { error: 'That appointment was not found.' }
-  const block = startFor(startsAt, current.duration_min)
-  if (!block) return { error: DOESNT_FIT(current.duration_min) }
+  const length = minutes === undefined ? current.duration_min : clinicLength(minutes)
+  const block = startFor(startsAt, length)
+  if (!block) return { error: DOESNT_FIT(length) }
 
   const { data, error } = await supabase
     .from('appointments')
-    .update({ starts_at: block.iso })
+    .update({ starts_at: block.iso, duration_min: length })
     .eq('id', appointmentId)
     .eq('status', 'booked')
     .select('id, patient:patients!inner (name, phone)')
@@ -289,8 +290,6 @@ export async function findPatientsToBook(query: string) {
     id: p.id, name: p.name, phone: p.phone, age: patientAge(p),
   }))
 }
-
-const at = (iso: string) => formatBlock(inIndia(iso).time)
 
 // Why this time can't be blocked off yet: patients booked in it (they would come to a closed
 // clinic) or website requests waiting for it (they could never be confirmed). Null when it is clear.
@@ -329,11 +328,11 @@ async function calendarClash(supabase: Supabase, start: Date, end: Date, wholeDa
   const then = wholeDay ? 'then close the day' : 'then block the time'
   const lines: string[] = []
   if (booked.length > 0) {
-    const who = namesList(booked.map((a) => `${a.patient.name} (${at(a.starts_at)})`))
+    const who = namesList(booked.map((a) => `${a.patient.name} (${formatTimeOf(a.starts_at)})`))
     lines.push(`${who} ${booked.length === 1 ? 'is' : 'are'} booked ${where}. Move or cancel first, ${then}.`)
   }
   if (waiting.length > 0) {
-    const who = namesList(waiting.map((r) => `${r.name} (${at(r.requested_start)})`))
+    const who = namesList(waiting.map((r) => `${r.name} (${formatTimeOf(r.requested_start)})`))
     const asks = waiting.length === 1 ? `A website request from ${who} is` : `Website requests from ${who} are`
     lines.push(`${asks} waiting ${where}. Decline ${waiting.length === 1 ? 'it' : 'them'} on Today first${booked.length > 0 ? '' : `, ${then}`}.`)
   }

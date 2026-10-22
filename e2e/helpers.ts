@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { ALL_BLOCKS, addDays, blockInstant, inIndia, isClosedDay } from '../src/lib/schedule'
+import { ALL_BLOCKS, DEFAULT_LENGTH, addDays, blockInstant, inIndia, isClosedDay } from '../src/lib/schedule'
 import { appEnv, testLogin } from './env'
 
 // Shared by every spec file. Each spec signs in, makes its own data and cleans up after itself,
@@ -97,7 +97,7 @@ export async function createAppointment(patientId: string, day: string, hhmm: st
   const { supabase } = await testDb()
   const { data, error } = await supabase
     .from('appointments')
-    .insert({ patient_id: patientId, starts_at: blockInstant(day, hhmm), duration_min: 40, reason: 'Check-up', status: 'booked' })
+    .insert({ patient_id: patientId, starts_at: blockInstant(day, hhmm), duration_min: DEFAULT_LENGTH, reason: 'Check-up', status: 'booked' })
     .select('id')
     .single()
   if (error) throw new Error(`creating appointment: ${error.message}`)

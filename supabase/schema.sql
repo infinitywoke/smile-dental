@@ -62,11 +62,11 @@ parallel safe
 set search_path = ''
 as $$ select p_start + p_minutes * interval '1 minute' $$;
 
--- The 15 clinic blocks of a day, as 40-minute starts in India time, following the Google
--- Business Profile hours (8:30 AM-1:00 PM, 2:30-7:30 PM). The last block of each session may run
--- a little past closing (12:30 ends 1:10, 7:10 PM ends 7:50). Online booking never offers 7 PM+.
---   8:30 9:10 9:50 10:30 11:10 11:50 12:30
---   2:30 3:10 3:50 4:30 5:10 5:50 6:30 7:10
+-- The 19 clinic blocks of a day, as 30-minute starts in India time, within the Google Business
+-- Profile hours (8:30 AM-1:00 PM, 2:30-7:30 PM); the last block of each session ends at closing.
+-- Online booking never offers 7 PM+.
+--   8:30 9:00 9:30 10:00 10:30 11:00 11:30 12:00 12:30
+--   2:30 3:00 3:30 4:00 4:30 5:00 5:30 6:00 6:30 7:00
 -- Fridays have none.
 create or replace function public.clinic_slots(p_date date)
 returns setof timestamptz
@@ -75,7 +75,7 @@ stable
 set search_path = ''
 as $$
   select ((p_date::timestamp) + make_interval(mins => m)) at time zone 'Asia/Kolkata'
-  from unnest(array[510, 550, 590, 630, 670, 710, 750, 870, 910, 950, 990, 1030, 1070, 1110, 1150]) as m
+  from unnest(array[510, 540, 570, 600, 630, 660, 690, 720, 750, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140]) as m
   where extract(isodow from p_date) <> 5
 $$;
 
@@ -89,9 +89,10 @@ as $$
     select 1 from public.clinic_slots(((p_start at time zone 'Asia/Kolkata'))::date) s where s = p_start)
 $$;
 
--- A start where Clinic OS may book an appointment of p_minutes: on the 20-minute grid of a session
--- (8:30 AM / 2:30 PM), ending by 1:10 PM / 7:50 PM, not on a Friday, and one of the clinic's lengths.
--- (The website keeps the 40-minute blocks of clinic_slots.)
+-- A start where Clinic OS may book an appointment of p_minutes: any length the doctor chooses from 10
+-- minutes to 4 hours in 5-minute steps, starting on a 5-minute mark of a session (from 8:30 AM / 2:30 PM)
+-- and ending by closing (1:00 PM / 7:30 PM), not on a Friday. (The website keeps the 30-minute blocks of
+-- clinic_slots.)
 create or replace function public.is_clinic_start(p_start timestamptz, p_minutes integer)
 returns boolean
 language sql
@@ -99,11 +100,12 @@ stable
 set search_path = ''
 as $$
   select coalesce(
-    p_minutes in (20, 40, 60, 80, 120)
+    p_minutes between 10 and 240 and p_minutes % 5 = 0
     and extract(isodow from local) <> 5
     and extract(second from local) = 0
-    and ((m >= 510 and (m - 510) % 20 = 0 and m + p_minutes <= 790)
-      or (m >= 870 and (m - 870) % 20 = 0 and m + p_minutes <= 1190)), false)
+    and m % 5 = 0
+    and ((m >= 510 and m + p_minutes <= 780)
+      or (m >= 870 and m + p_minutes <= 1170)), false)
   from (select p_start at time zone 'Asia/Kolkata' as local,
                (extract(hour from p_start at time zone 'Asia/Kolkata') * 60
                 + extract(minute from p_start at time zone 'Asia/Kolkata'))::int as m) t
@@ -623,18 +625,18 @@ as $$
       select 1 from public.appointments a
       where a.owner_id = cfg.owner_id and a.status = 'booked'
         and tstzrange(a.starts_at, public.appointment_end(a.starts_at, a.duration_min))
-            && tstzrange(s.slot, public.appointment_end(s.slot, 40)))
+            && tstzrange(s.slot, public.appointment_end(s.slot, 30)))
     and not exists (
       select 1 from public.time_off t
       where t.owner_id = cfg.owner_id
-        and tstzrange(t.starts_at, t.ends_at) && tstzrange(s.slot, public.appointment_end(s.slot, 40)))
+        and tstzrange(t.starts_at, t.ends_at) && tstzrange(s.slot, public.appointment_end(s.slot, 30)))
     and not exists (
       select 1 from public.booking_requests b
       where b.owner_id = cfg.owner_id and b.status = 'new' and b.requested_start is not null
         and b.received_at is not null
         and public.request_hold_until(b.received_at, b.requested_start) > public.clinic_now()
-        and tstzrange(b.requested_start, public.appointment_end(b.requested_start, 40))
-            && tstzrange(s.slot, public.appointment_end(s.slot, 40)))
+        and tstzrange(b.requested_start, public.appointment_end(b.requested_start, 30))
+            && tstzrange(s.slot, public.appointment_end(s.slot, 30)))
   order by s.slot
 $$;
 
@@ -814,7 +816,7 @@ grant execute on function public.submit_booking_request(text, text, text, text, 
   to anon, authenticated;
 
 -- Confirm a request (signed in) ---------------------------------------------------------
--- One transaction: create the patient (or link an existing one), book the time (40 minutes
+-- One transaction: create the patient (or link an existing one), book the time (30 minutes
 -- unless the doctor chose another length), mark the request booked. Runs as the signed-in doctor, so row-level security
 -- applies. Any failure rolls everything back. A block that is already over is refused (the
 -- block in progress may still be confirmed). When linking a patient already in the app, what the
@@ -824,7 +826,7 @@ create or replace function public.confirm_booking_request(
   p_request uuid,
   p_starts_at timestamptz,
   p_patient uuid default null,
-  p_minutes integer default 40
+  p_minutes integer default 30
 )
 returns table (patient_id uuid, appointment_id uuid)
 language plpgsql

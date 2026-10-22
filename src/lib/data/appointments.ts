@@ -2,7 +2,7 @@ import 'server-only'
 import { notFound } from 'next/navigation'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { ALL_BLOCKS, BLOCK_MINUTES, DEFAULT_LENGTH, addDays, blockInstant, blocksFor, inIndia, startsFor, toMinutes, fromMinutes } from '@/lib/schedule'
+import { ALL_BLOCKS, BLOCK_MINUTES, DEFAULT_LENGTH, SLOT_MINUTES, addDays, blockInstant, blocksFor, inIndia, isClinicStart, startsFor } from '@/lib/schedule'
 import { requestNotice, type RequestNotice } from '@/lib/request-hold'
 import type { BookingRequest } from './types'
 
@@ -11,7 +11,7 @@ const MINUTE = 60_000
 
 export type BlockState = 'free' | 'booked' | 'request' | 'blocked' | 'past'
 
-// One start time of a day for the chosen length (40 minutes unless chosen), ready to draw
+// One start time of a day for the chosen length (30 minutes unless chosen), ready to draw
 export type DayBlock = {
   time: string // HH:MM, India time
   instant: string // ISO
@@ -55,9 +55,9 @@ function dayRange(date: string) {
 }
 
 // A day laid out for an appointment of `length` minutes: what's booked, requested, blocked off, or free.
-// The familiar block starts (8:30, 9:10 ...) always show; a start between them (8:50, 9:30 ...) shows only
-// when it is free and the block start before it isn't, so a gap after a short or long appointment can
-// still be used without doubling the number of buttons.
+// The half-hour block starts (8:30, 9:00 ...) always show. So that no minutes are lost after an
+// appointment of another length, the moment something ends (9:45 after a 45-minute appointment at 9:00)
+// shows too, when it is free and the block start before it isn't.
 export async function getDaySchedule(date: string, length: number = DEFAULT_LENGTH): Promise<DaySchedule> {
   await getDoctor()
   const supabase = await createClient()
@@ -111,22 +111,30 @@ export async function getDaySchedule(date: string, length: number = DEFAULT_LENG
     return block
   }
 
-  const fits = new Set(startsFor(date, length))
+  const fits = (time: string) => isClinicStart(date, time, length)
+  // Where something ends that day (an appointment, a request's block, time off), as India times
+  const ends = [
+    ...rows.map((a) => new Date(a.starts_at).getTime() + a.duration_min * MINUTE),
+    ...requests.data.map((r) => new Date(r.requested_start!).getTime() + BLOCK_MINUTES * MINUTE),
+    ...timeOff.data.map((t) => new Date(t.ends_at).getTime()),
+  ].map((ms) => inIndia(new Date(ms))).filter((t) => t.date === date).map((t) => t.time)
+  const grid = startsFor(date, SLOT_MINUTES)
+  const times = [...new Set([...grid, ...ends])].sort()
   const blocks: DayBlock[] = []
-  for (const time of startsFor(date, 20)) {
+  for (const time of times) {
     if (ALL_BLOCKS.includes(time)) {
-      // A block start: what is there now (its own 40 minutes); "free" only if the whole length fits
+      // A block start: what is there now (its own 30 minutes); "free" only if the whole length fits
       const own = stateOf(time, BLOCK_MINUTES)
       if (own.state !== 'free') blocks.push(own)
-      else if (fits.has(time)) {
+      else if (fits(time)) {
         const whole = stateOf(time, length)
         if (whole.state === 'free') blocks.push(whole)
       }
-    } else if (fits.has(time)) {
-      // Between blocks: only when it fills a gap the block start before it can't
+    } else if (fits(time)) {
+      // Something ends here: only when it fills a gap the block start before it can't
       const here = stateOf(time, length)
-      const before = fromMinutes(toMinutes(time) - 20)
-      const beforeFree = fits.has(before) && stateOf(before, length).state === 'free'
+      const before = grid.filter((g) => g < time).pop()
+      const beforeFree = before !== undefined && fits(before) && stateOf(before, length).state === 'free'
       if (here.state === 'free' && !beforeFree) blocks.push(here)
     }
   }

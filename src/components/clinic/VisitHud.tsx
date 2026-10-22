@@ -1,7 +1,7 @@
 'use client'
 
-import { inIndia, formatBlock } from '@/lib/schedule'
-import { chairTime, type VisitStep, type VisitStepKey } from '@/lib/visit-progress'
+import { formatTimeOf, inIndia } from '@/lib/schedule'
+import { chairTime } from '@/lib/chair-time'
 import { useNow } from './useNow'
 
 const label = 'text-xs font-bold'
@@ -14,7 +14,7 @@ export function ChairReadout({ startedAt, visitDate, sentAt, resend }: { started
       <div className="flex shrink-0 flex-col items-end gap-1">
         <span className={`${label} ${resend ? 'text-[var(--hud-amber-text)]' : 'text-gray-500'}`}>{resend ? 'Send again' : 'Sent'}</span>
         <span className={`hud-mono text-2xl leading-none font-bold ${resend ? 'text-[var(--hud-amber-text)]' : 'text-[var(--hud-green-text)]'}`}>
-          {formatBlock(inIndia(sentAt).time)}
+          {formatTimeOf(sentAt)}
         </span>
       </div>
     )
@@ -27,26 +27,5 @@ export function ChairReadout({ startedAt, visitDate, sentAt, resend }: { started
       <span className={`${label} text-gray-500`}>In chair</span>
       <span className="hud-mono text-2xl leading-none font-bold text-[var(--hud-green-text)]" aria-hidden="true">{time}</span>
     </div>
-  )
-}
-
-// Notes · Bill · Paid · Next · Sent: each fills as the visit goes; a tap scrolls to that part
-export function VisitProgress({ steps, onJump }: { steps: VisitStep[]; onJump: (key: VisitStepKey) => void }) {
-  return (
-    <nav aria-label="Visit progress">
-      <ol className="grid grid-cols-5 gap-1.5">
-        {steps.map((s) => (
-          <li key={s.key}>
-            <button type="button" onClick={() => onJump(s.key)} aria-label={`${s.label}: ${s.state}`}
-              className="flex min-h-11 w-full flex-col justify-center gap-1.5 rounded-lg text-left">
-              <span className="block h-[5px] w-full overflow-hidden rounded-full bg-gray-200">
-                <span className="block h-full rounded-full bg-gray-900 transition-[width] duration-500" style={{ width: `${s.filled * 100}%` }} />
-              </span>
-              <span className={`${label} ${s.filled > 0 ? 'text-gray-900' : 'text-gray-500'}`}>{s.label}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
-    </nav>
   )
 }

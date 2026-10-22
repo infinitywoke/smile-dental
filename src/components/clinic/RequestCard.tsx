@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, AlertTriangle, CalendarCheck, ChevronDown, Clock, MessageCircle } from 'lucide-react'
 import { confirmRequestAsAsked, declineBookingRequest } from '@/lib/actions/appointments'
-import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { formatWhen } from '@/lib/schedule'
 import { openWhatsApp } from '@/lib/whatsapp-business'
 
 type Props = {
@@ -41,11 +41,10 @@ export function RequestCard({ id, name, whenLabel, reason, alerts, canConfirm, o
   const [pending, startTransition] = useTransition()
 
   function finish(result: { declined?: boolean; whatsappUrl?: string; startsAt?: string }, fromDecline = false) {
-    const booked = result.startsAt ? inIndia(result.startsAt) : null
     setDone({
       declined: !!result.declined,
       whatsappUrl: result.whatsappUrl,
-      when: booked ? `${formatDay(booked.date)}, ${formatBlock(booked.time)}` : whenLabel,
+      when: result.startsAt ? formatWhen(result.startsAt) : whenLabel,
     })
     // The patient's chat opens with the message ready; the "Open WhatsApp" button below is the fallback.
     // A request found declined after tapping Confirm (another tab) keeps its message one tap away.

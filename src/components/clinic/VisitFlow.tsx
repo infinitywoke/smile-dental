@@ -9,12 +9,11 @@ import type { VisitPageData } from '@/lib/data/visits'
 import { deleteVisit, setPhotoKind } from '@/lib/actions/visits'
 import { paymentsHeldMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
-import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { DEFAULT_LENGTH, formatTimeOf, formatWhen } from '@/lib/schedule'
 import { photoKind, type PhotoKind } from '@/lib/visit-status'
 import { patientAge } from '@/lib/patient-fields'
-import { visitProgress, type VisitStepKey } from '@/lib/visit-progress'
 import type { UsualCharge } from '@/lib/usual-charges'
-import { ChairReadout, VisitProgress } from './VisitHud'
+import { ChairReadout } from './VisitHud'
 import { BillSection, type Save } from './BillTools'
 import { NextVisit } from './NextVisit'
 import { PaymentCard, type PaymentHandle, type SavingPayment } from './PaymentCard'
@@ -24,7 +23,7 @@ import { NextStepBar, type NextStep } from './NextStepBar'
 import { VisitNotes, type NotesHandle } from './VisitNotes'
 import { MedicalAlert } from './ui'
 import { UndoProvider } from './UndoBar'
-import { NoteSuggestions } from './NoteSuggestions'
+import { NoteCharges, NoteUnclear } from './NoteSuggestions'
 import { PrescriptionCard } from './PrescriptionCard'
 import type { NoteSuggestions as Suggestions } from '@/lib/actions/smart-notes'
 
@@ -48,8 +47,18 @@ export function VisitFlow({
   focus: 'payment' | null
 }) {
   const notesRef = useRef<NotesHandle>(null)
-  // What Gemini suggested from a recording (charges, next visit), until tapped or dismissed
-  const [suggestions, setSuggestions] = useState<Suggestions | null>(null)
+  // What Gemini heard in a recording, each part where it belongs until used or dismissed: the charges in
+  // the Bill, the next visit in Next visit, the words it couldn't make out under the notes
+  const [noteCharges, setNoteCharges] = useState<(Pick<Suggestions, 'charges' | 'notOnList'> & { round: number }) | null>(null)
+  const [noteNext, setNoteNext] = useState<{ instant: string; minutes: number; why: string } | null>(null)
+  const [noteUnclear, setNoteUnclear] = useState<string[]>([])
+  const takeSuggestions = useCallback((s: Suggestions) => {
+    setNoteCharges((before) => (s.charges.length > 0 || s.notOnList.length > 0
+      ? { charges: s.charges, notOnList: s.notOnList, round: (before?.round ?? 0) + 1 }
+      : null))
+    setNoteNext(s.nextVisit?.instant ? { instant: s.nextVisit.instant, minutes: s.nextVisit.minutes, why: s.nextVisit.why } : null)
+    setNoteUnclear(s.unclear)
+  }, [])
   // The notes as typed (the prescription card reads its medicines from them)
   const [notesText, setNotesText] = useState(visit.notes ?? '')
   const editNotes = useCallback((change: (text: string) => string) => notesRef.current?.edit(change), [])
@@ -78,6 +87,9 @@ export function VisitFlow({
   const [kinds, setKinds] = useState<Record<string, PhotoKind>>({})
   const [kindError, setKindError] = useState<string | null>(null)
   const kindOf = useCallback((photo: VisitPhoto) => kinds[photo.id] ?? photoKind(photo.caption), [kinds])
+  // Which photos go with the WhatsApp message: prescriptions unless he unticks them, any other he ticks
+  const [ticks, setTicks] = useState<Record<string, boolean>>({})
+  const sends = useCallback((photo: VisitPhoto) => ticks[photo.id] ?? kindOf(photo) === 'Prescription', [ticks, kindOf])
   const markKind = async (photo: VisitPhoto, kind: PhotoKind) => {
     const before = kinds[photo.id]
     setKindError(null)
@@ -110,22 +122,6 @@ export function VisitFlow({
   const heldPayments = pendingPayment ? [...bill.payments, pendingPayment] : bill.payments
 
   const age = patientAge(visit.patient)
-  // The progress strip, from what is on the page now (a payment still saving counts)
-  const steps = visitProgress({
-    notes: notesText,
-    charges: bill.charges.length,
-    total: bill.summary.total,
-    paid: bill.summary.paid + (pendingPayment?.amount ?? 0),
-    due: bill.summary.due - (pendingPayment?.amount ?? 0),
-    next: !!visit.next_appointment,
-    sent: !!visit.closed_at,
-    resend: !!visit.resend_needed,
-  })
-  // Paid scrolls to the payment card when there is one
-  const jump = (key: VisitStepKey) => {
-    const id = key === 'paid' ? (showPayment ? 'payment' : 'visit-bill') : `visit-${key}`
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
 
   // The next step, kept in reach above the bottom bar: collect what is due, then send (when there is
   // something to send and a number to send it to). Once something is paid on this visit (perhaps a
@@ -159,13 +155,13 @@ export function VisitFlow({
           <ChairReadout startedAt={visit.created_at} visitDate={visit.visit_date} sentAt={visit.closed_at ?? null} resend={!!visit.resend_needed} />
         </div>
         <MedicalAlert alerts={visit.patient.medical_alerts} />
-        <VisitProgress steps={steps} onJump={jump} />
       </div>
 
       <div id="visit-notes" className="scroll-mt-4">
         <VisitNotes handle={notesRef} visitId={visit.id} initialNotes={visit.notes}
           listed={visit.photos.length > 0 || bill.charges.length > 0 || bill.payments.length > 0}
-          onSuggestions={setSuggestions} onText={setNotesText} />
+          onSuggestions={takeSuggestions} onText={setNotesText} />
+        {noteUnclear.length > 0 && <div className="mt-3"><NoteUnclear items={noteUnclear} onDismiss={() => setNoteUnclear([])} /></div>}
       </div>
       {(visit.recordings ?? []).length > 0 && (
         <details className="rounded-xl bg-white px-3 py-1 ring-1 ring-gray-200">
@@ -176,7 +172,7 @@ export function VisitFlow({
             {(visit.recordings ?? []).map((r) => (
               <li key={r.id} className="space-y-1">
                 <p className="text-xs text-gray-500">
-                  {new Date(r.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                  {formatTimeOf(r.created_at)}
                   {r.seconds ? ` · ${Math.floor(r.seconds / 60)}:${String(r.seconds % 60).padStart(2, '0')}` : ''}
                 </p>
                 {r.url ? <audio src={r.url} controls preload="none" className="w-full" aria-label="Recorded notes" /> : <p className="text-sm text-gray-500">Unavailable</p>}
@@ -185,15 +181,13 @@ export function VisitFlow({
           </ul>
         </details>
       )}
-      {suggestions && (
-        <NoteSuggestions visitId={visit.id} suggestions={suggestions} hasNextVisit={!!visit.next_appointment}
-          save={save} onDismiss={() => setSuggestions(null)} />
-      )}
 
       <PrescriptionCard notes={notesText} edit={editNotes} patientName={visit.patient.name} visitDate={visit.visit_date} medicines={medicines} />
 
       <div className="space-y-2">
-        <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} onKind={markKind} onUploads={setUploads} />
+        <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} onKind={markKind} onUploads={setUploads}
+          sends={visit.patient.phone ? sends : undefined}
+          onSends={(photo, send) => { setTicks((t) => ({ ...t, [photo.id]: send })); sendRef.current?.reset() }} />
         {kindError && (
           <p role="alert" className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {kindError}
@@ -201,30 +195,37 @@ export function VisitFlow({
         )}
       </div>
 
+      {/* One card for the money: the bill's lines and total, then what was paid and what is still due */}
       <div id="visit-bill" className="scroll-mt-4">
-        <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} usual={usual} save={save} />
+        <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} usual={usual} save={save}
+          fromNotes={noteCharges && (
+            <NoteCharges key={noteCharges.round} visitId={visit.id} charges={noteCharges.charges} notOnList={noteCharges.notOnList}
+              save={save} onDismiss={() => setNoteCharges(null)} />
+          )}>
+          {showPayment && (
+            <PaymentCard
+              key={`${bill.payments.length}-${bill.summary.due}`}
+              visitId={visit.id}
+              patientName={visit.patient.name}
+              bill={bill}
+              save={save}
+              onSaving={setSavingPayment}
+              handle={paymentRef}
+            />
+          )}
+        </BillSection>
       </div>
 
-      {showPayment && (
-        <PaymentCard
-          key={`${bill.payments.length}-${bill.summary.due}`}
-          visitId={visit.id}
-          patientName={visit.patient.name}
-          bill={bill}
-          save={save}
-          onSaving={setSavingPayment}
-          handle={paymentRef}
-        />
-      )}
-
       <div id="visit-next" className="scroll-mt-4">
-        <NextVisit visitId={visit.id} patientName={visit.patient.name} upcoming={visit.next_appointment?.starts_at ?? null}
-          upcomingMinutes={visit.next_appointment?.duration_min ?? 40}
-          bookedHere={visit.next_booked_here} save={save} />
+        {/* A new suggestion from a recording starts the card afresh, with its length */}
+        <NextVisit key={noteNext?.instant ?? 'worked-out'} visitId={visit.id} patientName={visit.patient.name}
+          upcoming={visit.next_appointment?.starts_at ?? null}
+          upcomingMinutes={visit.next_appointment?.duration_min ?? DEFAULT_LENGTH}
+          bookedHere={visit.next_booked_here} fromNotes={noteNext} save={save} />
       </div>
 
       <div id="visit-sent" className="scroll-mt-4">
-        <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} />
+        <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
       </div>
 
       <DeleteVisit visit={visit} payments={heldPayments} />
@@ -254,10 +255,10 @@ function DeleteVisit({ visit, payments }: { visit: VisitPageData; payments: Pick
       setError(paymentsHeldMessage(payments))
       return
     }
-    const next = visit.next_booked_here && visit.next_appointment ? inIndia(visit.next_appointment.starts_at) : null
+    const next = visit.next_booked_here && visit.next_appointment ? visit.next_appointment.starts_at : null
     const question = [
       'Delete this visit, with its notes, photos and bill?',
-      next && `The next visit on ${formatDay(next.date)}, ${formatBlock(next.time)} stays booked.`,
+      next && `The next visit on ${formatWhen(next)} stays booked.`,
       visit.closed_at && 'This bill was sent on WhatsApp.',
     ].filter(Boolean).join('\n\n')
     if (!window.confirm(question)) return

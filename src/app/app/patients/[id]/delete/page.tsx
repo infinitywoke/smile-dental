@@ -1,16 +1,12 @@
 import { Suspense } from 'react'
 import { getPatient, getPatientFootprint } from '@/lib/data/patients'
 import { formatRupees } from '@/lib/pricing'
-import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { formatWhen } from '@/lib/schedule'
 import { cancelledMessage, firstName, whatsappLink } from '@/lib/whatsapp'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { DeletePatientForm } from '@/components/clinic/DeletePatientForm'
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
-const when = (iso: string) => {
-  const { date, time } = inIndia(iso)
-  return `${formatDay(date)}, ${formatBlock(time)}`
-}
 
 // Deleting a patient: everything that goes is listed, and the doctor's password confirms it
 async function DeletePatientContent({ params }: PageProps<'/app/patients/[id]/delete'>) {
@@ -32,7 +28,7 @@ async function DeletePatientContent({ params }: PageProps<'/app/patients/[id]/de
           <li>{plural(footprint.photos, 'photo')}</li>
           {footprint.coming.length > 0 && (
             <li>
-              {plural(footprint.coming.length, 'coming appointment')}: {footprint.coming.map((a) => when(a.starts_at)).join('; ')}
+              {plural(footprint.coming.length, 'coming appointment')}: {footprint.coming.map((a) => formatWhen(a.starts_at)).join('; ')}
             </li>
           )}
           {footprint.payments.count > 0 && <li>{formatRupees(footprint.payments.total)} of payments, unless you keep them below</li>}

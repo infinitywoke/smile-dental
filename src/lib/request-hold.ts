@@ -1,4 +1,4 @@
-import { addDays, blockInstant, inIndia, weekday } from '@/lib/schedule'
+import { addDays, blockInstant, formatTimeOf, inIndia, weekday } from '@/lib/schedule'
 
 // A website request holds its time only once its WhatsApp message reached the clinic ("received":
 // for now, when Dr. Rahil taps the request link inside the message). From then it is held for 2 hours,
@@ -20,8 +20,7 @@ export function holdUntil(receivedAt: string | null | undefined, requestedStart:
   return Math.min(until, new Date(requestedStart).getTime())
 }
 
-const clock = (ms: number) =>
-  new Date(ms).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })
+const clock = (ms: number) => formatTimeOf(new Date(ms))
 
 // What the request's card on Today says about its time. "stale" means it is no longer worth waiting on:
 // the card then offers Decline right there.

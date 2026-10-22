@@ -6,7 +6,7 @@ import { addVisitPhoto, deleteVisitPhoto } from '@/lib/actions/visits'
 import type { VisitPhoto } from '@/lib/data/types'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImage } from '@/lib/resize-image'
-import { PHOTO_BUCKET, PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
+import { PHOTO_BUCKET, PHOTO_KINDS, photoLabel, type PhotoKind } from '@/lib/visit-status'
 import { useBackToClose } from './FullScreen'
 
 // A photo that failed to upload is tried again this often (and as soon as the phone is back online)
@@ -38,6 +38,8 @@ export function PhotoGallery({
   kindOf,
   onKind,
   onUploads,
+  sends,
+  onSends,
 }: {
   visitId: string
   doctorId: string
@@ -46,6 +48,9 @@ export function PhotoGallery({
   onKind: (photo: VisitPhoto, kind: PhotoKind) => void
   // Told whenever the photos still on their way change, so Send on WhatsApp can wait for them
   onUploads: (counts: UploadCounts) => void
+  // Whether a photo goes with the WhatsApp message, and the tick that changes it (none without a number)
+  sends?: (photo: VisitPhoto) => boolean
+  onSends?: (photo: VisitPhoto, send: boolean) => void
 }) {
   const [uploading, setUploading] = useState<Uploading[]>([])
   const [, startTransition] = useTransition()
@@ -169,6 +174,13 @@ export function PhotoGallery({
                 </button>
               ))}
             </div>
+            {sends && onSends && (
+              <label className="flex min-h-12 cursor-pointer items-center gap-3 px-2">
+                <input type="checkbox" checked={sends(photo)} onChange={(e) => onSends(photo, e.target.checked)}
+                  className="h-6 w-6 shrink-0 rounded border-gray-300 text-blue-600" />
+                <span className="text-base text-gray-900">{photoLabel(kind)} {index + 1}: send on WhatsApp</span>
+              </label>
+            )}
           </div>
         )
       })}

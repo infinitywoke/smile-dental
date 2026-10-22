@@ -7,11 +7,10 @@ import { confirmationMessage, whatsappLink } from '@/lib/whatsapp'
 import { todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
-import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { formatWhen, inIndia } from '@/lib/schedule'
 import { BackLink, Card, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 import { SlotScheduler } from '@/components/clinic/SlotScheduler'
-import { LengthChips } from '@/components/clinic/LengthChips'
-import { DEFAULT_LENGTH, lengthFrom } from '@/lib/schedule'
+import { lengthFrom } from '@/lib/schedule'
 import { genderLabel } from '@/lib/gender'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -25,7 +24,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
   if (request.status !== 'new') {
     // Booked: the confirmation can be sent again, for the appointment's time as it is now
     const appointment = request.status === 'booked' ? await findAppointment(request.appointment_id) : null
-    const booked = appointment?.status === 'booked' ? inIndia(appointment.starts_at) : null
+    const booked = appointment?.status === 'booked' ? appointment.starts_at : null
     return (
       <div className="space-y-4">
         <BackLink href="/app" label="Today" />
@@ -33,7 +32,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
           <h1 className="text-[22px] font-extrabold tracking-tight text-gray-900">{request.name}</h1>
           <p className="text-sm text-gray-600">
             {booked
-              ? `Booked for ${formatDay(booked.date)}, ${formatBlock(booked.time)}.`
+              ? `Booked for ${formatWhen(booked)}.`
               : `This request was ${request.status === 'booked' ? 'booked' : request.status === 'declined' ? 'declined' : 'handled'} already.`}
           </p>
           {booked && appointment && (
@@ -79,7 +78,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
         {/* The request as an instrument list; each row reads as one sentence ("Asked for Tue, 28 Oct, 10:30 AM") */}
         <dl className="space-y-2.5 text-sm">
           {([
-            ['Asked for', requested ? `${formatDay(requested.date)}, ${formatBlock(requested.time)}` : 'No time chosen', true],
+            ['Asked for', request.requested_start ? formatWhen(request.requested_start) : 'No time chosen', true],
             ['Hold', request.notice?.text, false],
             ['Reason', request.reason || '—', false],
             ['Heard from', request.heard_from || '—', false],
@@ -103,12 +102,9 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
         )}
       </Card>
 
-      <LengthChips value={minutes} href={(m) => `/app/requests/${request.id}?d=${wanted}${m === DEFAULT_LENGTH ? '' : `&len=${m}`}`} />
-
       <SlotScheduler
         mode="request"
         minutes={minutes}
-        query={minutes === DEFAULT_LENGTH ? undefined : `len=${minutes}`}
         id={request.id}
         label={request.name}
         date={schedule.date}

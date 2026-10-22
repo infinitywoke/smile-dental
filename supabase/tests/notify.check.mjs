@@ -105,7 +105,7 @@ check('and only once', (await due()) === null)
 
 await setNow(at(WED, '09:00'))
 await as('anon')
-const second = (await db.query(submit, ['Prakash', '9845021763', null, null, null, null, null, at(THU, '11:10')])).rows[0].id
+const second = (await db.query(submit, ['Prakash', '9845021763', null, null, null, null, null, at(THU, '11:00')])).rows[0].id
 await db.exec('reset role')
 await db.query(`update public.booking_requests set created_at = $1, received_at = $2 where id = $3`, [at(WED, '09:05'), at(WED, '09:10'), second])
 await setNow(at(WED, '10:00'))

@@ -7,17 +7,12 @@ import { firstName } from '@/lib/whatsapp'
 import { useUndo } from './UndoBar'
 import { openWhatsApp } from '@/lib/whatsapp-business'
 import { todayInIndia } from '@/lib/dates'
-import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
+import { DEFAULT_LENGTH, formatWhen, inIndia } from '@/lib/schedule'
 import type { Save } from './BillTools'
 import { FullScreen, useBackToClose } from './FullScreen'
 import { NextVisitPicker } from './NextVisitPicker'
-import { LengthChips } from './LengthChips'
+import { LengthPicker } from './LengthPicker'
 import { NEXT_VISIT_GAPS } from '@/lib/next-visit'
-
-const when = (iso: string) => {
-  const { date, time } = inIndia(iso)
-  return `${formatDay(date)}, ${formatBlock(time)}`
-}
 
 // Next visit: "None" unless the doctor books one. One tap books the suggested time;
 // "Pick another time" opens the day's free times. An appointment already coming up is shown instead,
@@ -26,8 +21,9 @@ export function NextVisit({
   visitId,
   patientName,
   upcoming,
-  upcomingMinutes = 40,
+  upcomingMinutes = DEFAULT_LENGTH,
   bookedHere,
+  fromNotes = null,
   save,
 }: {
   visitId: string
@@ -38,11 +34,21 @@ export function NextVisit({
   upcomingMinutes?: number
   // That appointment was booked from this visit, so choosing again moves it
   bookedHere: boolean
+  // A next visit the recording heard ("second sitting next week"): the suggestion, with its length
+  fromNotes?: { instant: string; minutes: number; why: string } | null
   save: Save
 }) {
   const [suggestion, setSuggestion] = useState<string | null>(null)
-  // How long the next visit will be (40 minutes unless chosen; a booked one keeps its own)
-  const [minutes, setMinutes] = useState(upcomingMinutes)
+  // The recording's next visit is shown until he chooses another length or gap
+  const [notesNext, setNotesNext] = useState(fromNotes)
+  // How long the next visit will be (30 minutes unless chosen; a booked one keeps its own)
+  const [minutes, setMinutes] = useState(fromNotes?.minutes ?? upcomingMinutes)
+  const shown = notesNext?.instant ?? suggestion
+  const chooseLength = (m: number) => {
+    setMinutes(m)
+    setSuggestion(null)
+    setNotesNext(null)
+  }
   // How far ahead to look: a week unless he picks another gap
   const [days, setDays] = useState(7)
   const suggestionId = useId()
@@ -83,7 +89,7 @@ export function NextVisit({
       setWhatsappUrl(url)
       setCancelUrl(null)
       // A new booking can be taken back at once (a change is undone by changing again)
-      if (!upcoming) offerUndo(`Next visit booked: ${when(instant)}`, () => save(() => removeNextVisit(visitId)))
+      if (!upcoming) offerUndo(`Next visit booked: ${formatWhen(instant)}`, () => save(() => removeNextVisit(visitId)))
       if (fromPicker) {
         // WhatsApp opens once Back has closed the picker, so the two never cross
         if (url) window.addEventListener('popstate', () => openWhatsApp(url), { once: true })
@@ -129,7 +135,7 @@ export function NextVisit({
           {/* The day and time keep one line; Remove and Change move below when they don't fit beside it */}
           <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white py-1 pl-4 pr-1 ring-1 ring-gray-200">
             <CalendarClock className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
-            <p className="min-w-48 flex-1 text-base font-semibold text-gray-900">Booked: {when(upcoming)}</p>
+            <p className="min-w-48 flex-1 text-base font-semibold text-gray-900">Booked: {formatWhen(upcoming)}</p>
             {bookedHere && (
               <div className="ml-auto flex gap-1">
                 <button type="button" onClick={() => void remove()} disabled={pending}
@@ -153,11 +159,12 @@ export function NextVisit({
       ) : (
         <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
           <p className="text-base text-gray-700">None</p>
-          <LengthChips value={minutes} onChange={(m) => { setMinutes(m); setSuggestion(null) }} />
+          <LengthPicker value={minutes} onChange={chooseLength} />
           <div role="group" aria-label="When" className="grid grid-cols-4 gap-1.5">
             {NEXT_VISIT_GAPS.map((gap) => (
-              <button key={gap.days} type="button" aria-pressed={days === gap.days} onClick={() => { setDays(gap.days); setSuggestion(null) }}
-                className={`min-h-11 whitespace-nowrap rounded-full px-0.5 text-[13px] font-semibold ring-1 ring-inset ${days === gap.days ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'}`}>
+              <button key={gap.days} type="button" aria-pressed={!notesNext && days === gap.days}
+                onClick={() => { setDays(gap.days); setSuggestion(null); setNotesNext(null) }}
+                className={`min-h-11 whitespace-nowrap rounded-full px-0.5 text-[13px] font-semibold ring-1 ring-inset ${!notesNext && days === gap.days ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'}`}>
                 {gap.label}
               </button>
             ))}
@@ -174,14 +181,15 @@ export function NextVisit({
             </p>
           )}
           {/* The suggested time on its own line, so Book and the other choice fit side by side */}
-          {suggestion && (
+          {shown && (
             <p id={suggestionId} className="text-base text-gray-700">
-              Suggested: <span className="font-bold text-gray-900">{when(suggestion)}</span>
+              {notesNext ? 'From your notes' : 'Suggested'}: <span className="font-bold text-gray-900">{formatWhen(shown)}</span>
+              {notesNext?.why && <span className="block text-sm text-gray-600">{notesNext.why}</span>}
             </p>
           )}
-          <div className={suggestion ? 'grid grid-cols-2 gap-2' : ''}>
-            {suggestion && (
-              <button type="button" onClick={() => void book(suggestion)} disabled={pending} aria-describedby={suggestionId}
+          <div className={shown ? 'grid grid-cols-2 gap-2' : ''}>
+            {shown && (
+              <button type="button" onClick={() => void book(shown)} disabled={pending} aria-describedby={suggestionId}
                 className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-base font-bold text-white disabled:opacity-60">
                 <CalendarPlus className="h-5 w-5" aria-hidden="true" /> {pending ? 'Booking…' : 'Book it'}
               </button>
@@ -204,10 +212,11 @@ export function NextVisit({
             )}
             {pending && <p className="text-sm text-gray-500">Booking…</p>}
             <NextVisitPicker
-              startDate={upcoming ? inIndia(upcoming).date : suggestion ? inIndia(suggestion).date : todayInIndia()}
+              startDate={upcoming ? inIndia(upcoming).date : shown ? inIndia(shown).date : todayInIndia()}
               minDate={todayInIndia()}
               patientName={patientName}
               minutes={minutes}
+              onMinutes={chooseLength}
               onPick={(instant) => void book(instant, true)}
             />
           </div>

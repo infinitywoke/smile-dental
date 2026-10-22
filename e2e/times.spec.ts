@@ -41,7 +41,7 @@ const requestCard = (on: Page, name: string, button: string) =>
   visible(on.locator('div').filter({ hasText: name }).filter({ has: on.getByRole('button', { name: button }) })).last()
 
 test('Today: one tap confirms a website request and prepares the patient message', async () => {
-  const { day, requestName, requestPhone } = await makeRequest(runId, 'Quick', '15:10', 2)
+  const { day, requestName, requestPhone } = await makeRequest(runId, 'Quick', '15:00', 2)
   const whatsapp = await captureWhatsapp(page)
 
   await page.goto('/app')
@@ -59,7 +59,7 @@ test('Today: one tap confirms a website request and prepares the patient message
   expect(text).not.toContain(requestName)
   expect(text).not.toContain('Diabetes')
   expect(text).toContain('is *confirmed*')
-  expect(text).toContain(`🕗 *${formatBlock('15:10')}*`)
+  expect(text).toContain(`🕗 *${formatBlock('15:00')}*`)
   expect(text).toContain('_Please arrive 5 minutes early._')
   expect(text).toContain('Warm regards,')
 
@@ -87,16 +87,16 @@ test('request screen: tap another time, save, WhatsApp confirmation for the pati
   await expect(page.getByText(/slide the name/i)).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Drag / })).toHaveCount(0)
 
-  // Tap 11:10 instead, then save
-  await visible(page.getByRole('button', { name: /^11:10 AM/ })).click()
-  await expect(visible(page.getByRole('button', { name: /^11:10 AM/ }))).toHaveAttribute('aria-pressed', 'true')
+  // Tap 11:00 instead, then save
+  await visible(page.getByRole('button', { name: /^11:00 AM/ })).click()
+  await expect(visible(page.getByRole('button', { name: /^11:00 AM/ }))).toHaveAttribute('aria-pressed', 'true')
   await visible(page.getByRole('button', { name: 'Save and confirm' })).click()
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
 
   expect(whatsapp.url).toContain(`wa.me/91${requestPhone}`)
   const text = whatsappText(whatsapp.url)
   expect(text).toContain('confirmed')
-  expect(text).toContain(formatBlock('11:10'))
+  expect(text).toContain(formatBlock('11:00'))
 
   // On the day's sheet as an appointment; gone from Needs you
   await page.goto(`/app?d=${day}`)
@@ -162,7 +162,7 @@ test('Move: the current time is marked; a new time sends "has been moved to"', a
   const moverName = `${runId} Mover`
   const moverId = await createPatient(moverName, newPhone())
   const day = openDay(5)
-  await createAppointment(moverId, day, '11:10')
+  await createAppointment(moverId, day, '11:00')
   const whatsapp = await captureWhatsapp(page)
 
   await page.goto(`/app/patients/${moverId}`)
@@ -170,7 +170,7 @@ test('Move: the current time is marked; a new time sends "has been moved to"', a
   await expect(page).toHaveURL(/\/move/)
   await page.goto(`${new URL(page.url()).pathname}?d=${day}`)
 
-  await expect(visible(page.getByRole('button', { name: /^11:10 AM/ }))).toHaveAttribute('aria-pressed', 'true')
+  await expect(visible(page.getByRole('button', { name: /^11:00 AM/ }))).toHaveAttribute('aria-pressed', 'true')
   await expect(visible(page.getByRole('button', { name: 'Move appointment' }))).toBeDisabled()
   await expect(page.getByText(/slide the name/i)).toHaveCount(0)
 
@@ -215,7 +215,7 @@ test('one-tap Confirm never doubles a known patient: the request page asks, with
   const knownName = `${runId} Prakash Shetty`
   const knownId = await createPatient(knownName, phone)
   // The same person, spelled another way on the website
-  const { id, requestName } = await makeRequestFrom(runId, 'Prakash', '15:50', 2, { phone })
+  const { id, requestName } = await makeRequestFrom(runId, 'Prakash', '15:30', 2, { phone })
   const whatsapp = await captureWhatsapp(page)
 
   await page.goto('/app')
@@ -232,7 +232,7 @@ test('one-tap Confirm never doubles a known patient: the request page asks, with
 })
 
 test('Confirm, then Confirm again on an old card (another tab): the WhatsApp confirmation still opens', async ({ browser }) => {
-  const { requestName, requestPhone } = await makeRequest(runId, 'Twice', '11:50', 3)
+  const { requestName, requestPhone } = await makeRequest(runId, 'Twice', '11:30', 3)
   const other = await browser.newPage()
   try {
     await signIn(other)
@@ -253,7 +253,7 @@ test('Confirm, then Confirm again on an old card (another tab): the WhatsApp con
     expect(again.url).toContain(`wa.me/91${requestPhone}`)
     const text = whatsappText(again.url)
     expect(text).toContain('is *confirmed*')
-    expect(text).toContain(`🕗 *${formatBlock('11:50')}*`)
+    expect(text).toContain(`🕗 *${formatBlock('11:30')}*`)
     expect(await patientsWithPhone(requestPhone)).toHaveLength(1)
   } finally {
     await other.close()
@@ -261,7 +261,7 @@ test('Confirm, then Confirm again on an old card (another tab): the WhatsApp con
 })
 
 test('a request asked 2 days ago says it is no longer held, and can be declined on the card', async () => {
-  const { requestName, requestPhone } = await makeRequestFrom(runId, 'Old', '17:10', 3, { hoursAgo: 50 })
+  const { requestName, requestPhone } = await makeRequestFrom(runId, 'Old', '17:00', 3, { hoursAgo: 50 })
   const whatsapp = await captureWhatsapp(page)
   await page.goto('/app')
   const card = requestCard(page, requestName, 'Decline')

@@ -1,5 +1,5 @@
 import { dayLabel } from '@/lib/booking-days'
-import { formatBlock, inIndia } from '@/lib/schedule'
+import { formatBlock, formatTimeOf, inIndia } from '@/lib/schedule'
 
 // What Dr. Rahil chose to hear about, and when to keep quiet (the database's notification_settings)
 export type NotifySettings = {
@@ -57,7 +57,7 @@ export function messageFor(item: NotifyItem, settings: NotifySettings, now: Date
   if (!settings[item.kind]) return null
   if (item.kind === 'morning_brief') {
     const booked = item.booked > 0 && item.first_at
-      ? `${item.booked} booked, first at ${formatBlock(inIndia(item.first_at).time)}`
+      ? `${item.booked} booked, first at ${formatTimeOf(item.first_at)}`
       : 'Nothing booked yet'
     const waiting = item.waiting > 0 ? ` · ${plural(item.waiting, 'request', 'requests')} waiting` : ''
     const low = item.low?.length ? ` · Low: ${item.low.join(', ')}` : ''

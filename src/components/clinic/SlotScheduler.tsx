@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { AlertCircle, CalendarCheck, ChevronLeft, ChevronRight, MessageCircle, UserCheck } from 'lucide-react'
+import { AlertCircle, CalendarCheck, MessageCircle, UserCheck } from 'lucide-react'
 import { confirmBookingRequest, declineBookingRequest, moveAppointment } from '@/lib/actions/appointments'
-import { addDays, formatBlock, formatDay, inIndia, sameInstant } from '@/lib/schedule'
+import { DEFAULT_LENGTH, addDays, formatDay, formatWhen, inIndia, sameInstant } from '@/lib/schedule'
 import type { DayBlock } from '@/lib/data/appointments'
 import { SlotGrid, isPlaceable } from './SlotGrid'
+import { WhenPicker } from './WhenPicker'
 import { openWhatsApp } from '@/lib/whatsapp-business'
 
 type Props = {
@@ -21,21 +22,22 @@ type Props = {
   dayOff: boolean
   // Where the patient asked to be (request mode) or already is (move mode)
   originalInstant: string | null
-  // Page this screen lives on, for the day arrows (plus any fixed query like "move=1")
+  // Page this screen lives on, for the day arrows and the length (?d=, ?len=)
   basePath: string
-  query?: string
   // Patients in the app who share the request's phone number
   matches?: { id: string; name: string; age: number | null }[]
   // The one of them this request most likely is (same name, or the only one): chosen to start with
   likelyMatch?: string | null
-  // Request mode: how long the appointment will be (40 minutes unless chosen)
+  // How long the appointment will be, and the length the page has without ?len= (30 minutes for a
+  // request, its own length for an appointment being moved)
   minutes?: number
+  defaultMinutes?: number
 }
 
 type Done = { whatsappUrl?: string; patientId?: string; when: string }
 
 // Shows a day's blocks. The doctor taps a free block and saves.
-export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, originalInstant, basePath, query, matches = [], likelyMatch = null, minutes = 40 }: Props) {
+export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, originalInstant, basePath, matches = [], likelyMatch = null, minutes = DEFAULT_LENGTH, defaultMinutes = DEFAULT_LENGTH }: Props) {
   const [selected, setSelected] = useState<string | null>(() => {
     if (!originalInstant) return null
     const own = blocks.find((b) => sameInstant(b.instant, originalInstant))
@@ -47,17 +49,20 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<Done | null>(null)
   const [pending, startTransition] = useTransition()
-  const dayHref = (d: string) => `${basePath}?${query ? `${query}&` : ''}d=${d}`
+  const withLength = (m: number) => (m === defaultMinutes ? '' : `&len=${m}`)
+  const dayHref = (d: string) => `${basePath}?d=${d}${withLength(minutes)}`
   const mustChoose = mode === 'request' && linkPatient === undefined
+  // The time to save is one of this day's free times for this length (not one picked on another day)
+  const shown = selected !== null && blocks.some((b) => sameInstant(b.instant, selected) && isPlaceable(b, id))
 
   function save() {
-    if (!selected || linkPatient === undefined) return
+    if (!selected || !shown || linkPatient === undefined) return
     setError(null)
     startTransition(async () => {
       const result =
         mode === 'request'
           ? await confirmBookingRequest(id, selected, linkPatient, minutes)
-          : await moveAppointment(id, selected)
+          : await moveAppointment(id, selected, minutes)
       if (result.error) {
         setError(result.error)
         return
@@ -69,8 +74,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         return
       }
       // A retry may find the request booked already, at the time it was booked then
-      const { date: d, time } = inIndia(result.startsAt ?? selected)
-      setDone({ whatsappUrl: result.whatsappUrl, patientId: result.patientId, when: `${formatDay(d)}, ${formatBlock(time)}` })
+      setDone({ whatsappUrl: result.whatsappUrl, patientId: result.patientId, when: formatWhen(result.startsAt ?? selected) })
       // Open the patient's chat with the message ready; the big "Open WhatsApp" button below is the fallback
       if (result.whatsappUrl) openWhatsApp(result.whatsappUrl)
     })
@@ -115,23 +119,14 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
 
   return (
     <div className="space-y-4">
-      {/* Day navigation */}
-      <div className="flex items-center justify-between">
-        <Link href={dayHref(addDays(date, -1))} className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Previous day">
-          <ChevronLeft className="h-6 w-6" />
-        </Link>
-        <div className="text-center">
-          <p className="text-base font-bold text-gray-900">{formatDay(date)}</p>
-          {originalInstant && inIndia(originalInstant).date === date && (
-            <p className="text-xs font-semibold text-amber-700">
-              {mode === 'request' ? 'Day requested' : 'Current day'}
-            </p>
-          )}
-        </div>
-        <Link href={dayHref(addDays(date, 1))} className="flex h-12 w-12 items-center justify-center rounded-full text-blue-700 hover:bg-blue-50" aria-label="Next day">
-          <ChevronRight className="h-6 w-6" />
-        </Link>
-      </div>
+      <WhenPicker
+        length={minutes}
+        lengthHref={(m) => `${basePath}?d=${date}${withLength(m)}`}
+        day={formatDay(date)}
+        note={originalInstant && inIndia(originalInstant).date === date ? (mode === 'request' ? 'Day requested' : 'Current day') : null}
+        prev={{ href: dayHref(addDays(date, -1)) }}
+        next={{ href: dayHref(addDays(date, 1)) }}
+      >
 
       {/* Existing patients with this number */}
       {mode === 'request' && matches.length > 0 && (
@@ -170,10 +165,11 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
           <SlotGrid blocks={blocks} selected={selected} label={label} onPick={setSelected} ownId={id} />
         </div>
       )}
+      </WhenPicker>
 
       {/* Sits right on top of the bottom bar (64 px tall, plus the phone's gesture area), solid, so no times show through */}
       <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 space-y-2 border-t border-gray-200 bg-gray-50 px-4 pb-2 pt-2">
-        <button type="button" onClick={save} disabled={!selected || pending || mustChoose || (mode === 'move' && sameInstant(selected, originalInstant))}
+        <button type="button" onClick={save} disabled={!shown || pending || mustChoose || (mode === 'move' && sameInstant(selected, originalInstant) && minutes === defaultMinutes)}
           className="min-h-14 w-full rounded-full bg-blue-600 px-5 py-4 text-lg font-semibold text-white shadow-lg hover:bg-blue-700 disabled:opacity-50">
           {pending ? 'Saving…' : mode === 'request' ? 'Save and confirm' : 'Move appointment'}
         </button>

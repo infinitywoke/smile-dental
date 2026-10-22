@@ -35,13 +35,16 @@ export function useSaveId(): SaveId {
   )
 }
 
-// The bill: its lines and total, his usual charges one tap each, and "Add charge", which opens the clinic price list
+// The bill: one card with its lines and total and, below them in the same card, the payment (children);
+// then his usual charges one tap each, and "Add charge", which opens the clinic price list
 export function BillSection({
   visitId,
   charges,
   total,
   usual,
   save,
+  fromNotes,
+  children,
 }: {
   visitId: string
   charges: VisitBill['charges']
@@ -49,6 +52,10 @@ export function BillSection({
   // The price-list items he bills most (src/lib/usual-charges.ts)
   usual: UsualCharge[]
   save: Save
+  // Charges a recording suggested (src/components/clinic/NoteSuggestions.tsx), until added or dismissed
+  fromNotes?: React.ReactNode
+  // The payment part of the card (src/components/clinic/PaymentCard.tsx), when there is one
+  children?: React.ReactNode
 }) {
   const sheet = useBackToClose()
   // Kept here, not in the sheet, so closing and reopening the list still recognises a retry
@@ -81,7 +88,8 @@ export function BillSection({
   return (
     <section className="space-y-3">
       <h2 className="hud-heading">Bill</h2>
-      {charges.length > 0 && (
+      {fromNotes}
+      {(charges.length > 0 || children) && (
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
           {charges.map((charge) => (
             <div key={charge.id} className="flex items-center gap-2 border-b border-gray-100 py-1 pl-4 pr-1">
@@ -91,10 +99,13 @@ export function BillSection({
                 onRemove={() => save(() => removeCharge(charge.id))} />
             </div>
           ))}
-          <div className="flex items-center justify-between bg-gray-50 px-4 py-3">
-            <p className="font-semibold text-gray-900">Total</p>
-            <p className="text-lg font-bold tabular-nums text-gray-900">{formatRupees(total)}</p>
-          </div>
+          {charges.length > 0 && (
+            <div className="flex items-center justify-between bg-gray-50 px-4 py-3">
+              <p className="font-semibold text-gray-900">Total</p>
+              <p className="text-lg font-bold tabular-nums text-gray-900">{formatRupees(total)}</p>
+            </div>
+          )}
+          {children}
         </div>
       )}
       {usual.length > 0 && (

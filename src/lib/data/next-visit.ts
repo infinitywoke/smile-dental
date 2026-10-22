@@ -2,7 +2,7 @@ import 'server-only'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { todayInIndia } from '@/lib/dates'
-import { blockInstant, inIndia } from '@/lib/schedule'
+import { DEFAULT_LENGTH, blockInstant, inIndia } from '@/lib/schedule'
 import { pickSuggestedTime, suggestedDate } from '@/lib/next-visit'
 import { getDaySchedule } from './appointments'
 
@@ -13,7 +13,7 @@ const SEARCH_DAYS = 7
 // a week on (or after the gap he chose), at today's appointment time when that is free (else the
 // first free time), on the next open day with room. Null when the patient already has an appointment
 // coming up, or nothing is free that week.
-export async function getNextVisitSuggestion(visitId: string, length: number = 40, days: number = 7): Promise<string | null> {
+export async function getNextVisitSuggestion(visitId: string, length: number = DEFAULT_LENGTH, days: number = 7): Promise<string | null> {
   await getDoctor()
   const supabase = await createClient()
   const { data: visit } = await supabase.from('visits').select('id, patient_id, visit_date').eq('id', visitId).maybeSingle()

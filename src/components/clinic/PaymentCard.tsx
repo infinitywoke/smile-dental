@@ -9,13 +9,11 @@ import { useUndo } from './UndoBar'
 import { parseAmount } from '@/lib/billing'
 import { formatRupees } from '@/lib/pricing'
 import { upiLink } from '@/lib/upi'
+import { formatTimeOf } from '@/lib/schedule'
 import { RemoveButton, useSaveId, type Save } from './BillTools'
 import { FullScreen, useBackToClose } from './FullScreen'
 
-const time = (iso: string) =>
-  new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })
-
-// One card for the money: total, payments so far, what is still due, and two big buttons.
+// The payment, in the bill's card: payments so far, what is still due, and two big buttons.
 // "Collect" links (…?step=bill) land here.
 export type SavingPayment = { id: string; amount: number; method: 'cash' | 'upi' }
 
@@ -39,7 +37,7 @@ export function PaymentCard({
   onSaving?: (payment: SavingPayment | null) => void
   handle?: Ref<PaymentHandle>
 }) {
-  const { charges, payments, summary } = bill
+  const { payments, summary } = bill
   // A payment just tapped shows at once, marked as saving, and comes off what is due; the server's
   // copy (same id) then takes its place. If the save fails, it goes again.
   const [saving, setSaving] = useState<SavingPayment | null>(null)
@@ -50,7 +48,6 @@ export function PaymentCard({
   // line and the amount box use it, so the box never asks for more than is owed
   const due = Math.max(owed, 0)
   const paid = summary.paid + (savingShown?.amount ?? 0)
-  const hasBill = charges.length > 0 || payments.length > 0 || savingShown !== null
   const [amount, setAmount] = useState(due > 0 ? String(due) : '')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -114,15 +111,14 @@ export function PaymentCard({
   }
 
   return (
-    <section id="payment" className="scroll-mt-20 space-y-3">
-      <h2 className="hud-heading">Payment</h2>
-      <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
+    // The lower part of the bill's card (BillSection), under its total: what was paid, what is still due, how to pay
+    <section id="payment" aria-label="Payment" className="scroll-mt-20">
+      <div className="space-y-4 p-4">
         <div className="space-y-1 text-base">
-          {hasBill && <Row label="Total" value={formatRupees(summary.total)} />}
           {payments.map((payment) => (
             <div key={payment.id} className="-my-1 flex items-center gap-2">
               <p className="min-w-0 flex-1 text-gray-700">
-                Paid by {payment.method === 'upi' ? 'UPI' : 'cash'} <span className="text-sm text-gray-400">· {time(payment.received_at)}</span>
+                Paid by {payment.method === 'upi' ? 'UPI' : 'cash'} <span className="text-sm text-gray-400">· {formatTimeOf(payment.received_at)}</span>
               </p>
               <p className="font-semibold tabular-nums text-green-700">{formatRupees(payment.amount)}</p>
               <RemoveButton label={`Remove payment ${formatRupees(payment.amount)}`}

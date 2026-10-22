@@ -23,7 +23,7 @@ test.afterAll(async () => {
 
 test('a request is not held until its WhatsApp link is opened; then Today shows until when', async () => {
   const waiting = await makeRequest(runId, 'Waiting', '10:30', 2)
-  const opened = await makeRequest(runId, 'Opened', '11:10', 2)
+  const opened = await makeRequest(runId, 'Opened', '11:00', 2)
 
   // The link in the patient's WhatsApp message records that it arrived, then opens the request
   await page.goto(`/app/requests/${opened.id}/received`)

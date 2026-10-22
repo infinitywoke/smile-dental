@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { MessageCircle, Timer } from 'lucide-react'
-import { inIndia, formatBlock } from '@/lib/schedule'
+import { formatTimeOf } from '@/lib/schedule'
 import { runningLateMessage, whatsappLink } from '@/lib/whatsapp'
 import { FullScreen, useBackToClose } from './FullScreen'
 
@@ -45,7 +45,7 @@ export function RunningLate({ patients, behind }: { patients: { id: string; name
                   <li key={p.id} className="flex items-center gap-3 rounded-2xl bg-white py-2 pr-2 pl-4 ring-1 ring-gray-200">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold text-gray-900">{p.name}</span>
-                      <span className="hud-mono block text-sm text-gray-500">{formatBlock(inIndia(p.startsAt).time)}</span>
+                      <span className="hud-mono block text-sm text-gray-500">{formatTimeOf(p.startsAt)}</span>
                     </span>
                     <a href={whatsappLink(p.phone, runningLateMessage({ name: p.name, startsAt: p.startsAt, minutes }))}
                       target="_blank" rel="noopener noreferrer" onClick={() => setSent((s) => [...s, p.id])}

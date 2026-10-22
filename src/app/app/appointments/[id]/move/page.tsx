@@ -1,32 +1,30 @@
 import { Suspense } from 'react'
-import { lengthLabel } from '@/lib/schedule'
 import { redirect } from 'next/navigation'
 import { getAppointment, getDaySchedule } from '@/lib/data/appointments'
 import { todayInIndia } from '@/lib/dates'
-import { inIndia } from '@/lib/schedule'
+import { inIndia, isLength } from '@/lib/schedule'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { SlotScheduler } from '@/components/clinic/SlotScheduler'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
-// Moving an appointment: the day's times, tap another time
+// Moving an appointment: how long (its own length unless changed), the day, then another time
 async function MovePageContent({ params, searchParams }: PageProps<'/app/appointments/[id]/move'>) {
   const { id } = await params
-  const { d } = await searchParams
+  const { d, len } = await searchParams
   const appointment = await getAppointment(id)
   if (appointment.status !== 'booked') redirect(`/app/patients/${appointment.patient_id}`)
 
   const { date } = inIndia(appointment.starts_at)
   const today = todayInIndia()
   const wanted = typeof d === 'string' && DATE.test(d) ? d : date >= today ? date : today
-  // It keeps its own length
-  const schedule = await getDaySchedule(wanted, appointment.duration_min)
+  const minutes = isLength(len) ? Number(len) : appointment.duration_min
+  const schedule = await getDaySchedule(wanted, minutes)
 
   return (
     <div className="space-y-4">
       <BackLink href={`/app/patients/${appointment.patient_id}`} label={appointment.patient.name} />
       <h1 className="text-xl font-bold text-gray-900">Move {appointment.patient.name}</h1>
-      <p className="text-sm text-gray-600">{lengthLabel(appointment.duration_min)} appointment</p>
       <SlotScheduler
         mode="move"
         id={appointment.id}
@@ -37,6 +35,8 @@ async function MovePageContent({ params, searchParams }: PageProps<'/app/appoint
         dayOff={schedule.dayOff}
         originalInstant={appointment.starts_at}
         basePath={`/app/appointments/${appointment.id}/move`}
+        minutes={minutes}
+        defaultMinutes={appointment.duration_min}
       />
     </div>
   )

@@ -67,7 +67,7 @@ test("tomorrow's reminders: one tap each, and the card goes once all are sent", 
   const phone = newPhone('4')
   const patientId = await createPatient(name, phone)
   const day = openDay(1)
-  const booked = await createAppointmentAtFirstFree(patientId, day, ['19:00', '18:20', '17:40', '17:00', '16:20', '15:40'])
+  const booked = await createAppointmentAtFirstFree(patientId, day, ['19:00', '18:30', '18:00', '17:30', '17:00', '16:30'])
   test.skip(!booked, 'No free evening time on the next open day')
   const { supabase } = await testDb()
 

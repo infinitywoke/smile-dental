@@ -9,7 +9,7 @@ import type { VisitDetail, VisitPhoto } from '@/lib/data/types'
 import { markWhatsappSent, prepareWhatsapp, type MessageData } from '@/lib/actions/visits'
 import { MAX_PHOTOS_TO_SEND, visitMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
-import type { PhotoKind } from '@/lib/visit-status'
+import { photoLabel, type PhotoKind } from '@/lib/visit-status'
 import { firstName, whatsappLink } from '@/lib/whatsapp'
 import type { UploadCounts } from './PhotoGallery'
 import { openWhatsApp } from '@/lib/whatsapp-business'
@@ -27,7 +27,6 @@ const RECORD_WAIT_MS = 3000
 // still opens within the few seconds Android allows after the tap. The record carries on in the background.
 const RECORD_WAIT_AFTER_PREPARE_MS = 1500
 
-const labelOf = (kind: PhotoKind | null) => (kind === 'Prescription' || kind === 'X-ray' ? kind : 'Photo')
 const photos = (n: number) => (n === 1 ? '1 photo' : `${n} photos`)
 
 // A wa.me link can only carry text. Phones that can share files (Android Chrome) send the photos
@@ -60,8 +59,9 @@ type Sending =
   | { state: 'ready'; link: string }
   | { state: 'failed'; message: string }
 
-// What the visit's next-step bar can do from anywhere on the page: the same Send as the button here
-export type SendHandle = { send: () => void }
+// What the visit page can ask of Send from anywhere: the same Send as the button here (the next-step bar),
+// and to forget a message made ready before the photos to send changed
+export type SendHandle = { send: () => void; reset: () => void }
 
 // One message to the patient: bill, payments, balance and next appointment. At the tap it first waits
 // for anything still saving (a next visit, charge or payment tapped just before), then the server
@@ -77,6 +77,7 @@ export function SendWhatsApp({
   whenSaved,
   handle,
   onSent,
+  sends,
 }: {
   visit: VisitDetail
   kindOf: (photo: VisitPhoto) => PhotoKind | null
@@ -87,17 +88,16 @@ export function SendWhatsApp({
   handle?: Ref<SendHandle>
   // WhatsApp is opening with the message (the page learns it was sent a moment later)
   onSent?: () => void
+  // The photos ticked to go with the message (ticked on each photo, in Photos)
+  sends: (photo: VisitPhoto) => boolean
 }) {
-  // Prescriptions are ticked by default; the doctor can tick any other photo
-  const [ticks, setTicks] = useState<Record<string, boolean>>({})
   const [sentNow, setSentNow] = useState(false)
   const [sending, setSending] = useState<Sending>({ state: 'idle' })
   // Each tap is one try; only the latest try's reply is used
   const tries = useRef(0)
   // Waiting, and not yet long enough to offer another tap
   const busy = sending.state === 'waiting' && !sending.slow
-  const ticked = (photo: VisitPhoto) => ticks[photo.id] ?? kindOf(photo) === 'Prescription'
-  const tickedPhotos = visit.photos.filter(ticked)
+  const tickedPhotos = visit.photos.filter(sends)
   const sent = sentNow || !!visit.closed_at
   // Sent, but a charge or payment changed since (the database sets this): the patient's message is out of date
   const resend = sent && !!visit.resend_needed
@@ -153,7 +153,7 @@ export function SendWhatsApp({
       }
       return
     }
-    const labels = tickedPhotos.map((p) => labelOf(kindOf(p)))
+    const labels = tickedPhotos.map((p) => photoLabel(kindOf(p)))
     const date = formatDate(visit.visit_date)
     // "Prescription-12-Oct-2026.jpg"; repeats are numbered ("X-ray-2-12-Oct-2026.jpg")
     const seen = new Map<string, number>()
@@ -210,7 +210,7 @@ export function SendWhatsApp({
         payments: data.payments,
         summary: data.summary,
         nextAppointment: data.nextAppointment,
-        photos: tickedPhotos.flatMap((p) => (photoLinks[p.id] ? [{ label: labelOf(kindOf(p)), url: photoLinks[p.id] }] : [])),
+        photos: tickedPhotos.flatMap((p) => (photoLinks[p.id] ? [{ label: photoLabel(kindOf(p)), url: photoLinks[p.id] }] : [])),
       }),
     )
 
@@ -273,27 +273,11 @@ export function SendWhatsApp({
     }
   }
 
-  useImperativeHandle(handle, () => ({ send: () => void send() }))
+  // A message made ready (a slow reply) is built again when the photos to send change; not while one is being made
+  useImperativeHandle(handle, () => ({ send: () => void send(), reset: () => setSending((s) => (s.state === 'waiting' ? s : { state: 'idle' })) }))
 
   return (
     <section className="space-y-3">
-      {visit.photos.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="hud-heading">Photos to send</h2>
-          {visit.photos.map((photo, index) => (
-            <label key={photo.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-gray-200">
-              <input type="checkbox" checked={ticked(photo)} disabled={sending.state === 'waiting'}
-                onChange={(e) => {
-                  setTicks((t) => ({ ...t, [photo.id]: e.target.checked }))
-                  setSending({ state: 'idle' })
-                }}
-                className="h-6 w-6 shrink-0 rounded border-gray-300 text-blue-600" />
-              <span className="min-w-0 flex-1 text-base text-gray-900">{labelOf(kindOf(photo))} {index + 1}</span>
-            </label>
-          ))}
-        </div>
-      )}
-
       {resend ? (
         <p className="flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900 ring-1 ring-amber-300">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" /> The bill changed after the WhatsApp was sent.
@@ -322,7 +306,7 @@ export function SendWhatsApp({
             {photosReady
               ? tickedPhotos.length > 1
                 ? `Send ${tickedPhotos.length} photos`
-                : `Send ${{ Prescription: 'prescription ', 'X-ray': 'X-ray ', Photo: '' }[labelOf(kindOf(tickedPhotos[0]))]}photo`
+                : `Send ${{ Prescription: 'prescription ', 'X-ray': 'X-ray ', Photo: '' }[photoLabel(kindOf(tickedPhotos[0]))]}photo`
               : photoFailed
                 ? "Photo didn't load. Tap to try again"
                 : tickedPhotos.length > 1 ? 'Preparing photos…' : 'Preparing photo…'}

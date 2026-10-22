@@ -22,16 +22,6 @@ export function MedicalAlert({ alerts }: { alerts: string | null }) {
   )
 }
 
-// A Cockpit readout tile: a small label over a number or a short word. Label and value are one sentence
-// to a screen reader ("Visits 5").
-export function Readout({ label, value, tone }: { label: string; value: string; tone?: 'amber' }) {
-  return (
-    <p className={`flex min-w-0 flex-col gap-1.5 rounded-[14px] p-3 ring-1 ${tone === 'amber' ? 'bg-amber-50 ring-amber-200' : 'bg-white ring-gray-200'}`}>
-      <span className="text-xs font-bold text-gray-500">{label}</span>{' '}
-      <span className="hud-mono truncate text-lg font-bold text-gray-900">{value}</span>
-    </p>
-  )
-}
 
 export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <div className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 ${className}`}>{children}</div>

@@ -70,7 +70,7 @@ export function UnblockButton({ instant }: { instant: string }) {
   )
 }
 
-// Blocks one 40-minute block so the website stops offering it
+// Blocks one 30-minute block so the website stops offering it
 export function BlockThisTimeButton({ startsAt, backTo }: { startsAt: string; backTo: string }) {
   const { router, pending, error, run } = useAction()
   const end = new Date(new Date(startsAt).getTime() + BLOCK_MINUTES * 60_000).toISOString()

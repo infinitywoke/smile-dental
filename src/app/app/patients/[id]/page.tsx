@@ -2,13 +2,13 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Camera, CalendarClock, ChevronDown, ChevronRight, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { getPatientHub } from '@/lib/data/patient-hub'
-import { formatDate, todayInIndia } from '@/lib/dates'
+import { formatDate } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
 import { formatRupees } from '@/lib/pricing'
 import { endOf, formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { whatsappLink } from '@/lib/whatsapp'
-import { BackLink, MedicalAlert, Readout, ScreenLoading } from '@/components/clinic/ui'
+import { BackLink, MedicalAlert, ScreenLoading } from '@/components/clinic/ui'
 import { VisitStatusBadge } from '@/components/clinic/VisitStatusBadge'
 import { StartVisitButton } from '@/components/clinic/StartVisitButton'
 import { CancelAppointmentButton } from '@/components/clinic/CalendarActions'
@@ -19,10 +19,6 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
   const { id } = await params
   const { patient, visits, coming, balance, todayVisitId, appointmentTodayId, due } = await getPatientHub(id)
   const age = patientAge(patient)
-  const today = todayInIndia()
-  // Visits come newest first
-  const lastVisit = visits[0]?.visit_date ?? null
-  const nextUp = coming[0] ? inIndia(coming[0].starts_at).date : null
   const startClass = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-lg font-extrabold text-white shadow-sm hover:bg-blue-700 disabled:opacity-70'
 
   return (
@@ -53,12 +49,6 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
       </div>
 
       <MedicalAlert alerts={patient.medical_alerts} />
-
-      <div className="grid grid-cols-3 gap-2.5">
-        <Readout label="Visits" value={String(visits.length)} />
-        <Readout label="Last visit" value={lastVisit ? (lastVisit === today ? 'Today' : formatDate(lastVisit, { day: 'numeric', month: 'short' })) : '—'} />
-        <Readout label="Next" value={nextUp ? formatDate(nextUp, { day: 'numeric', month: 'short' }) : 'None'} />
-      </div>
 
       {/* Start visit first, always */}
       <div className="space-y-2">
