@@ -30,6 +30,21 @@ test('Today opens on the Cockpit: open status, the seen ring, who is next, the m
   else await expect(sheet.getByText('No one else is booked today.')).toBeVisible()
 })
 
+test('the Cockpit says whether the website takes bookings, and only the clinic’s own login can pause it', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/app')
+  const line = page.getByRole('region', { name: 'Cockpit' }).getByRole('button', { name: /^WEBSITE/ })
+  await expect(line).toContainText(/Taking bookings|Paused/)
+  await line.click()
+  const sheet = page.getByRole('dialog', { name: 'Online booking' })
+  await expect(sheet).toContainText('Booking here in Clinic OS works as usual.')
+  // The test login is not the clinic's, so the live website never changes here
+  const turnOn = sheet.getByRole('button', { name: 'Turn online booking back on' })
+  if (await turnOn.count()) await turnOn.click()
+  else await sheet.getByRole('button', { name: /^Pause for the rest of today/ }).click()
+  await expect(sheet.getByRole('alert')).toHaveText('Only the clinic’s own login can pause online booking.')
+})
+
 test('Settings: the look follows the phone, or is light or dark, and stays chosen for this phone', async ({ page }) => {
   await signIn(page)
   await page.goto('/app/settings')

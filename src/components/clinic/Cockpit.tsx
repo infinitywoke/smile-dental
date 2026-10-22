@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronRight, Clock, Flame, Package, Setti
 import { LUNCH_SPAN, ringDash, type StripBlock } from '@/lib/cockpit'
 import { formatRupees } from '@/lib/pricing'
 import { formatBlock, inIndia } from '@/lib/schedule'
+import { BookingPause } from './BookingPause'
 import { StartVisitButton } from './StartVisitButton'
 import { Countdown, LiveClock, NowMarker, RunningLate } from './CockpitLive'
 
@@ -23,6 +24,8 @@ type Props = {
   streak: number
   // How many stock items are low or expire soon (null until stock is switched on)
   stock: { low: number; expiring: number } | null
+  // Whether the website takes bookings, in words (null until pausing is switched on)
+  website: { paused: boolean; text: string } | null
 }
 
 const R = 92
@@ -31,7 +34,7 @@ const label = 'hud-mono text-[10px] tracking-[0.14em] text-gray-500'
 
 // Today at a glance, like an instrument panel: whether the clinic is open, how much of the day is done,
 // who is next, the money, what is waiting, and the day's appointments on one strip
-export function Cockpit({ status, seen, total, marks, next, collected, requests, owed, strip, late, fun, streak, stock }: Props) {
+export function Cockpit({ status, seen, total, marks, next, collected, requests, owed, strip, late, fun, streak, stock, website }: Props) {
   const allSeen = fun && total > 0 && seen >= total
   const stockText = stock ? [stock.low > 0 && `${stock.low} low`, stock.expiring > 0 && `${stock.expiring} expiring soon`].filter(Boolean).join(' · ') : ''
   return (
@@ -125,6 +128,8 @@ export function Cockpit({ status, seen, total, marks, next, collected, requests,
           <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
         </Link>
       )}
+
+      {website && <BookingPause paused={website.paused} text={website.text} />}
 
       <div aria-label="Today's appointments on the day" role="img">
         <div className="hud-mono relative h-3 text-[9px] text-gray-500" aria-hidden="true">

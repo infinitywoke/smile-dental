@@ -1,17 +1,32 @@
 import { connection } from 'next/server'
-import { getOpenSlots } from '@/lib/actions/booking'
+import { MessageCircle, Phone } from 'lucide-react'
+import { getBookingPause, getOpenSlots } from '@/lib/actions/booking'
 import { reasonFromLink } from '@/lib/booking-reasons'
 import { todayInIndia } from '@/lib/dates'
 import { confirmationPromise } from '@/lib/schedule'
 import { BookingCard } from './BookingCard'
+import { PHONE_SHOWN, TEL, WHATSAPP } from './site-links'
 
 // The free times come from the clinic's calendar at the moment the page is opened. A booking link may
-// carry the reason (?reason=rootcanal), which the card then starts with.
+// carry the reason (?reason=rootcanal), which the card then starts with. While Dr. Rahil has paused
+// online booking (from the Cockpit), the card asks visitors to call or WhatsApp instead.
 export async function Booking({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   await connection()
   const reason = searchParams ? reasonFromLink((await searchParams).reason) : null
-  const slots = await getOpenSlots()
+  const [slots, pause] = await Promise.all([getOpenSlots(), getBookingPause()])
+  if (pause.until) return <BookingPaused />
   return <BookingCard slots={slots} today={todayInIndia()} promise={confirmationPromise(new Date())} initialReason={reason} />
+}
+
+function BookingPaused() {
+  return (
+    <div id="book" className="h-card">
+      <h2 className="h-serif h-card-title">Book an appointment</h2>
+      <p className="h-callout">Online booking is paused right now. Please call or WhatsApp the clinic, and Dr. Rahil will find you a time.</p>
+      <a href={TEL} className="h-btn navy wide h-gap"><Phone className="h-icon" aria-hidden="true" /> Call {PHONE_SHOWN}</a>
+      <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="h-btn amber wide h-gap"><MessageCircle className="h-icon" aria-hidden="true" /> WhatsApp the clinic</a>
+    </div>
+  )
 }
 
 export function BookingLoading() {

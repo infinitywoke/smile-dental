@@ -19,6 +19,15 @@ export async function getOpenSlots(): Promise<string[]> {
   return (data as { slot_start: string }[]).map((row) => new Date(row.slot_start).toISOString())
 }
 
+// Public: whether online booking is paused, and until when ("infinity": until the dentist turns it back
+// on). `ready` is false until supabase/pause-booking-2026-10.sql has been run; booking then counts as open.
+export async function getBookingPause(): Promise<{ ready: boolean; until: string | null }> {
+  const supabase = createPublicClient()
+  const { data, error } = await supabase.rpc('booking_paused_until')
+  if (error) return { ready: false, until: null }
+  return { ready: true, until: (data as string | null) ?? null }
+}
+
 export type BookingInput = {
   name: string
   phone: string

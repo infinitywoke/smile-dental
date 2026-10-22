@@ -113,7 +113,9 @@ $$;
 -- Used by submit_booking_request() to know whose list a website request lands in.
 create table if not exists public.app_config (
   id boolean primary key default true check (id),
-  clinic_owner_id uuid not null references auth.users (id) on delete cascade
+  clinic_owner_id uuid not null references auth.users (id) on delete cascade,
+  -- Online booking is paused until then ('infinity': until the dentist turns it back on)
+  booking_paused_until timestamptz
 );
 
 -- Patients ------------------------------------------------------------------
@@ -602,7 +604,9 @@ security definer
 set search_path = ''
 as $$
   with cfg as (
-    select c.clinic_owner_id as owner_id from public.app_config c where c.id
+    -- None while online booking is paused
+    select c.clinic_owner_id as owner_id from public.app_config c
+    where c.id and (c.booking_paused_until is null or c.booking_paused_until <= public.clinic_now())
   ), today as (
     select (public.clinic_now() at time zone 'Asia/Kolkata')::date as d
   ), days as (
@@ -636,6 +640,39 @@ $$;
 
 revoke all on function public.get_open_slots(date, integer) from public, anon, authenticated;
 grant execute on function public.get_open_slots(date, integer) to anon, authenticated;
+
+-- Whether online booking is paused right now: until when, or null when it is open (the website and the app)
+create or replace function public.booking_paused_until()
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select c.booking_paused_until from public.app_config c
+  where c.id and c.booking_paused_until > public.clinic_now()
+$$;
+
+revoke all on function public.booking_paused_until() from public, anon, authenticated;
+grant execute on function public.booking_paused_until() to anon, authenticated;
+
+-- The dentist pauses online booking until a time ('infinity': until turned back on), or opens it (null)
+create or replace function public.set_booking_pause(p_until timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (select 1 from public.app_config c where c.id and c.clinic_owner_id = (select auth.uid())) then
+    raise exception 'Not allowed';
+  end if;
+  update public.app_config set booking_paused_until = p_until where id;
+end;
+$$;
+
+revoke all on function public.set_booking_pause(timestamptz) from public, anon, authenticated;
+grant execute on function public.set_booking_pause(timestamptz) to authenticated;
 
 -- Internal helpers are not callable from the website
 revoke all on function public.clinic_now() from public, anon, authenticated;
@@ -728,6 +765,9 @@ begin
   select c.clinic_owner_id into v_owner from public.app_config c where c.id;
   if v_owner is null then
     raise exception 'Online booking is not set up yet. Please call or WhatsApp the clinic.';
+  end if;
+  if exists (select 1 from public.app_config c where c.id and c.booking_paused_until > v_now) then
+    raise exception 'Online booking is paused right now. Please call or WhatsApp the clinic.';
   end if;
 
   -- Rate limits and the free-block check. The lock makes concurrent submissions
