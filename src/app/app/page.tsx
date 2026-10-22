@@ -29,6 +29,7 @@ import { pauseText } from '@/lib/booking-pause'
 import { ClinicStatus, MoneyPill } from '@/components/clinic/TodayStatus'
 import { NextPatient } from '@/components/clinic/NextPatient'
 import { DayPicker } from '@/components/clinic/DayPicker'
+import { KeepCopies } from '@/components/clinic/OfflineCopies'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const STRIP_DAYS = 14
@@ -118,6 +119,14 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   return (
     <UndoProvider>
     <div className="space-y-6">
+      {/* Each visit and patient on today's list, and each bill to collect, opens with no signal too */}
+      {isToday && (
+        <KeepCopies urls={[
+          ...rows.map((row) => (row.kind === 'seen' ? `/app/visits/${row.visit.id}` : `/app/patients/${row.appointment.patient_id}`)),
+          ...showDues.map((due) => `/app/visits/${due.visitId}`),
+        ]} />
+      )}
+
       {/* The day's name, its date (a tap shows the next two weeks) and the arrows */}
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">

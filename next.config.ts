@@ -4,8 +4,13 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
-  // Visit recordings for smart notes go through a server action
-  experimental: { serverActions: { bodySizeLimit: '5mb' } },
+  experimental: {
+    // Visit recordings for smart notes go through a server action
+    serverActions: { bodySizeLimit: '5mb' },
+    // In development React's debug details come over the dev server's socket, and a screen opened from
+    // the phone's copy with no signal waits for them forever: off during e2e runs (the offline tests)
+    reactDebugChannel: process.env.E2E !== '1',
+  },
   // Dev-only badge: top-left keeps it off the Clinic OS bottom bar; hidden during e2e runs
   devIndicators: process.env.E2E === '1' ? false : { position: 'top-left' },
   // The old website's pages are sections of the homepage now; /preview was the new website before it went live

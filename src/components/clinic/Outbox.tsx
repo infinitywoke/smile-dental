@@ -1,12 +1,15 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { useRouter } from 'next/navigation'
-import { AlertCircle, CloudOff, Loader2 } from 'lucide-react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { AlertCircle, CloudOff, History, Loader2 } from 'lucide-react'
 import { addCharge, recordPayment, removeCharge, removePayment } from '@/lib/actions/billing'
 import { setPhotoKind } from '@/lib/actions/visits'
+import { todayInIndia } from '@/lib/dates'
 import { dropFromOutbox, enqueue, isNetworkError, markFailed, readOutbox, subscribeOutbox, type QueuedAction, type QueuedSave } from '@/lib/offline/outbox'
+import { copyReplaced, onFreshCopy, readCopyAt, subscribeCopyAt } from '@/lib/offline/worker'
 import { formatRupees } from '@/lib/pricing'
+import { formatTimeOf, formatWhen, inIndia } from '@/lib/schedule'
 import type { Save } from './BillTools'
 
 type Result = { error?: string; queued?: boolean }
@@ -30,7 +33,7 @@ const subscribeOnline = (listener: () => void) => {
     window.removeEventListener('offline', listener)
   }
 }
-const useOnline = () => useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true)
+export const useOnline = () => useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true)
 
 // The visit's saves that can wait for the signal. Each is tried at once (after the typed notes, through
 // save); with no signal it joins the outbox and counts as done, so the page goes on as if it saved.
@@ -95,15 +98,54 @@ function describe(item: QueuedSave): string {
   }
 }
 
+// When a kept copy was made: "at 10:42 AM" today, "on Thu, 15 Oct, 2:40 PM" before
+function keptWhen(at: number): string {
+  const moment = new Date(at)
+  return inIndia(moment).date === todayInIndia() ? `at ${formatTimeOf(moment)}` : `on ${formatWhen(moment)}`
+}
+
 // On every screen: sends what waits as soon as there is signal (when it comes back, when the app is
 // opened again, and every 15 seconds while anything waits), in order, and says how it stands. A save
-// the server turns down stays listed with its reason until he lets it go.
+// the server turns down stays listed with its reason until he lets it go. A screen opened from the copy
+// kept on the phone (no signal, public/sw.js) says when the copy is from until the fresh one is in.
 export function OutboxSync() {
   const items = useOutbox()
   const online = useOnline()
   const router = useRouter()
   const sending = useRef(false)
   const [busy, setBusy] = useState(false)
+  const copyAt = useSyncExternalStore(subscribeCopyAt, readCopyAt, () => null)
+  const [refreshing, startRefresh] = useTransition()
+  const replacing = useRef(false)
+
+  // The screen gets its data from the server again; a copy on show is replaced once that is in
+  const refreshScreen = useCallback(() => {
+    replacing.current = true
+    startRefresh(() => router.refresh())
+  }, [router])
+  useEffect(() => {
+    if (!replacing.current || refreshing) return
+    replacing.current = false
+    copyReplaced()
+  }, [refreshing])
+
+  // A copy on show is replaced when the signal is back, or when the fresh screen arrives after it
+  useEffect(() => {
+    if (copyAt === null) return
+    window.addEventListener('online', refreshScreen)
+    const stop = onFreshCopy(refreshScreen)
+    return () => {
+      window.removeEventListener('online', refreshScreen)
+      stop()
+    }
+  }, [copyAt, refreshScreen])
+
+  // Another screen opened came from the server, so the note about the copy goes
+  const pathname = usePathname()
+  const firstPath = useRef(pathname)
+  useEffect(() => {
+    if (pathname !== firstPath.current) copyReplaced()
+  }, [pathname])
 
   const flush = useCallback(async () => {
     if (sending.current || navigator.onLine === false) return
@@ -131,8 +173,8 @@ export function OutboxSync() {
       setBusy(false)
     }
     // The screens show the server's copy again
-    if (saved > 0) router.refresh()
-  }, [router])
+    if (saved > 0) refreshScreen()
+  }, [refreshScreen])
 
   useEffect(() => {
     const onOnline = () => void flush()
@@ -160,7 +202,7 @@ export function OutboxSync() {
   }, [waiting.length, flush])
 
   const changes = (n: number) => (n === 1 ? '1 change' : `${n} changes`)
-  if (online && waiting.length === 0 && failed.length === 0) return null
+  if (online && waiting.length === 0 && failed.length === 0 && copyAt === null) return null
   return (
     <div className="mx-auto w-full max-w-lg space-y-2 px-4 pt-3">
       {(!online || waiting.length > 0) && (
@@ -169,6 +211,17 @@ export function OutboxSync() {
           {!online
             ? waiting.length > 0 ? `No signal: ${changes(waiting.length)} will save when it's back` : "No signal: what you do now saves when it's back"
             : busy ? `Saving ${changes(waiting.length)}…` : `${changes(waiting.length)} waiting to save`}
+        </p>
+      )}
+      {copyAt !== null && (
+        <p role="status" className="flex min-h-11 items-center gap-2 rounded-xl bg-gray-100 py-1 pr-1 pl-3 text-sm font-semibold text-gray-700">
+          <History className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Showing this screen as it was {keptWhen(copyAt)}</span>
+          {online && (
+            <button type="button" onClick={refreshScreen} disabled={refreshing} className="min-h-11 shrink-0 rounded-lg px-3 font-semibold disabled:opacity-60">
+              {refreshing ? 'Updating…' : 'Update'}
+            </button>
+          )}
         </p>
       )}
       {failed.map((item) => (

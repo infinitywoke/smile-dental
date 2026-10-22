@@ -37,6 +37,11 @@ export async function forgetPhoto(key: string): Promise<void> {
   await withStore('readwrite', (store) => store.delete(key))
 }
 
+// Signing out: every copy goes
+export async function forgetAllPhotos(): Promise<void> {
+  await withStore('readwrite', (store) => store.clear())
+}
+
 export async function keptPhotos(visitId: string): Promise<KeptPhoto[]> {
   const all = (await withStore<KeptPhoto[]>('readonly', (store) => store.getAll())) ?? []
   return all.filter((p) => p.visitId === visitId).sort((a, b) => a.at - b.at)

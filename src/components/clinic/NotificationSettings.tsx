@@ -5,6 +5,7 @@ import { Bell, BellOff, Send } from 'lucide-react'
 import { Card } from '@/components/clinic/ui'
 import { removePushSubscription, savePushSubscription, saveNotificationSettings, sendTestNotification } from '@/lib/actions/notifications'
 import type { NotifySettings } from '@/lib/notifications'
+import { clinicWorker, deviceName, readyWorker } from '@/lib/offline/worker'
 
 type Props = {
   // The database part has been run and the server has its keys
@@ -16,20 +17,11 @@ type Props = {
 
 type PhoneState = 'checking' | 'unsupported' | 'install-first' | 'blocked' | 'off' | 'on'
 
-const SCOPE = '/app/'
 const QUIET_FROM = ['19:00', '20:00', '21:00', '22:00', '23:00']
 const QUIET_UNTIL = ['06:00', '07:00', '07:30', '08:00', '08:30', '09:00']
 const label12 = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number)
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
-}
-
-// "Android · Chrome", "iPhone · Safari"
-function deviceName(): string {
-  const ua = navigator.userAgent
-  const os = /android/i.test(ua) ? 'Android' : /iphone|ipad/i.test(ua) ? 'iPhone' : /windows/i.test(ua) ? 'Windows' : /mac os/i.test(ua) ? 'Mac' : 'This device'
-  const browser = /edg\//i.test(ua) ? 'Edge' : /samsungbrowser/i.test(ua) ? 'Samsung Internet' : /chrome|crios/i.test(ua) ? 'Chrome' : /firefox/i.test(ua) ? 'Firefox' : /safari/i.test(ua) ? 'Safari' : 'browser'
-  return `${os} · ${browser}`
 }
 
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
@@ -58,7 +50,7 @@ export function NotificationSettings({ ready, vapidKey, initial, phones }: Props
       if (!supported) next = /iphone|ipad/i.test(navigator.userAgent) && !standalone ? 'install-first' : 'unsupported'
       else if (Notification.permission === 'denied') next = 'blocked'
       else {
-        const registration = await navigator.serviceWorker.getRegistration(SCOPE)
+        const registration = await clinicWorker()
         current = (await registration?.pushManager.getSubscription())?.endpoint ?? null
         next = current ? 'on' : 'off'
       }
@@ -80,8 +72,8 @@ export function NotificationSettings({ ready, vapidKey, initial, phones }: Props
           setState(permission === 'denied' ? 'blocked' : 'off')
           return
         }
-        const registration = await navigator.serviceWorker.register('/sw.js', { scope: SCOPE })
-        await navigator.serviceWorker.ready
+        const registration = await readyWorker()
+        if (!registration) throw new Error('No service worker')
         const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(vapidKey) })
         const keys = subscription.toJSON().keys ?? {}
         const result = await savePushSubscription({ endpoint: subscription.endpoint, p256dh: keys.p256dh ?? '', auth: keys.auth ?? '', device: deviceName() })
@@ -103,7 +95,7 @@ export function NotificationSettings({ ready, vapidKey, initial, phones }: Props
     if (!endpoint) return
     setMessage(null)
     startTransition(async () => {
-      const registration = await navigator.serviceWorker.getRegistration(SCOPE)
+      const registration = await clinicWorker()
       await (await registration?.pushManager.getSubscription())?.unsubscribe().catch(() => false)
       const result = await removePushSubscription(endpoint)
       setEndpoint(null)
