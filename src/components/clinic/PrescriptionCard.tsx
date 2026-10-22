@@ -103,7 +103,7 @@ export function PrescriptionCard({
 
   return (
     <section className="space-y-3" aria-label="Prescription">
-      <h2 className="text-lg font-bold text-gray-900">Prescription</h2>
+      <h2 className="hud-heading">Prescription</h2>
 
       {lines.length > 0 && (
         <ol className="space-y-2">

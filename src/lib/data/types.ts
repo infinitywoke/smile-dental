@@ -52,7 +52,7 @@ export type VisitPhoto = {
 }
 
 export type VisitDetail = Visit & {
-  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'review_asked_at'>
+  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'review_asked_at' | 'birth_year'>
   photos: VisitPhoto[]
   linked_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status'> | null
   next_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status' | 'duration_min'> | null

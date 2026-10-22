@@ -69,7 +69,11 @@ export async function getVisitsOn(date: string): Promise<TodayVisit[]> {
   })
 }
 
-export type VisitPageData = VisitDetail & { next_booked_here: boolean }
+export type VisitPageData = VisitDetail & {
+  next_booked_here: boolean
+  // Which of the patient's visits this is (1 for the first)
+  number: number
+}
 
 export async function getVisit(id: string): Promise<VisitPageData> {
   await getDoctor()
@@ -78,7 +82,7 @@ export async function getVisit(id: string): Promise<VisitPageData> {
 
   const { data, error } = await supabase
     .from('visits')
-    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts, review_asked_at), visit_photos (id, caption, storage_path, created_at), visit_recordings (id, storage_path, seconds, created_at)`)
+    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts, review_asked_at, birth_year), visit_photos (id, caption, storage_path, created_at), visit_recordings (id, storage_path, seconds, created_at)`)
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
@@ -89,7 +93,10 @@ export async function getVisit(id: string): Promise<VisitPageData> {
   const patientRow = Array.isArray(patient) ? patient[0] : patient
   const photos = [...(visit_photos ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
-  const { linked: linkedAppointment, next } = await appointmentsOfVisit(id, patientRow.id)
+  const [{ linked: linkedAppointment, next }, upToThis] = await Promise.all([
+    appointmentsOfVisit(id, patientRow.id),
+    supabase.from('visits').select('id', { count: 'exact', head: true }).eq('patient_id', patientRow.id).lte('visit_date', visit.visit_date),
+  ])
 
   // The bucket is private, so photos are shown through short-lived signed links
   let urls: Record<string, string> = {}
@@ -118,6 +125,7 @@ export async function getVisit(id: string): Promise<VisitPageData> {
     next_appointment: next && { id: next.id, starts_at: next.starts_at, status: next.status, duration_min: next.duration_min },
     // The next visit was booked from this visit, so it can be changed from here
     next_booked_here: next?.from_visit_id === id,
+    number: upToThis.count ?? 1,
   }
 }
 

@@ -10,7 +10,7 @@ import { FullScreen, useBackToClose } from './FullScreen'
 // The Cockpit's live parts: worked out on the phone, again and again, and blank until then, so the page
 // as sent and the page in the browser agree
 
-function useNow(everyMs: number): Date | null {
+export function useNow(everyMs: number): Date | null {
   const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
     const tick = () => setNow(new Date())

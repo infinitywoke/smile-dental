@@ -268,7 +268,7 @@ export function SendWhatsApp({
     <section className="space-y-3">
       {visit.photos.length > 0 && (
         <div className="space-y-2">
-          <h2 className="text-lg font-bold text-gray-900">Photos to send</h2>
+          <h2 className="hud-heading">Photos to send</h2>
           {visit.photos.map((photo, index) => (
             <label key={photo.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-gray-200">
               <input type="checkbox" checked={ticked(photo)} disabled={sending.state === 'waiting'}
@@ -306,7 +306,7 @@ export function SendWhatsApp({
       {showPhotoButton && (
         <div className="space-y-2">
           <button type="button" onClick={sharePhotos} disabled={!photosReady && !photoFailed}
-            className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-60">
+            className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC46B] px-5 text-lg font-extrabold text-[#0B2357] shadow-sm hover:bg-[#FFD08A] disabled:opacity-60">
             {photosReady ? <ImageIcon className="h-6 w-6" /> : photoFailed ? <AlertCircle className="h-6 w-6" /> : <Loader2 className="h-6 w-6 animate-spin" />}
             {photosReady
               ? tickedPhotos.length > 1
@@ -357,15 +357,15 @@ export function SendWhatsApp({
             event.preventDefault()
             void recordAndOpen(sending.link)
           }}
-          className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700">
+          className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC46B] px-5 text-lg font-extrabold text-[#0B2357] shadow-sm hover:bg-[#FFD08A]">
           <MessageCircle className="h-6 w-6" /> Open WhatsApp
         </a>
       ) : (
         // The message is only ever built from the server's reply, so this link has no address of its own.
         // Once the photo button shows, sending the message again is the second choice.
         <a key="send" href="#" onClick={send} aria-disabled={busy || !!hold}
-          className={`flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl px-5 text-lg font-semibold shadow-sm aria-disabled:opacity-60 ${
-            showPhotoButton ? 'bg-white text-green-700 ring-1 ring-green-600 hover:bg-green-50' : 'bg-green-600 text-white hover:bg-green-700'
+          className={`flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl px-5 text-lg shadow-sm aria-disabled:opacity-60 ${
+            showPhotoButton ? 'bg-white font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50' : 'bg-[#FFC46B] font-extrabold text-[#0B2357] hover:bg-[#FFD08A]'
           }`}>
           {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <MessageCircle className="h-6 w-6" />}
           {busy ? 'Preparing…' : sending.state === 'waiting' ? 'Try again' : 'Send on WhatsApp'}

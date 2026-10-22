@@ -119,7 +119,7 @@ export function NextVisit({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-bold text-gray-900">Next visit</h2>
+      <h2 className="hud-heading">Next visit</h2>
       {upcoming ? (
         <>
           <div className="flex min-h-14 items-center gap-3 rounded-2xl bg-blue-50 py-1 pl-4 pr-1 ring-1 ring-blue-200">

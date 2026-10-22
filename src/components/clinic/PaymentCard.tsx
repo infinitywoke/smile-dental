@@ -94,7 +94,7 @@ export function PaymentCard({
 
   return (
     <section id="payment" className="scroll-mt-20 space-y-3">
-      <h2 className="text-lg font-bold text-gray-900">Payment</h2>
+      <h2 className="hud-heading">Payment</h2>
       <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
         <div className="space-y-1 text-base">
           {hasBill && <Row label="Total" value={formatRupees(summary.total)} />}
@@ -128,12 +128,12 @@ export function PaymentCard({
             {owed > 0 ? (
               <>
                 <p className="font-semibold text-gray-900">Still due</p>
-                <p className="text-xl font-bold tabular-nums text-red-700">{formatRupees(owed)}</p>
+                <p className="hud-mono text-2xl font-bold text-[var(--hud-amber-text)]">{formatRupees(owed)}</p>
               </>
             ) : owed < 0 ? (
               <>
                 <p className="font-semibold text-gray-900">Advance with us</p>
-                <p className="text-xl font-bold tabular-nums text-green-700">{formatRupees(-owed)}</p>
+                <p className="hud-mono text-2xl font-bold text-[var(--hud-green-text)]">{formatRupees(-owed)}</p>
               </>
             ) : summary.total === 0 && paid === 0 ? (
               <p className="text-lg font-bold text-gray-700">No charge</p>

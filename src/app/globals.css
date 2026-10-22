@@ -30,6 +30,7 @@ body {
   --hud-amber: #F0A63A;
   --hud-amber-text: #8A5A12;
   --hud-green: #22A06B;
+  --hud-green-text: #1D7A55;
   color-scheme: light;
   font-family: var(--font-hud-body), system-ui, sans-serif;
   background-color: var(--hud-bg);
@@ -64,6 +65,7 @@ body {
   --hud-amber: #FFC46B;
   --hud-amber-text: #FFC46B;
   --hud-green: #3DDC97;
+  --hud-green-text: #3DDC97;
   color-scheme: dark;
   --color-white: #0B1A3F;
   --color-gray-50: #050D24;
@@ -133,6 +135,7 @@ body {
     --hud-amber: #FFC46B;
     --hud-amber-text: #FFC46B;
     --hud-green: #3DDC97;
+    --hud-green-text: #3DDC97;
     color-scheme: dark;
     --color-white: #0B1A3F;
     --color-gray-50: #050D24;
@@ -202,6 +205,16 @@ body {
   background-size: 26px 26px;
 }
 .hud-mono { font-family: var(--font-hud-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+/* A section's heading on the Cockpit screens: a small instrument label */
+.hud-heading {
+  font-family: var(--font-hud-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-gray-500);
+}
 /* A QR code stays dark on white in every theme, or phones can't scan it */
 .hud .keep-light { background-color: #FFFFFF; color: #0B2357; }
 /* Game touch: when everyone today has been seen, the ring glows once and keeps a soft halo */

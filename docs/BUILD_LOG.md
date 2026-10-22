@@ -304,6 +304,19 @@ The multi-clinic foundation comes after this. New tables follow the existing own
         - **Lab fees:** Work, Lab, Fee (₹). No table holds these yet: decide whether they become a cost per visit or a fee per treatment for margins. Until then the load counts them and says they aren't loaded, and Rahil adds a lab fee under Costs → Lab when he pays it.
         - **Materials per treatment:** the 35 price-list options, named exactly as the sheet names charges, then Item used and How much per treatment (extra rows for extra items).
 - [ ] **P3c. The HUD for Visit, Patients, Requests and Money.**
+    - **Part 1, Visit (22 Oct),** after board A's Visit screens (`A-Visit.dc.html`, `A-Visit-Light.dc.html`):
+        - **Header:**
+            - the name, then "34 yrs · Visit 3 · Thu, 22 Oct" (`getVisit` now reads the birth year and counts the patient's visits up to this one);
+            - on the right, "IN CHAIR 18:42" ticking in green on the visit's day until it is sent, gone after 3 hours (a visit reopened later);
+            - once sent, "SENT 4:12 PM", or "SEND AGAIN" in amber when the bill changed.
+        - **Progress strip** under the medical alert: Notes · Bill · Paid · Next · Sent.
+            - Each fills amber; Paid fills as the bill is paid, counting a payment still saving, and Sent is half-filled when the bill changed.
+            - A tap scrolls to that part. They are buttons, not `#` links, so Back still leaves the page.
+            - Logic in `src/lib/visit-progress.ts` (unit-tested); `ChairReadout` and `VisitProgress` in `VisitHud.tsx`.
+        - **Section headings** are the Cockpit's instrument labels (`.hud-heading` in `globals.css`: monospace, spaced capitals). The text is unchanged, so the tests and screen readers read the same names.
+        - **Still due** is a large amber readout and an advance a green one (`--hud-green-text`, new, a darker green for text in light).
+        - **Send on WhatsApp**, Open WhatsApp and the photo button are amber like Start visit; the second-choice Send is a plain outline.
+        - **Tests:** `src/lib/visit-progress.test.ts` (6); `visit.spec.ts` now checks that Send is the amber main button again after a bill change. Gates: tsc, 272 unit, lint, build, and all 92 browser tests. One full run hit a network drop to Supabase (`fetch failed`), so its 6 failures and 9 not run were re-run and passed; the only real failure was the old green-button check.
 
 ## Logic fixes (owner's bug: deleting a visit showed an advance)
 - [x] Logic audit (Opus, max): `docs/build/review-logic.md` (25 findings, invariants 1-31, one migration)

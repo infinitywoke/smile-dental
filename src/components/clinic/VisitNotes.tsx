@@ -202,7 +202,7 @@ export function VisitNotes({
 
   return (
     <section className="space-y-2">
-      <label htmlFor="notes" className="block text-lg font-bold text-gray-900">Notes</label>
+      <label htmlFor="notes" className="hud-heading block">Notes</label>
       <RecordNotes visitId={visitId} onSorted={(result) => {
         // Added below anything already typed; he can edit it like any note
         const current = saver.latest()

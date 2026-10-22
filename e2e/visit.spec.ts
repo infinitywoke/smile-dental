@@ -291,7 +291,7 @@ test('a payment changed after Send: "Bill changed – send again" until it is se
   await expect(changed).toBeVisible()
   await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toHaveCount(0)
   // Send is the main button again
-  await expect(visible(page.getByRole('link', { name: 'Send on WhatsApp' }))).toHaveClass(/bg-green-600/)
+  await expect(visible(page.getByRole('link', { name: 'Send on WhatsApp' }))).toHaveClass(/bg-\[#FFC46B\]/)
 
   await page.goto('/app')
   const row = visible(page.getByRole('link').filter({ hasText: patientName }).filter({ hasText: '1 photo' }))

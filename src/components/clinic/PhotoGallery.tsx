@@ -141,7 +141,7 @@ export function PhotoGallery({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-bold text-gray-900">Photos</h2>
+      <h2 className="hud-heading">Photos</h2>
 
       {photos.map((photo, index) => {
         const kind = kindOf(photo)

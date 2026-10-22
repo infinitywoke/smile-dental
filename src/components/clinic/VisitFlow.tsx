@@ -11,6 +11,9 @@ import { paymentsHeldMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
 import { photoKind, type PhotoKind } from '@/lib/visit-status'
+import { patientAge } from '@/lib/patient-fields'
+import { visitProgress, type VisitStepKey } from '@/lib/visit-progress'
+import { ChairReadout, VisitProgress } from './VisitHud'
 import { BillSection, type Save } from './BillTools'
 import { NextVisit } from './NextVisit'
 import { PaymentCard, type SavingPayment } from './PaymentCard'
@@ -98,25 +101,52 @@ export function VisitFlow({
   const showPayment = bill.charges.length > 0 || bill.payments.length > 0 || bill.summary.due > 0
   // A payment tapped a moment ago, before the page has the server's copy: Delete visit counts it too
   const [savingPayment, setSavingPayment] = useState<SavingPayment | null>(null)
-  const heldPayments = savingPayment && !bill.payments.some((p) => p.id === savingPayment.id) ? [...bill.payments, savingPayment] : bill.payments
+  const pendingPayment = savingPayment && !bill.payments.some((p) => p.id === savingPayment.id) ? savingPayment : null
+  const heldPayments = pendingPayment ? [...bill.payments, pendingPayment] : bill.payments
+
+  const age = patientAge(visit.patient)
+  // The progress strip, from what is on the page now (a payment still saving counts)
+  const steps = visitProgress({
+    notes: notesText,
+    charges: bill.charges.length,
+    total: bill.summary.total,
+    paid: bill.summary.paid + (pendingPayment?.amount ?? 0),
+    due: bill.summary.due - (pendingPayment?.amount ?? 0),
+    next: !!visit.next_appointment,
+    sent: !!visit.closed_at,
+    resend: !!visit.resend_needed,
+  })
+  // Paid scrolls to the payment card when there is one
+  const jump = (key: VisitStepKey) => {
+    const id = key === 'paid' ? (showPayment ? 'payment' : 'visit-bill') : `visit-${key}`
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <UndoProvider>
     <div className="space-y-7 pb-4">
       <div className="space-y-3">
-        <div>
-          <Link href={`/app/patients/${visit.patient.id}`} className="flex min-h-12 items-center gap-1 text-2xl font-bold tracking-tight text-gray-900">
-            <h1 className="truncate">{visit.patient.name}</h1>
-            <ChevronRight className="h-6 w-6 shrink-0 text-gray-400" aria-hidden="true" />
-          </Link>
-          <p className="mt-1 text-base text-gray-500">{formatDate(visit.visit_date, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <Link href={`/app/patients/${visit.patient.id}`} className="flex min-h-12 items-center gap-1 text-[26px] font-extrabold tracking-tight text-gray-900">
+              <h1 className="truncate">{visit.patient.name}</h1>
+              <ChevronRight className="h-6 w-6 shrink-0 text-gray-400" aria-hidden="true" />
+            </Link>
+            <p className="text-sm text-gray-500">
+              {[age !== null && `${age} yrs`, `Visit ${visit.number}`, formatDate(visit.visit_date, { weekday: 'short', day: 'numeric', month: 'short' })].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <ChairReadout startedAt={visit.created_at} visitDate={visit.visit_date} sentAt={visit.closed_at ?? null} resend={!!visit.resend_needed} />
         </div>
         <MedicalAlert alerts={visit.patient.medical_alerts} />
+        <VisitProgress steps={steps} onJump={jump} />
       </div>
 
-      <VisitNotes handle={notesRef} visitId={visit.id} initialNotes={visit.notes}
-        listed={visit.photos.length > 0 || bill.charges.length > 0 || bill.payments.length > 0}
-        onSuggestions={setSuggestions} onText={setNotesText} />
+      <div id="visit-notes" className="scroll-mt-4">
+        <VisitNotes handle={notesRef} visitId={visit.id} initialNotes={visit.notes}
+          listed={visit.photos.length > 0 || bill.charges.length > 0 || bill.payments.length > 0}
+          onSuggestions={setSuggestions} onText={setNotesText} />
+      </div>
       {(visit.recordings ?? []).length > 0 && (
         <details className="rounded-xl bg-white px-3 py-1 ring-1 ring-gray-200">
           <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold text-gray-700">
@@ -151,7 +181,9 @@ export function VisitFlow({
         )}
       </div>
 
-      <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} save={save} />
+      <div id="visit-bill" className="scroll-mt-4">
+        <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} save={save} />
+      </div>
 
       {showPayment && (
         <PaymentCard
@@ -164,11 +196,15 @@ export function VisitFlow({
         />
       )}
 
-      <NextVisit visitId={visit.id} patientName={visit.patient.name} upcoming={visit.next_appointment?.starts_at ?? null}
-        upcomingMinutes={visit.next_appointment?.duration_min ?? 40}
-        bookedHere={visit.next_booked_here} save={save} />
+      <div id="visit-next" className="scroll-mt-4">
+        <NextVisit visitId={visit.id} patientName={visit.patient.name} upcoming={visit.next_appointment?.starts_at ?? null}
+          upcomingMinutes={visit.next_appointment?.duration_min ?? 40}
+          bookedHere={visit.next_booked_here} save={save} />
+      </div>
 
-      <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} />
+      <div id="visit-sent" className="scroll-mt-4">
+        <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} />
+      </div>
 
       <DeleteVisit visit={visit} payments={heldPayments} />
     </div>

@@ -51,7 +51,7 @@ export function BillSection({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-bold text-gray-900">Bill</h2>
+      <h2 className="hud-heading">Bill</h2>
       {charges.length > 0 && (
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
           {charges.map((charge) => (
