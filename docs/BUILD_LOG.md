@@ -179,7 +179,7 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
     - Rahil's user guide rewritten for the current app: `../for-dr-rahil/Clinic-OS-User-Guide.pdf` (the old one is in `old-2026-10-10/`).
 - Plan: `docs/build/PLAN-2026-10-next.md` (backups to Google Drive, delete patient, undo/remove, website wording + fallback + abuse guards, WhatsApp-verified holds, patient voice note test, appointment lengths, smart voice notes, extras). Waiting for the owner's go-ahead; built directly by the orchestrator, one item at a time, pushed after each.
 
-#### Agent-ready, notifications, HUD, stock and costs (owner-approved 21 Oct) — **all built 22 Oct; next is the owner's call (see "After P1–P4" below)**
+#### Agent-ready, notifications, HUD, stock and costs (owner-approved 21 Oct) — **all built 22 Oct; now the Quiet Cockpit (below)**
 The owner said "Go" on 21 Oct, with one change: **the 3-second anti-bot rule stays for now.** The orchestrator builds one phase at a time and pushes after each step.
 
 Choices (the plan's recommendations, accepted):
@@ -339,6 +339,38 @@ The multi-clinic foundation comes after this. New tables follow the existing own
 - **Rahil:** fill in `for-dr-rahil/Stock-and-costs-to-fill.xlsx`, then Stock → Load the spreadsheet.
 - **Phone checks** still open: Waves 1–3, the logic fixes, the share sheet, and now the Cockpit Visit, patient, request and Money screens on the OnePlus 13 and Rahil's Poco.
 
+#### Quiet Cockpit (owner's go-ahead 22 Oct) — **resume here**
+The owner's design report ("Minimalist UI and UX Philosophy for Clinic OS": the Quiet Cockpit) is the direction, with three corrections from the review:
+- pay and send in one button only once the next visit is settled;
+- age stays a typed number;
+- light by default instead of switching by the clock.
+
+The owner's market report is background only: its feature ideas go on the discovery-week question list, not the build list.
+
+- [x] **1. Measure (22 Oct, f5b13ee).** The walk-through now runs on a Poco M2 Pro-sized screen with the processor slowed 4× (`TOUR_DEVICE=poco TOUR_CPU=4`). For each screen it records where the main button sits, how many things can be tapped before scrolling, amber, capitals, text under 12 px and the slowest tap. The numbers to beat are in `docs/build/measure-2026-10-22.md`.
+- [x] **Light by default (22 Oct, e51e855; the owner: "OK to test light as default").** With no choice saved, Clinic OS opens light, also on a phone in dark mode; Settings still offers Phone, Light and Dark. Ask Rahil after a few days whether it reads better in the surgery.
+- [x] **2. Design board (22 Oct): https://claude.ai/artifact/LETEaznAY7ajdVBmo8HfHQ.**
+    - Today: now (the real screenshot, whole page) next to Quiet with something waiting (a request, a visit not sent, a patient 8 minutes late, low stock), Quiet on a calm day (no amber at all), and Quiet in dark.
+    - Visit: now (whole page) next to Quiet's first screen (the next step, Collect then Send, in a bar above the bottom bar), Quiet's whole page (about 1.9 screens) and Quiet in dark.
+    - Waiting for the owner's pick, ideally after Rahil sees it on his Poco.
+- [ ] **3a. Calm** (mostly removing):
+    - amber only for a request, running late, unpaid, not sent and low stock;
+    - primary buttons navy in light, near-white in dark;
+    - no streak, no clock;
+    - the ring becomes "3/7 seen";
+    - money hidden on Today until tapped;
+    - no text under 12 px, sentence-case labels.
+- [ ] **3b. Structure:**
+    - Today: the request card only when one is waiting; the next patient with Start visit docked low; the schedule as one list;
+    - the bottom bar becomes Today · Patients · Practice (Money, Costs, Stock, Settings) + Walk-in.
+- [ ] **3c. Visit:**
+    - prescription and photos folded until used;
+    - "Undo" on what the recording added;
+    - his six usual charges as one-tap buttons;
+    - the next step (Collect, then Send) in a bar above the bottom bar;
+    - quick next-visit chips (+3 days, +1 week, +1 month, +6 months).
+- [ ] **After each slice:** re-run the walk-through on the Poco profile and compare with `measure-2026-10-22.md`.
+
 ## Logic fixes (owner's bug: deleting a visit showed an advance)
 - [x] Logic audit (Opus, max): `docs/build/review-logic.md` (25 findings, invariants 1-31, one migration)
 - [x] **Owner's OK, then apply `supabase/logic-fixes-2026-10.sql` live** (applied 15 Oct) (pre-checks done 12 Oct: it deletes 1 loose payment of ₹10,600, the owner's deleted test visit; nothing else to fix). Owner replies "apply the logic fixes". Run it with `npx supabase db query --linked --project-ref pmuecirfwmtsvojxleoq --file supabase/logic-fixes-2026-10.sql`, then verify with the read-only checks at the top of the file.
@@ -391,3 +423,4 @@ The multi-clinic foundation comes after this. New tables follow the existing own
 - 2026-10-15 Builder L1 done (54125a0): findings 1, 3-7, 13, 14, 18-21, 23a; one money rule `patientAccount` (src/lib/billing.ts, sums from the `visit_money` view) used by Today, the patient page, the visit page and the WhatsApp message; Send now prepares (`prepareWhatsapp`) and records the send (`markWhatsappSent`) when WhatsApp opens. Orchestrator review: shortened the record wait on the automatic path to 1.5 s so WhatsApp still opens within Android's few seconds after the tap. Merged. Gates on `main`: tsc, 162 unit, lint, build, **e2e 41/41**; tour all jobs ok, no console errors. Pushed. **All 25 logic-audit findings are fixed** (#25 needs nothing until a Delete patient exists).
 - 2026-10-15 Website: new photo of Dr. Rahil pushed (side photo and its unused setting removed). Owner's answers on the next items recorded in `docs/build/PLAN-2026-10-next.md`; no agents from now on.
 - 2026-10-22 Owner: "resume the build". P3b part 3 ticked (pause live, instant payments pushed). P4 2d: Stock → Load the spreadsheet (9c7771a). The full suite caught a race in Delete visit right after a payment; fixed (168b78a). P3c part 1, the Visit page in the Cockpit look (a5d72a6), and part 2, patient, request and Money screens. Gates on each: tsc, unit (272), lint, build, all 92 browser tests (one run hit a network drop to Supabase; its failures were re-run and passed). Next: the owner's call on the multi-clinic foundation.
+- 2026-10-22 Owner shared two reports (market intelligence; Quiet Cockpit design philosophy) and approved: measure first, then a design board, light as the default to test. Walk-through extended for the Poco (f5b13ee, baseline in `docs/build/measure-2026-10-22.md`); light default (e51e855, all 92 browser tests passed); design board https://claude.ai/artifact/LETEaznAY7ajdVBmo8HfHQ. Next: the owner's pick on the board, then slices 3a–3c.
