@@ -45,6 +45,9 @@ export type StockMove = {
   charge_id: string | null
 }
 
+// What one price-list treatment uses (treatment_materials), matched on the charge's name
+export type TreatmentMaterial = { id: string; treatment_slug: string; charge_description: string; item_id: string; qty: number }
+
 // What expires within this many days is flagged
 export const EXPIRY_WARNING_DAYS = 30
 
@@ -91,6 +94,18 @@ export function parseQty(text: string, { allowZero = false } = {}): number | nul
 
 // A count sets what is on the shelf; the move is the difference (0: it already matches)
 export const countDifference = (onHand: number, counted: number) => Math.round((counted - onHand) * 100) / 100
+
+// What one treatment's materials cost at their last prices; `complete` is false when one has no price yet
+export function materialsCost(uses: { item_id: string; qty: number }[], levels: StockLevel[]): { amount: number; complete: boolean } {
+  let amount = 0
+  let complete = true
+  for (const use of uses) {
+    const price = levels.find((l) => l.item_id === use.item_id)?.last_unit_cost ?? null
+    if (price === null) complete = false
+    else amount += use.qty * price
+  }
+  return { amount: Math.round(amount * 100) / 100, complete }
+}
 
 // One line of an item's history, in words
 export function moveLine(move: Pick<StockMove, 'kind' | 'qty' | 'unit_cost' | 'expires_on' | 'note' | 'charge_id'>, unit: string): string {

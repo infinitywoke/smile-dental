@@ -1,12 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
+import { chargeName, priceListOptions } from '../src/lib/pricing'
 import { addDays, inIndia } from '../src/lib/schedule'
-import { newRunId, signIn, testDb, visible } from './helpers'
+import { cleanRun, createPatient, newPhone, newRunId, signIn, testDb, visible } from './helpers'
 
 // Stock: an item with what is on the shelf; Add stock, Used, Remove and Count on its page; low stock
-// on Today's Cockpit; changing an item and taking it off the list
+// on Today's Cockpit; what a treatment uses, taken off by a visit; changing an item and taking it off the list
 const runId = newRunId()
 const name = `${runId} Composite A2`
+const options = priceListOptions()
+const filling = options.find((o) => o.price.kind === 'fixed' && /fill/i.test(o.treatment)) ?? options.find((o) => o.price.kind === 'fixed')!
 
 test.describe.configure({ mode: 'serial' })
 test.skip(!testLogin, NO_TEST_LOGIN)
@@ -19,8 +22,9 @@ test.beforeAll(async ({ browser }) => {
 })
 
 test.afterAll(async () => {
+  // The patient (with the visit and its charge) first, then the item with its moves and materials
+  await cleanRun(runId)
   const { supabase } = await testDb()
-  // Its moves go with it
   await supabase.from('stock_items').delete().like('name', `${runId}%`)
   await page.close()
 })
@@ -101,6 +105,49 @@ test("low stock shows on Today's Cockpit and leads to the list; Settings is the 
   await visible(page.getByRole('link', { name: 'Settings' })).click()
   await expect(page).toHaveURL(/\/app\/settings$/)
   await expect(visible(page.getByRole('heading', { name: 'Settings' }))).toBeVisible()
+})
+
+test('what a treatment uses: set once, then a visit takes it off stock and removing the charge puts it back', async () => {
+  await page.goto('/app/stock')
+  await visible(page.getByRole('link', { name: 'What each treatment uses' })).click()
+  await expect(page).toHaveURL(/\/app\/stock\/materials$/)
+  await visible(page.getByLabel('Find a treatment')).fill(filling.detail || filling.treatment)
+  await visible(page.getByRole('list', { name: 'Treatments' })).getByRole('button').filter({ hasText: filling.detail || filling.treatment }).first().click()
+
+  const sheet = page.getByRole('dialog', { name: chargeName(filling) })
+  await sheet.getByRole('region', { name: 'Add an item' }).getByRole('button').filter({ hasText: name }).click()
+  await sheet.getByLabel('How many capsules does one use?').fill('1')
+  await sheet.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(sheet.getByRole('region', { name: 'Uses' })).toContainText(name)
+  await expect(sheet.getByRole('region', { name: 'Uses' })).toContainText('1 capsule')
+  await expect(sheet.getByRole('status')).toContainText('Materials ₹120')
+  await sheet.getByRole('button', { name: 'Close' }).click()
+  await expect(sheet).toHaveCount(0)
+
+  await page.goto('/app/stock')
+  await stockRow().click()
+  await expect(visible(page.getByRole('region', { name: 'Treatments that use it' }))).toContainText(chargeName(filling))
+  await expect(onHand().getByText('2 capsules', { exact: true })).toBeVisible()
+
+  // A visit billed that filling: the database takes one off, and gives it back when the charge goes
+  const { supabase } = await testDb()
+  const patientId = await createPatient(`${runId} Materials`, newPhone('7'))
+  const { data: visit, error } = await supabase.from('visits').insert({ patient_id: patientId, visit_date: inIndia(new Date()).date }).select('id').single()
+  if (error) throw error
+  const amount = filling.price.kind === 'fixed' ? filling.price.amount : 1000
+  const { data: charge, error: chargeError } = await supabase.from('visit_charges')
+    .insert({ visit_id: visit.id, patient_id: patientId, description: chargeName(filling), amount, treatment_slug: filling.slug }).select('id').single()
+  if (chargeError) throw chargeError
+  await page.reload()
+  await expect(onHand().getByText('1 capsule', { exact: true })).toBeVisible()
+  const history = visible(page.getByRole('region', { name: 'History' }))
+  const fromVisit = history.getByRole('listitem').filter({ hasText: `Used 1 capsule for ${chargeName(filling)}` })
+  await expect(fromVisit).toContainText('from a visit')
+  await expect(fromVisit.getByRole('button', { name: 'Remove' })).toHaveCount(0)
+
+  await supabase.from('visit_charges').delete().eq('id', charge.id)
+  await page.reload()
+  await expect(onHand().getByText('2 capsules', { exact: true })).toBeVisible()
 })
 
 test('an item can be changed, and taken off the list', async () => {

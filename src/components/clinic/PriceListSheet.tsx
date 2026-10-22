@@ -5,7 +5,7 @@ import { AlertCircle, Loader2, Plus, Search } from 'lucide-react'
 import { addCharge, removeCharge } from '@/lib/actions/billing'
 import { useUndo } from './UndoBar'
 import { parseAmount } from '@/lib/billing'
-import { formatPrice, formatRupees, priceListOptions, type PriceListOption } from '@/lib/pricing'
+import { chargeName as nameOf, formatPrice, formatRupees, priceListOptions, type PriceListOption } from '@/lib/pricing'
 import type { Save, SaveId } from './BillTools'
 import { FullScreen } from './FullScreen'
 
@@ -14,7 +14,6 @@ const inputClass =
 
 const OTHER = 'other'
 const keyOf = (o: PriceListOption) => `${o.slug}|${o.detail}`
-const nameOf = (o: PriceListOption) => (o.detail ? `${o.treatment} – ${o.detail}` : o.treatment)
 
 // The clinic price list, full screen. A fixed price is added with one tap; a range or a formula
 // asks for the agreed amount; "Other charge" asks what for and how much.

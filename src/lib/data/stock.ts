@@ -1,7 +1,7 @@
 import 'server-only'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { stockAlerts, type StockLevel, type StockMove } from '@/lib/stock'
+import { stockAlerts, type StockLevel, type StockMove, type TreatmentMaterial } from '@/lib/stock'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const LEVEL = 'item_id, name, category, unit, low_level, supplier, last_unit_cost, on_hand, next_expiry'
@@ -25,15 +25,16 @@ export async function getStock(): Promise<{ ready: boolean; levels: StockLevel[]
   return { ready: true, levels: (data as LevelRow[]).map(toLevel) }
 }
 
-// One item, with what came in and went out, newest first
-export async function getStockItem(id: string): Promise<{ level: StockLevel; archived: boolean; moves: StockMove[] } | null> {
+// One item, with what came in and went out (newest first) and the treatments that use it
+export async function getStockItem(id: string): Promise<{ level: StockLevel; archived: boolean; moves: StockMove[]; uses: { charge_description: string; qty: number }[] } | null> {
   if (!UUID.test(id)) return null
   await getDoctor()
   const supabase = await createClient()
-  const [level, moves] = await Promise.all([
+  const [level, moves, uses] = await Promise.all([
     supabase.from('stock_levels').select(`${LEVEL}, archived`).eq('item_id', id).maybeSingle(),
     supabase.from('stock_moves').select('id, kind, qty, unit_cost, expires_on, note, moved_at, charge_id')
       .eq('item_id', id).order('moved_at', { ascending: false }).limit(MOVES_SHOWN),
+    supabase.from('treatment_materials').select('charge_description, qty').eq('item_id', id).order('charge_description'),
   ])
   if (level.error || !level.data || moves.error) return null
   const { archived, ...row } = level.data as LevelRow & { archived: boolean }
@@ -41,7 +42,17 @@ export async function getStockItem(id: string): Promise<{ level: StockLevel; arc
     level: toLevel(row),
     archived,
     moves: (moves.data ?? []).map((m) => ({ ...m, qty: Number(m.qty), unit_cost: m.unit_cost === null ? null : Number(m.unit_cost) }) as StockMove),
+    uses: (uses.data ?? []).map((u) => ({ charge_description: u.charge_description as string, qty: Number(u.qty) })),
   }
+}
+
+// What each price-list treatment uses
+export async function getTreatmentMaterials(): Promise<TreatmentMaterial[]> {
+  await getDoctor()
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('treatment_materials').select('id, treatment_slug, charge_description, item_id, qty')
+  if (error) return []
+  return data.map((m) => ({ ...m, qty: Number(m.qty) }) as TreatmentMaterial)
 }
 
 // For the Cockpit: how many things are low or expire soon (null until the stock tables exist)

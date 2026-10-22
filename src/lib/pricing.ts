@@ -16,6 +16,10 @@ export type PriceListOption = {
   price: Price
 }
 
+// What a price-list charge is called on a visit's bill ("Fillings – 3M Z350 Composite"). The
+// materials a treatment uses are matched on this exact name, so both must use this function.
+export const chargeName = (o: Pick<PriceListOption, 'treatment' | 'detail'>) => (o.detail ? `${o.treatment} – ${o.detail}` : o.treatment)
+
 // One amount: plain digits, Indian grouping (1,25,000) or Western grouping (125,000),
 // optionally prefixed with ₹/Rs and followed by "/-". Commas are only accepted in valid
 // positions, so separate numbers can never run together into one.

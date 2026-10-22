@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
+import { ChevronRight, ListChecks, Plus } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getStock } from '@/lib/data/stock'
 import { todayInIndia } from '@/lib/dates'
@@ -40,6 +40,11 @@ async function StockContent() {
       ) : (
         <>
           {summary && <p className="text-base font-semibold text-gray-700" role="status">{summary}</p>}
+          <Link href="/app/stock/materials" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white px-4 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50">
+            <ListChecks className="h-5 w-5 shrink-0 text-[var(--hud-amber-text)]" aria-hidden="true" />
+            <span className="min-w-0 flex-1 text-base font-semibold text-gray-900">What each treatment uses</span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
+          </Link>
           <StockList levels={sortStock(levels, today)} today={today} />
         </>
       )}

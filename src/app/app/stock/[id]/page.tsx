@@ -19,7 +19,7 @@ async function StockItemContent({ params }: PageProps<'/app/stock/[id]'>) {
   const { id } = await params
   const found = await getStockItem(id)
   if (!found) notFound()
-  const { level: s, archived, moves } = found
+  const { level: s, archived, moves, uses } = found
   const today = todayInIndia()
   const low = isLow(s)
   const soon = expiresSoon(s.next_expiry, today)
@@ -53,6 +53,21 @@ async function StockItemContent({ params }: PageProps<'/app/stock/[id]'>) {
       </section>
 
       {!archived && <StockActions itemId={s.item_id} unit={s.unit} onHand={s.on_hand} lastPrice={s.last_unit_cost} />}
+
+      {uses.length > 0 && (
+        <section aria-label="Treatments that use it" className="space-y-2">
+          <h2 className="text-lg font-bold text-gray-900">Treatments that use it</h2>
+          <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
+            {uses.map((u) => (
+              <li key={u.charge_description} className="flex items-center gap-3 px-4 py-3">
+                <span className="min-w-0 flex-1 text-base text-gray-900">{u.charge_description}</span>
+                <span className="hud-mono shrink-0 text-sm font-bold text-gray-900">{qtyWithUnit(u.qty, s.unit)}</span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/app/stock/materials" className="inline-flex min-h-11 items-center text-base font-semibold text-blue-700">Change what treatments use</Link>
+        </section>
+      )}
 
       <section aria-label="History" className="space-y-2">
         <h2 className="text-lg font-bold text-gray-900">History</h2>

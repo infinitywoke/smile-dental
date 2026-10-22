@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countDifference, expiresSoon, isLow, moveLine, parseQty, pluralUnit, qtyWithUnit, sortStock, stockAlerts, type StockLevel } from './stock'
+import { countDifference, expiresSoon, isLow, materialsCost, moveLine, parseQty, pluralUnit, qtyWithUnit, sortStock, stockAlerts, type StockLevel } from './stock'
 
 const level = (name: string, on_hand: number, low_level = 0, next_expiry: string | null = null): StockLevel => ({
   item_id: name, name, category: 'material', unit: 'capsule', low_level, supplier: '', last_unit_cost: null, on_hand, next_expiry,
@@ -64,5 +64,16 @@ describe('amounts in words', () => {
     expect(moveLine({ ...move, kind: 'use', qty: -2 }, 'box')).toBe('Used 2 boxes')
     expect(moveLine({ ...move, kind: 'waste', qty: -1 }, 'box')).toBe('Thrown away 1 box')
     expect(moveLine({ ...move, kind: 'count', qty: -2 }, 'box')).toBe('Counted: 2 boxes fewer than the app had')
+  })
+})
+
+describe('what a treatment’s materials cost', () => {
+  it('adds each item at its last price, and says when a price is missing', () => {
+    const composite = { ...level('Composite', 10), last_unit_cost: 120 }
+    const bond = { ...level('Bond', 5), last_unit_cost: 40 }
+    const gloves = level('Gloves', 50)
+    expect(materialsCost([{ item_id: 'Composite', qty: 1 }, { item_id: 'Bond', qty: 0.5 }], [composite, bond])).toEqual({ amount: 140, complete: true })
+    expect(materialsCost([{ item_id: 'Composite', qty: 1 }, { item_id: 'Gloves', qty: 2 }], [composite, gloves])).toEqual({ amount: 120, complete: false })
+    expect(materialsCost([], [composite])).toEqual({ amount: 0, complete: true })
   })
 })

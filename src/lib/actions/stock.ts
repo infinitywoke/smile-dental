@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { parseAmount } from '@/lib/billing'
+import { chargeName, priceListOptions } from '@/lib/pricing'
 import { countDifference, formatQty, isStockKind, parseQty } from '@/lib/stock'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -140,6 +141,34 @@ export async function removeStockMove(moveId: string): Promise<Result> {
   const { data, error } = await supabase.from('stock_moves').delete().eq('id', moveId).is('charge_id', null).select('id')
   if (error) return failed('Could not remove it. Please try again.')
   if (!data?.length) return failed('This came from a visit. Remove the treatment from that visit instead.')
+  refresh()
+  return { ok: true }
+}
+
+// What one price-list treatment uses: an item and how much. The treatment must be on the price list,
+// named as a visit's bill names it, so adding it to a visit takes the item off stock.
+export async function setTreatmentMaterial(input: { slug: string; description: string; itemId: string; qty: string }): Promise<Result> {
+  const doctor = await getDoctor()
+  if (!UUID.test(input.itemId) || !priceListOptions().some((o) => o.slug === input.slug && chargeName(o) === input.description)) return failed(TRY_AGAIN)
+  const qty = parseQty(input.qty)
+  if (qty === null) return failed('Please write how much one treatment uses, like 1 or 0.5.')
+  const supabase = await createClient()
+  const { error } = await supabase.from('treatment_materials').upsert(
+    { owner_id: doctor.id, treatment_slug: input.slug, charge_description: input.description, item_id: input.itemId, qty },
+    { onConflict: 'owner_id,treatment_slug,charge_description,item_id' },
+  )
+  if (error) return failed(TRY_AGAIN)
+  refresh()
+  return { ok: true }
+}
+
+// The treatment no longer takes this item off stock (what it took before stays taken)
+export async function removeTreatmentMaterial(id: string): Promise<Result> {
+  await getDoctor()
+  if (!UUID.test(id)) return failed(TRY_AGAIN)
+  const supabase = await createClient()
+  const { error } = await supabase.from('treatment_materials').delete().eq('id', id)
+  if (error) return failed('Could not remove it. Please try again.')
   refresh()
   return { ok: true }
 }
