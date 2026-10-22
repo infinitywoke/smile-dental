@@ -107,7 +107,7 @@ test('Practice holds Money, Costs, Stock and Settings; the look is light until c
   expect(await page.locator('#hud-root').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(7, 21, 52)')
 })
 
-test('the Visit: a usual charge is one tap with Undo, the next visit can be a month on, and the next step stays in reach: collect, then send', async ({ page }) => {
+test('the Visit: a usual charge is one tap with Undo, the next visit can be months on from the calendar, and the next step stays in reach: collect, then send', async ({ page }) => {
   const phone = newPhone('7')
   const patientId = await createPatient(`${runId} Quick`, phone)
   await signIn(page)
@@ -136,24 +136,30 @@ test('the Visit: a usual charge is one tap with Undo, the next visit can be a mo
   await chip.click()
   await expect.poll(charges).toEqual([amount])
 
-  // The next visit a month on, not a week
-  const gaps = visible(page.getByRole('group', { name: 'When' }))
-  await expect(gaps.getByRole('button', { name: '+1 week' })).toHaveAttribute('aria-pressed', 'true')
-  const suggested = visible(page.getByText(/^Suggested: /))
-  const inAWeek = (await suggested.textContent())!
-  await gaps.getByRole('button', { name: '+1 month' }).click()
-  await expect(gaps.getByRole('button', { name: '+1 month' })).toHaveAttribute('aria-pressed', 'true')
-  await expect(suggested).toBeVisible({ timeout: 30_000 })
-  await expect(suggested).not.toHaveText(inAWeek)
-  await visible(page.getByRole('button', { name: 'Book it' })).click()
+  // The suggestion is a week on; a date further away comes from the month calendar
+  await expect(visible(page.getByText(/^Suggested: /))).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('group', { name: 'When' })).toHaveCount(0)
+  await visible(page.getByRole('button', { name: 'Pick another date' })).click()
+  const picker = page.getByRole('dialog', { name: 'Next visit' })
+  const month = picker.getByRole('combobox', { name: 'Month', exact: true })
+  const next = await month.locator('option').nth(2).getAttribute('value')
+  await month.selectOption(next!)
+  // The first open day of that month with a free time
+  const days = picker.getByRole('group', { name: /^Days of / }).getByRole('button', { disabled: false })
+  for (let i = 0; i < (await days.count()); i++) {
+    await days.nth(i).click()
+    await picker.getByText('Checking availability…').waitFor({ state: 'detached' }).catch(() => {})
+    if (await picker.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)/ }).count()) break
+  }
+  await picker.getByRole('button', { name: /^\d{1,2}:\d{2} (AM|PM)/ }).first().click()
+  await expect(picker).toHaveCount(0)
   let startsAt = ''
   await expect.poll(async () => {
     startsAt = (await supabase.from('appointments').select('starts_at').eq('from_visit_id', visitId).eq('status', 'booked')).data?.[0]?.starts_at ?? ''
     return startsAt
   }).not.toBe('')
-  const daysOn = (Date.parse(inIndia(startsAt).date) - Date.parse(inIndia(new Date()).date)) / 86_400_000
-  expect(daysOn).toBeGreaterThanOrEqual(30)
-  expect(daysOn).toBeLessThanOrEqual(40)
+  // Booked in the month two on from this one
+  expect(inIndia(startsAt).date.slice(0, 7)).toBe(next)
 
   // Up at the notes, the bar offers to collect what is due
   await page.evaluate(() => window.scrollTo(0, 0))

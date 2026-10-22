@@ -12,10 +12,11 @@ export function WhenPicker({
   length,
   onLength,
   lengthLink,
-  day,
+  day = '',
   note,
-  prev,
-  next,
+  prev = null,
+  next = null,
+  dayPicker,
   children,
 }: {
   length: number
@@ -23,25 +24,29 @@ export function WhenPicker({
   // On a page that reloads with ?len=: its address without it, and the length that needs none
   lengthLink?: { path: string; defaultLength: number }
   // The day as shown ("Today, Thu, 22 Oct")
-  day: string
+  day?: string
   // A word under it ("Day requested")
   note?: string | null
-  prev: DayStep
-  next: DayStep
+  prev?: DayStep
+  next?: DayStep
+  // A month calendar instead of the day arrows (the next visit, which may be months away)
+  dayPicker?: ReactNode
   // The day's times, or why there are none
   children: ReactNode
 }) {
   return (
     <div className="space-y-4">
       <LengthPicker key={length} value={length} onChange={onLength} linkTo={lengthLink} />
-      <div className="flex items-center justify-between">
-        <DayButton step={prev} label="Previous day" icon={<ChevronLeft className="h-6 w-6" />} />
-        <div className="text-center">
-          <p className="text-base font-bold text-gray-900">{day}</p>
-          {note && <p className="text-xs font-semibold text-amber-700">{note}</p>}
+      {dayPicker ?? (
+        <div className="flex items-center justify-between">
+          <DayButton step={prev} label="Previous day" icon={<ChevronLeft className="h-6 w-6" />} />
+          <div className="text-center">
+            <p className="text-base font-bold text-gray-900">{day}</p>
+            {note && <p className="text-xs font-semibold text-amber-700">{note}</p>}
+          </div>
+          <DayButton step={next} label="Next day" icon={<ChevronRight className="h-6 w-6" />} />
         </div>
-        <DayButton step={next} label="Next day" icon={<ChevronRight className="h-6 w-6" />} />
-      </div>
+      )}
       {children}
     </div>
   )

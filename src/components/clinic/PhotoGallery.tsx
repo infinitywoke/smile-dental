@@ -6,7 +6,7 @@ import { addVisitPhoto, deleteVisitPhoto } from '@/lib/actions/visits'
 import type { VisitPhoto } from '@/lib/data/types'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImage } from '@/lib/resize-image'
-import { PHOTO_BUCKET, PHOTO_KINDS, photoLabel, type PhotoKind } from '@/lib/visit-status'
+import { PHOTO_BUCKET, PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
 import { useBackToClose } from './FullScreen'
 
 // A photo that failed to upload is tried again this often (and as soon as the phone is back online)
@@ -30,12 +30,13 @@ type Uploading = { key: string; file: File; preview: string; failed: boolean }
 export type UploadCounts = { uploading: number; failed: number }
 
 // Photos upload the moment they are taken or picked, and appear on the visit.
-// Under each one, a tap marks it Prescription, X-ray or Other.
+// Under each one, a tap marks it Prescription, X-ray or Other (and he can type what an Other one is).
 export function PhotoGallery({
   visitId,
   doctorId,
   photos,
   kindOf,
+  nameOf,
   onKind,
   onUploads,
   sends,
@@ -45,7 +46,9 @@ export function PhotoGallery({
   doctorId: string
   photos: VisitPhoto[]
   kindOf: (photo: VisitPhoto) => PhotoKind | null
-  onKind: (photo: VisitPhoto, kind: PhotoKind) => void
+  // What a photo is called ("Prescription", or the name he typed for an Other one, else "Photo")
+  nameOf: (photo: VisitPhoto) => string
+  onKind: (photo: VisitPhoto, kind: PhotoKind, name?: string) => void
   // Told whenever the photos still on their way change, so Send on WhatsApp can wait for them
   onUploads: (counts: UploadCounts) => void
   // Whether a photo goes with the WhatsApp message, and the tick that changes it (none without a number)
@@ -152,13 +155,14 @@ export function PhotoGallery({
 
       {photos.map((photo, index) => {
         const kind = kindOf(photo)
+        const name = nameOf(photo)
         const url = urlOf(photo)
         return (
           <div key={photo.id} className="space-y-2 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-gray-200">
             <button type="button" onClick={() => openPhoto(photo)} className="block w-full overflow-hidden rounded-xl bg-gray-100">
               {url ? (
                 // eslint-disable-next-line @next/next/no-img-element -- signed link from private storage
-                <img src={url} alt={`Photo ${index + 1}${kind ? `: ${kind}` : ''}`} className="h-44 w-full object-cover"
+                <img src={url} alt={`Photo ${index + 1}${kind ? `: ${name}` : ''}`} className="h-44 w-full object-cover"
                   onError={() => photo.url && photo.url !== url && setShown((s) => ({ ...s, [photo.id]: photo.url! }))} />
               ) : (
                 <span className="flex h-44 items-center justify-center text-sm text-gray-500">Photo unavailable</span>
@@ -166,7 +170,7 @@ export function PhotoGallery({
             </button>
             <div className="grid grid-cols-3 gap-2" role="group" aria-label={`Photo ${index + 1} is a`}>
               {PHOTO_KINDS.map((option) => (
-                <button key={option} type="button" aria-pressed={kind === option} onClick={() => onKind(photo, option)}
+                <button key={option} type="button" aria-pressed={kind === option} onClick={() => kind !== option && onKind(photo, option)}
                   className={`h-12 rounded-xl px-1 text-sm font-semibold ring-1 ring-inset transition-colors ${
                     kind === option ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'
                   }`}>
@@ -174,11 +178,14 @@ export function PhotoGallery({
                 </button>
               ))}
             </div>
+            {kind === 'Other' && (
+              <OtherName key={`${photo.id}-${name}`} index={index} name={name === 'Photo' ? '' : name} onSave={(typed) => onKind(photo, 'Other', typed)} />
+            )}
             {sends && onSends && (
               <label className="flex min-h-12 cursor-pointer items-center gap-3 px-2">
                 <input type="checkbox" checked={sends(photo)} onChange={(e) => onSends(photo, e.target.checked)}
                   className="h-6 w-6 shrink-0 rounded border-gray-300 text-blue-600" />
-                <span className="text-base text-gray-900">{photoLabel(kind)} {index + 1}: send on WhatsApp</span>
+                <span className="text-base text-gray-900">{name} {index + 1}: send on WhatsApp</span>
               </label>
             )}
           </div>
@@ -279,5 +286,22 @@ function PhotoViewer({ photo, url, onClose }: { photo: VisitPhoto; url: string |
         </button>
       </div>
     </div>
+  )
+}
+
+// What an Other photo is, in his words ("Lab slip"); saved with Save or the keyboard's Enter
+function OtherName({ index, name, onSave }: { index: number; name: string; onSave: (name: string) => void }) {
+  const [text, setText] = useState(name)
+  const changed = text.trim() !== name
+  return (
+    <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (changed) onSave(text) }}>
+      <input value={text} onChange={(e) => setText(e.target.value)} maxLength={40} enterKeyHint="done"
+        placeholder="What is it? e.g. lab slip" aria-label={`Photo ${index + 1}: what is it?`}
+        className="block min-h-12 min-w-0 flex-1 rounded-xl border-0 px-3 text-base ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-600" />
+      <button type="submit" disabled={!changed}
+        className="min-h-12 shrink-0 rounded-xl bg-blue-600 px-4 text-base font-semibold text-white disabled:opacity-40">
+        Save
+      </button>
+    </form>
   )
 }

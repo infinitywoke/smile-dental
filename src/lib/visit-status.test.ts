@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isEmptyVisit, photoKind, visitStatus } from './visit-status'
+import { isEmptyVisit, otherName, photoCaption, photoKind, photoLabel, visitStatus } from './visit-status'
 
 describe('visitStatus', () => {
   const open = { closedAt: null, total: 0, paid: 0, due: 0 }
@@ -56,5 +56,19 @@ describe('photoKind', () => {
     expect(photoKind('Other')).toBe('Other')
     expect(photoKind('')).toBeNull()
     expect(photoKind('Smile before')).toBeNull()
+    // An "Other" photo he named stays Other, even when the name sounds like an X-ray
+    expect(photoKind('Other: OPG')).toBe('Other')
+    expect(otherName('Other: OPG')).toBe('OPG')
+    expect(otherName('Other')).toBeNull()
+    expect(otherName('Prescription')).toBeNull()
+  })
+
+  it('stores and names an "Other" photo by what he typed', () => {
+    expect(photoCaption('Other', '  lab   slip ')).toBe('Other: lab slip')
+    expect(photoCaption('Other', '')).toBe('Other')
+    expect(photoCaption('Prescription', 'ignored')).toBe('Prescription')
+    expect(photoLabel('Other', 'Lab slip')).toBe('Lab slip')
+    expect(photoLabel('Other', null)).toBe('Photo')
+    expect(photoLabel('X-ray', 'ignored')).toBe('X-ray')
   })
 })

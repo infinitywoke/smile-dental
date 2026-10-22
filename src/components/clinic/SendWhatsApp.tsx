@@ -73,6 +73,7 @@ export type SendHandle = { send: () => void; reset: () => void }
 export function SendWhatsApp({
   visit,
   kindOf,
+  nameOf,
   uploads,
   whenSaved,
   handle,
@@ -81,6 +82,8 @@ export function SendWhatsApp({
 }: {
   visit: VisitDetail
   kindOf: (photo: VisitPhoto) => PhotoKind | null
+  // What a photo is called in the files and the message ("Prescription", the name he typed, "Photo")
+  nameOf: (photo: VisitPhoto) => string
   // Photos not on the visit yet: Send waits for them (or for him to remove them)
   uploads: UploadCounts
   // Resolves once every save tapped before Send has reached the server
@@ -153,7 +156,7 @@ export function SendWhatsApp({
       }
       return
     }
-    const labels = tickedPhotos.map((p) => photoLabel(kindOf(p)))
+    const labels = tickedPhotos.map((p) => nameOf(p))
     const date = formatDate(visit.visit_date)
     // "Prescription-12-Oct-2026.jpg"; repeats are numbered ("X-ray-2-12-Oct-2026.jpg")
     const seen = new Map<string, number>()
@@ -161,7 +164,8 @@ export function SendWhatsApp({
       const n = (seen.get(labels[i]) ?? 0) + 1
       seen.set(labels[i], n)
       const type = blob!.type.startsWith('image/') ? blob!.type : 'image/jpeg'
-      const name = `${labels[i]}${n > 1 ? ` ${n}` : ''} ${date}`.replace(/\s+/g, '-')
+      // A name he typed may hold any character: keep letters and numbers only
+      const name = `${labels[i]}${n > 1 ? ` ${n}` : ''} ${date}`.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '')
       return new File([blob!], `${name}.${extensionOf(type)}`, { type })
     })
     // The caption: "Prescription · Smile Dental Clinic · 12 Oct 2026"
@@ -210,7 +214,7 @@ export function SendWhatsApp({
         payments: data.payments,
         summary: data.summary,
         nextAppointment: data.nextAppointment,
-        photos: tickedPhotos.flatMap((p) => (photoLinks[p.id] ? [{ label: photoLabel(kindOf(p)), url: photoLinks[p.id] }] : [])),
+        photos: tickedPhotos.flatMap((p) => (photoLinks[p.id] ? [{ label: nameOf(p), url: photoLinks[p.id] }] : [])),
       }),
     )
 

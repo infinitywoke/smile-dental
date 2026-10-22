@@ -11,7 +11,7 @@ import { getNextVisitSuggestion } from '@/lib/data/next-visit'
 import { MAX_PHOTOS_TO_SEND, paymentsHeldMessage } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { DEFAULT_LENGTH, clinicStartOf, isLength, lengthLabel } from '@/lib/schedule'
-import { PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
+import { PHOTO_KINDS, photoCaption, type PhotoKind } from '@/lib/visit-status'
 import { cancelledMessage, confirmationMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -64,11 +64,12 @@ export async function addVisitPhoto(visitId: string, path: string): Promise<Resu
 }
 
 // One tap under a photo: Prescription, X-ray or Other (stored as the caption)
-export async function setPhotoKind(photoId: string, kind: PhotoKind): Promise<Result> {
+// An "Other" photo can carry the name he typed ("Lab slip")
+export async function setPhotoKind(photoId: string, kind: PhotoKind, name?: string | null): Promise<Result> {
   await getDoctor()
   if (!UUID.test(photoId) || !PHOTO_KINDS.includes(kind)) return { error: 'Invalid photo.' }
   const supabase = await createClient()
-  const { data, error } = await supabase.from('visit_photos').update({ caption: kind }).eq('id', photoId).select('id')
+  const { data, error } = await supabase.from('visit_photos').update({ caption: photoCaption(kind, name) }).eq('id', photoId).select('id')
   if (error || data.length === 0) return { error: 'Could not save that. Please try again.' }
   refreshClinicScreens()
   return {}

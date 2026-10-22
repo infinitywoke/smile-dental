@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import { getScheduleForDate } from '@/lib/actions/appointments'
 import type { DaySchedule } from '@/lib/data/appointments'
-import { DEFAULT_LENGTH, addDays, formatDay } from '@/lib/schedule'
+import { DEFAULT_LENGTH, addDays, formatDay, isClosedDay } from '@/lib/schedule'
+import { MonthCalendar } from './MonthCalendar'
 import { SlotGrid } from './SlotGrid'
 import { WhenPicker } from './WhenPicker'
 
-// How long, the day, and that day's free times (the same picker as every booking screen): the time
+// How long, the day from a month calendar (up to a year ahead), and that day's free times: the time
 // picked is handed back
 export function NextVisitPicker({
   startDate,
@@ -53,15 +54,16 @@ export function NextVisitPicker({
     <WhenPicker
       length={minutes}
       onLength={onMinutes}
-      day={formatDay(date)}
-      prev={date > minDate ? { onClick: () => setDate(addDays(date, -1)) } : null}
-      next={{ onClick: () => setDate(addDays(date, 1)) }}
+      dayPicker={<MonthCalendar selected={date} minDate={minDate} maxDate={addDays(minDate, 365)} isClosed={isClosedDay} onSelect={setDate} />}
     >
+      <p className="text-base font-bold text-gray-900">Free times on {formatDay(date)}</p>
       {failed && <p className="text-sm text-red-700">Could not load times. Check the connection and try again.</p>}
       {loading && <p className="text-sm text-gray-500">Checking availability…</p>}
       {schedule && !loading && (
         schedule.closed ? (
           <p className="rounded-xl bg-gray-100 p-3 text-center text-sm text-gray-600">The clinic is closed on Fridays.</p>
+        ) : schedule.dayOff ? (
+          <p className="rounded-xl bg-gray-100 p-3 text-center text-sm text-gray-600">This day is closed in your calendar.</p>
         ) : free.length === 0 ? (
           <p className="rounded-xl bg-gray-100 p-3 text-center text-sm text-gray-600">Nothing free this day.</p>
         ) : (

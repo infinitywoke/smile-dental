@@ -31,14 +31,29 @@ export const PHOTO_BUCKET = 'visit-photos'
 export const PHOTO_KINDS = ['Prescription', 'X-ray', 'Other'] as const
 export type PhotoKind = (typeof PHOTO_KINDS)[number]
 
-// What a photo is called on screen and in WhatsApp: "Prescription", "X-ray", or just "Photo"
-export const photoLabel = (kind: PhotoKind | null) => (kind === 'Prescription' || kind === 'X-ray' ? kind : 'Photo')
+// What a photo is called on screen and in WhatsApp: "Prescription", "X-ray", the name he typed for an
+// "Other" photo ("Lab slip"), or just "Photo"
+export const photoLabel = (kind: PhotoKind | null, name?: string | null) =>
+  kind === 'Prescription' || kind === 'X-ray' ? kind : kind === 'Other' && name ? name : 'Photo'
 
-// Reads a caption back as a kind (older photos have typed captions)
+// The caption a photo's kind is stored as; an "Other" photo keeps the name he typed ("Other: Lab slip")
+export function photoCaption(kind: PhotoKind, name?: string | null): string {
+  const typed = (name ?? '').trim().replace(/\s+/g, ' ').slice(0, 40)
+  return kind === 'Other' && typed ? `Other: ${typed}` : kind
+}
+
+// Reads a caption back as a kind (older photos have typed captions). "Other: …" stays Other, whatever
+// he typed after it.
 export function photoKind(caption: string | null | undefined): PhotoKind | null {
   const text = (caption ?? '').trim()
+  if (/^other\b/i.test(text)) return 'Other'
   if (/prescription|\brx\b/i.test(text)) return 'Prescription'
   if (/x-?ray|opg|iopa|\bct\b|scan/i.test(text)) return 'X-ray'
-  if (/^other$/i.test(text)) return 'Other'
   return null
+}
+
+// The name he typed for an "Other" photo ("Other: Lab slip" is "Lab slip"), else null
+export function otherName(caption: string | null | undefined): string | null {
+  const match = /^other\s*:\s*(.+)$/i.exec((caption ?? '').trim())
+  return match ? match[1].trim() : null
 }

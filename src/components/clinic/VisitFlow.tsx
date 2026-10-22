@@ -10,7 +10,7 @@ import { deleteVisit, setPhotoKind } from '@/lib/actions/visits'
 import { paymentsHeldMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
 import { DEFAULT_LENGTH, formatTimeOf, formatWhen } from '@/lib/schedule'
-import { photoKind, type PhotoKind } from '@/lib/visit-status'
+import { otherName, photoCaption, photoKind, photoLabel, type PhotoKind } from '@/lib/visit-status'
 import { patientAge } from '@/lib/patient-fields'
 import type { UsualCharge } from '@/lib/usual-charges'
 import { ChairReadout } from './VisitHud'
@@ -83,22 +83,23 @@ export function VisitFlow({
   // Photos still uploading or failed: Send waits for them
   const [uploads, setUploads] = useState<UploadCounts>({ uploading: 0, failed: 0 })
 
-  // A photo's kind shows at once; the server catches up
-  const [kinds, setKinds] = useState<Record<string, PhotoKind>>({})
+  // A photo's kind (and the name he typed for an "Other" one) shows at once; the server catches up
+  const [captions, setCaptions] = useState<Record<string, string>>({})
   const [kindError, setKindError] = useState<string | null>(null)
-  const kindOf = useCallback((photo: VisitPhoto) => kinds[photo.id] ?? photoKind(photo.caption), [kinds])
+  const kindOf = useCallback((photo: VisitPhoto) => photoKind(captions[photo.id] ?? photo.caption), [captions])
+  const nameOf = useCallback((photo: VisitPhoto) => photoLabel(kindOf(photo), otherName(captions[photo.id] ?? photo.caption)), [captions, kindOf])
   // Which photos go with the WhatsApp message: prescriptions unless he unticks them, any other he ticks
   const [ticks, setTicks] = useState<Record<string, boolean>>({})
   const sends = useCallback((photo: VisitPhoto) => ticks[photo.id] ?? kindOf(photo) === 'Prescription', [ticks, kindOf])
-  const markKind = async (photo: VisitPhoto, kind: PhotoKind) => {
-    const before = kinds[photo.id]
+  const markKind = async (photo: VisitPhoto, kind: PhotoKind, name?: string) => {
+    const before = captions[photo.id]
     setKindError(null)
-    setKinds((k) => ({ ...k, [photo.id]: kind }))
+    setCaptions((c) => ({ ...c, [photo.id]: photoCaption(kind, name) }))
     try {
-      const result = await save(() => setPhotoKind(photo.id, kind))
+      const result = await save(() => setPhotoKind(photo.id, kind, name))
       if (result.error) throw new Error(result.error)
     } catch {
-      setKinds((k) => {
+      setCaptions((k) => {
         const copy = { ...k }
         if (before) copy[photo.id] = before
         else delete copy[photo.id]
@@ -185,7 +186,7 @@ export function VisitFlow({
       <PrescriptionCard notes={notesText} edit={editNotes} patientName={visit.patient.name} visitDate={visit.visit_date} medicines={medicines} />
 
       <div className="space-y-2">
-        <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} onKind={markKind} onUploads={setUploads}
+        <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} nameOf={nameOf} onKind={markKind} onUploads={setUploads}
           sends={visit.patient.phone ? sends : undefined}
           onSends={(photo, send) => { setTicks((t) => ({ ...t, [photo.id]: send })); sendRef.current?.reset() }} />
         {kindError && (
@@ -225,7 +226,7 @@ export function VisitFlow({
       </div>
 
       <div id="visit-sent" className="scroll-mt-4">
-        <SendWhatsApp visit={visit} kindOf={kindOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
+        <SendWhatsApp visit={visit} kindOf={kindOf} nameOf={nameOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
       </div>
 
       <DeleteVisit visit={visit} payments={heldPayments} />

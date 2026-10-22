@@ -80,21 +80,27 @@ test('notes save by themselves', async () => {
   await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(notes)
 })
 
-test('a photo uploads by itself and is marked Prescription with one tap', async () => {
+test('a photo uploads by itself; Other asks what it is; Prescription is one tap', async () => {
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), visible(page.getByRole('button', { name: 'Gallery' })).click()])
   await chooser.setFiles(fixturePhoto)
   await expect(visible(page.getByRole('img', { name: /^Photo 1/ }))).toBeVisible({ timeout: 30_000 })
   await expect(visible(page.getByText('Uploading…'))).toHaveCount(0)
 
+  const { supabase } = await testDb()
+  const captions = async () => (await supabase.from('visit_photos').select('caption').eq('visit_id', visitId)).data?.map((p) => p.caption)
+
+  // Other asks what it is, and goes by that name
+  await visible(page.getByRole('button', { name: 'Other', exact: true })).click()
+  await visible(page.getByLabel('Photo 1: what is it?')).fill('Lab slip')
+  await visible(page.getByRole('button', { name: 'Save', exact: true })).click()
+  await expect.poll(captions).toEqual(['Other: Lab slip'])
+  await expect(visible(page.getByRole('checkbox', { name: 'Lab slip 1: send on WhatsApp' }))).not.toBeChecked()
+
   await visible(page.getByRole('button', { name: 'Prescription', exact: true })).click()
   await expect(visible(page.getByRole('button', { name: 'Prescription', exact: true }))).toHaveAttribute('aria-pressed', 'true')
   // Ticked to send by default
   await expect(visible(page.getByRole('checkbox', { name: 'Prescription 1' }))).toBeChecked()
-
-  const { supabase } = await testDb()
-  await expect
-    .poll(async () => (await supabase.from('visit_photos').select('caption').eq('visit_id', visitId)).data?.map((p) => p.caption))
-    .toEqual(['Prescription'])
+  await expect.poll(captions).toEqual(['Prescription'])
 })
 
 test('one tap on the price list adds a charge; Other charge asks what for and how much', async () => {

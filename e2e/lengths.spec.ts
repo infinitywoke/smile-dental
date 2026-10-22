@@ -91,13 +91,14 @@ test('a 45-minute next visit can be booked from the visit', async () => {
   await page.goto(`/app/visits/${visitId}`)
   for (let i = 0; i < 3; i++) await visible(page.getByRole('button', { name: '5 minutes longer' })).click()
   await expect(length()).toHaveText('45 min')
-  await visible(page.getByRole('button', { name: 'Pick another time' })).click()
+  await visible(page.getByRole('button', { name: 'Pick another date' })).click()
   const picker = page.getByRole('dialog', { name: 'Next visit' })
   // The same length in the picker
   await expect(picker.locator('output[aria-label="Length"]')).toHaveText('45 min')
-  // Late in the day nothing may be left today: look at the next days
-  for (let i = 0; i < 4 && (await picker.getByRole('button', { name: time }).count()) === 0; i++) {
-    await picker.getByRole('button', { name: 'Next day' }).click()
+  // It opens on the suggested day; if that has nothing, the next days in the calendar
+  const days = picker.getByRole('group', { name: /^Days of / }).getByRole('button', { disabled: false })
+  for (let i = 0; i < 6 && (await picker.getByRole('button', { name: time }).count()) === 0; i++) {
+    await days.nth(i).click()
     await picker.getByText('Checking availability…').waitFor({ state: 'detached' }).catch(() => {})
   }
   await picker.getByRole('button', { name: time }).first().click()

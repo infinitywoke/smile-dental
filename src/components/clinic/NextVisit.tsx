@@ -12,11 +12,10 @@ import type { Save } from './BillTools'
 import { FullScreen, useBackToClose } from './FullScreen'
 import { NextVisitPicker } from './NextVisitPicker'
 import { LengthPicker } from './LengthPicker'
-import { NEXT_VISIT_GAPS } from '@/lib/next-visit'
 
-// Next visit: "None" unless the doctor books one. One tap books the suggested time;
-// "Pick another time" opens the day's free times. An appointment already coming up is shown instead,
-// with "Change" when it was booked from this visit.
+// Next visit: "None" unless the doctor books one. One tap books the suggested time (a week on, or what
+// the recording heard); "Pick another date" opens a month calendar and that day's free times. An
+// appointment already coming up is shown instead, with "Change" when it was booked from this visit.
 export function NextVisit({
   visitId,
   patientName,
@@ -49,8 +48,6 @@ export function NextVisit({
     setSuggestion(null)
     setNotesNext(null)
   }
-  // How far ahead to look: a week unless he picks another gap
-  const [days, setDays] = useState(7)
   const suggestionId = useId()
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -64,13 +61,13 @@ export function NextVisit({
   useEffect(() => {
     if (upcoming) return
     let cancelled = false
-    suggestNextVisit(visitId, minutes, days)
+    suggestNextVisit(visitId, minutes)
       .then((instant) => !cancelled && setSuggestion(instant))
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [visitId, upcoming, minutes, days])
+  }, [visitId, upcoming, minutes])
 
   // Books (or moves) the next visit. From the picker, it closes first (through its history entry).
   // Once the visit's WhatsApp has gone, the patient has the old time (or none), so WhatsApp opens
@@ -160,15 +157,6 @@ export function NextVisit({
         <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
           <p className="text-base text-gray-700">None</p>
           <LengthPicker key={minutes} value={minutes} onChange={chooseLength} />
-          <div role="group" aria-label="When" className="grid grid-cols-4 gap-1.5">
-            {NEXT_VISIT_GAPS.map((gap) => (
-              <button key={gap.days} type="button" aria-pressed={!notesNext && days === gap.days}
-                onClick={() => { setDays(gap.days); setSuggestion(null); setNotesNext(null) }}
-                className={`min-h-11 whitespace-nowrap rounded-full px-0.5 text-[13px] font-semibold ring-1 ring-inset ${!notesNext && days === gap.days ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'}`}>
-                {gap.label}
-              </button>
-            ))}
-          </div>
           {cancelUrl && (
             <a href={cancelUrl}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-300">
@@ -196,7 +184,7 @@ export function NextVisit({
             )}
             <button type="button" onClick={picker.show} disabled={pending}
               className="flex min-h-12 w-full items-center justify-center rounded-xl px-3 text-base font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
-              Pick another time
+              Pick another date
             </button>
           </div>
         </div>
