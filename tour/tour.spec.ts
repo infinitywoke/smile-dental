@@ -12,20 +12,35 @@ import { cleanTestAccount, makeRequest as makeTestRequest, stubShareSheet } from
 // Runs as the test account; everything it makes is deleted at the start and the end.
 
 test.skip(!testLogin, NO_TEST_LOGIN)
-test.use({
-  viewport: { width: 412, height: 905 },
-  deviceScaleFactor: 2,
-  isMobile: true,
-  hasTouch: true,
-  userAgent: 'Mozilla/5.0 (Linux; Android 15; CPH2649) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
-})
+
+// The phone to walk on. TOUR_DEVICE=poco is Dr. Rahil's Poco M2 Pro (2020): 1080 x 2400 at 2.75, so 393 CSS px
+// wide and about 800 tall in Chrome. TOUR_CPU=4 slows the processor four times, the usual stand-in for a
+// mid-range phone. The default is the owner's OnePlus 13 at full speed.
+const DEVICES = {
+  oneplus: {
+    name: 'OnePlus 13 size (412x905 CSS px), Android 15 Chrome UA, touch',
+    viewport: { width: 412, height: 905 }, deviceScaleFactor: 2,
+    userAgent: 'Mozilla/5.0 (Linux; Android 15; CPH2649) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+  },
+  poco: {
+    name: 'Poco M2 Pro size (393x800 CSS px), Android 11 Chrome UA, touch',
+    viewport: { width: 393, height: 800 }, deviceScaleFactor: 2.75,
+    userAgent: 'Mozilla/5.0 (Linux; Android 11; M2003J6CI) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+  },
+}
+const device = DEVICES[process.env.TOUR_DEVICE === 'poco' ? 'poco' : 'oneplus']
+const cpuSlowdown = Math.max(1, Number(process.env.TOUR_CPU ?? 1) || 1)
+test.use({ viewport: device.viewport, deviceScaleFactor: device.deviceScaleFactor, isMobile: true, hasTouch: true, userAgent: device.userAgent })
 
 const OUT = path.join(__dirname, 'out')
 const runId = `TOUR-${Date.now()}`
 const patientName = `${runId} Walkin`
 const phone = `9${String(Date.now()).slice(-9)}`
 
-type Job = { job: string; taps: number; typed: number; pickers: number; screens: string[]; notes: string[]; ok: boolean }
+// The main thing to tap on each screen, first found wins: how far down it sits says how much reaching or scrolling it takes
+const MAIN_BUTTONS = ['Start visit', 'Open today’s visit', 'Send on WhatsApp', 'Save and confirm', 'Move appointment', 'Book appointment', 'Cash received', 'Confirm', 'Request this appointment']
+
+type Job = { job: string; taps: number; typed: number; pickers: number; screens: string[]; notes: string[]; ok: boolean; worstTapMs?: number }
 const jobs: Job[] = []
 let current: Job = { job: 'setup', taps: 0, typed: 0, pickers: 0, screens: [], notes: [], ok: true }
 const shots: Record<string, unknown>[] = []
@@ -63,7 +78,7 @@ async function step(name: string, fn: () => Promise<void>) {
 }
 
 async function measure(page: Page) {
-  return page.evaluate(() => {
+  return page.evaluate((mainButtons) => {
     const isVisible = (el: Element) => {
       const r = el.getBoundingClientRect()
       const s = getComputedStyle(el)
@@ -94,7 +109,73 @@ async function measure(page: Page) {
       if (!isVisible(el) || !(el as HTMLElement).innerText?.trim() || el.children.length > 0) return false
       return parseFloat(getComputedStyle(el).fontSize) < 13
     }).map((el) => (el as HTMLElement).innerText.trim().slice(0, 40))
+
+    // Text elements (the innermost ones with words), for the size, capitals and colour counts below
+    const texts = [...document.querySelectorAll('body *')].filter((el) =>
+      isVisible(el) && [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim()))
+    const under12 = texts.filter((el) => parseFloat(getComputedStyle(el).fontSize) < 12)
+    // Small spaced capitals: written in capitals by CSS, or typed in capitals (3+ letters)
+    const capitals = texts.filter((el) => {
+      const text = [...el.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? '').join('').trim()
+      return getComputedStyle(el).textTransform === 'uppercase' || (/[A-Z]{3,}/.test(text) && text === text.toUpperCase() && /[A-Z]/.test(text) && !/^[A-Z]{1,3}$/.test(text))
+    })
+    // Amber anywhere on an element: its text, its fill or its outline. Colours come as rgb() for the Cockpit's own
+    // hex colours and as oklch()/lab() for Tailwind's; a ring is one of several shadows, so every colour is checked.
+    const amberColour = (fn: string, args: string) => {
+      const parts = args.replace(/[,/]/g, ' ').split(/\s+/).filter(Boolean)
+      const num = (p: string) => (p.endsWith('%') ? parseFloat(p) / 100 : parseFloat(p))
+      if (parts.length > 3 && num(parts[3]) < 0.3) return false
+      if (fn.startsWith('rgb')) {
+        const [r, g, b] = parts.slice(0, 3).map((p) => parseFloat(p) / 255)
+        const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min
+        if (d < 0.03) return false
+        const s = d / (1 - Math.abs(2 * l - 1))
+        const h = max === r ? 60 * (((g - b) / d) % 6) : max === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4)
+        const hue = (h + 360) % 360
+        return hue >= 25 && hue <= 55 && s >= 0.5 && l > 0.15 && l < 0.97
+      }
+      // Polar forms (oklch, lch): lightness, chroma, hue. Lab forms (oklab, lab): lightness, a, b.
+      const [, x, y] = parts.map(parseFloat)
+      const polar = fn.endsWith('ch')
+      const chroma = polar ? x : Math.hypot(x, y)
+      const hue = polar ? y : ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
+      const enough = fn.startsWith('ok') ? chroma >= 0.02 : chroma >= 6
+      return enough && hue >= 45 && hue <= 100 && num(parts[0]) < (fn.startsWith('ok') ? 0.995 : 99.5)
+    }
+    const hasAmber = (value: string) => [...value.matchAll(/(rgba?|oklch|oklab|lch|lab)\(([^)]*)\)/g)].some((m) => amberColour(m[1], m[2]))
+    const amber = [...document.querySelectorAll('body *')].filter((el) => {
+      if (!isVisible(el)) return false
+      const s = getComputedStyle(el)
+      const hasText = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())
+      return hasAmber(s.backgroundColor) || hasAmber(s.backgroundImage) || hasAmber(s.fill) || hasAmber(s.stroke) || (hasText && hasAmber(s.color)) ||
+        (parseFloat(s.borderTopWidth) > 0 && hasAmber(s.borderTopColor)) || (s.boxShadow !== 'none' && hasAmber(s.boxShadow))
+    })
+
+    // What can be tapped on the first screen, as the page opens (scrolled to the top)
+    const onFirstScreen = interactive.filter((el) => {
+      const r = el.getBoundingClientRect()
+      const top = r.top + window.scrollY
+      return top < window.innerHeight && top + r.height > 0
+    })
+    // The main button: how far down the page its middle sits, in screens (0.8 = low on the first screen)
+    const main = mainButtons.map((name) => interactive.find((el) => label(el).replace(/\s+/g, ' ') === name)).find(Boolean)
+    const mainButton = main ? (() => {
+      const r = main.getBoundingClientRect()
+      return { label: label(main), screensDown: Math.round(((r.top + window.scrollY + r.height / 2) / window.innerHeight) * 100) / 100, heightPx: Math.round(r.height) }
+    })() : null
+    // The slowest tap since the last measurement (Event Timing API, recorded by the tour's start-up script)
+    const w = window as unknown as { __worstTap?: number }
+    const worstTapMs = Math.round(w.__worstTap ?? 0)
+    w.__worstTap = 0
+
     return {
+      interactiveOnFirstScreen: onFirstScreen.length,
+      mainButton,
+      amberElements: amber.length,
+      capitalLabels: capitals.length,
+      capitalExamples: capitals.slice(0, 8).map((el) => (el as HTMLElement).innerText.trim().slice(0, 30)),
+      textUnder12px: under12.length,
+      worstTapMs,
       url: location.pathname + location.search,
       interactiveCount: interactive.length,
       belowAndroid48dp: small,
@@ -107,7 +188,7 @@ async function measure(page: Page) {
       horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
       historyLength: history.length,
     }
-  })
+  }, MAIN_BUTTONS)
 }
 
 async function settle(page: Page) {
@@ -125,6 +206,7 @@ async function snap(page: Page, name: string) {
     const m = await measure(page)
     if (m.screensTall > 1.3) await page.screenshot({ path: path.join(OUT, `${no}-${name}-full.png`), fullPage: true })
     shots.push({ file, job: current.job, ...m })
+    current.worstTapMs = Math.max(current.worstTapMs ?? 0, m.worstTapMs)
     if (!current.screens.includes(m.url.split('?')[0])) current.screens.push(m.url.split('?')[0])
   } catch (e) {
     failures.push(`snap ${name}: ${(e as Error).message.split('\n')[0]}`)
@@ -147,6 +229,18 @@ test('evidence tour', async ({ page }) => {
   fs.rmSync(OUT, { recursive: true, force: true })
   fs.mkdirSync(OUT, { recursive: true })
   await cleanTestAccount()
+  // A slower phone: Chrome's own CPU slowdown, the way Lighthouse imitates a mid-range Android
+  if (cpuSlowdown > 1) await (await page.context().newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: cpuSlowdown })
+  // How long each tap takes to show its result (from the finger to the next frame), kept as the worst since the last look
+  await page.addInitScript(() => {
+    const w = window as unknown as { __worstTap: number }
+    w.__worstTap = 0
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as (PerformanceEntry & { interactionId?: number })[]) {
+        if (entry.interactionId) w.__worstTap = Math.max(w.__worstTap, entry.duration)
+      }
+    }).observe({ type: 'event', buffered: true, durationThreshold: 16 } as PerformanceObserverInit)
+  })
   page.on('framenavigated', (f) => {
     if (f === page.mainFrame()) {
       const p = new URL(f.url()).pathname
@@ -187,7 +281,7 @@ test('evidence tour', async ({ page }) => {
   })
 
   // ---------------------------------------------------------------- job A
-  startJob('A. Walk-in: new patient to finished visit (notes, photo, bill, payment, next visit, WhatsApp)')
+  startJob('A1. Walk-in: new patient, from Today to the visit open')
   let visitUrl = ''
   await step('add sheet', async () => {
     await page.goto('/app')
@@ -225,6 +319,8 @@ test('evidence tour', async ({ page }) => {
     back.push({ where: 'Visit page, reached from the New patient form', after: new URL(page.url()).pathname, heading: await visible(page.locator('h1')).first().innerText().catch(() => '') })
     await page.goto(visitUrl)
   })
+  startJob('A2. Finish the visit: typed notes, a photo, a charge, part payment by cash, next visit, WhatsApp')
+  current.screens = [new URL(visitUrl || page.url()).pathname]
   await step('notes save by themselves', async () => {
     await type(visible(page.getByLabel('Notes', { exact: true })),
       'Pain lower right back tooth for a week, worse at night. Deep caries 46, tender on percussion. Started RCT on 46. Amoxicillin 500 three times a day for 5 days. Review Thursday evening.')
@@ -431,6 +527,13 @@ test('evidence tour', async ({ page }) => {
     await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
   })
 
+  // Today on a fuller day: a visit, bookings and a request still waiting
+  startJob('Today on a fuller day')
+  await step('busy today', async () => {
+    await makeRequest('Waiting', '16:30', 2)
+    await page.goto('/app'); await snap(page, 'today-busy')
+  })
+
   // ---------------------------------------------------------------- other screens and Back checks
   startJob('Other screens and Android Back checks')
   await step('closed day', async () => {
@@ -484,7 +587,24 @@ test('evidence tour', async ({ page }) => {
   startJob('cleanup')
   await step('clean the test account', async () => { await cleanTestAccount() })
 
-  fs.writeFileSync(path.join(OUT, 'tour.json'), JSON.stringify({ device: 'OnePlus 13 size (412x905 CSS px), Android 15 Chrome UA, touch', jobs, back, messages, failures, consoleErrors: [...new Set(consoleErrors)].slice(0, 40), shots }, null, 2))
-  console.log('JOBS', JSON.stringify(jobs.map((j) => ({ job: j.job, taps: j.taps, typed: j.typed, pickers: j.pickers, screens: j.screens.length, ok: j.ok }))))
+  const deviceName = `${device.name}${cpuSlowdown > 1 ? `, CPU slowed ${cpuSlowdown}x` : ''}`
+  fs.writeFileSync(path.join(OUT, 'tour.json'), JSON.stringify({ device: deviceName, jobs, back, messages, failures, consoleErrors: [...new Set(consoleErrors)].slice(0, 40), shots }, null, 2))
+  // The numbers to compare a redesign against (docs/build/measure-*.md)
+  const summary = {
+    device: deviceName,
+    jobs: jobs.filter((j) => !['setup', 'Sign in', 'cleanup'].includes(j.job)).map((j) => ({
+      job: j.job, taps: j.taps, typed: j.typed, screens: j.screens.length, worstTapMs: j.worstTapMs ?? 0, ok: j.ok,
+    })),
+    screens: shots.map((s) => {
+      const m = s as Record<string, unknown>
+      return {
+        file: m.file, url: m.url, screensTall: m.screensTall, mainButton: m.mainButton, tappableOnFirstScreen: m.interactiveOnFirstScreen,
+        tappable: m.interactiveCount, amber: m.amberElements, capitals: m.capitalLabels, textUnder12px: m.textUnder12px, worstTapMs: m.worstTapMs,
+      }
+    }),
+    back,
+  }
+  fs.writeFileSync(path.join(OUT, 'metrics.json'), JSON.stringify(summary, null, 2))
+  console.log('JOBS', JSON.stringify(summary.jobs))
   console.log('FAILURES', JSON.stringify(failures))
 })
