@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { ChevronRight, ListChecks, Plus } from 'lucide-react'
+import { ChevronRight, FileSpreadsheet, ListChecks, Plus } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getStock } from '@/lib/data/stock'
 import { todayInIndia } from '@/lib/dates'
@@ -36,6 +36,9 @@ async function StockContent() {
         <div className="space-y-2 rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-gray-200">
           <p className="text-base font-semibold text-gray-900">Nothing on the list yet</p>
           <p className="text-base text-gray-600">Add what you buy and keep: materials, medicines, gloves. Then you&apos;ll see what is running low.</p>
+          <Link href="/app/stock/import" className="mt-2 flex min-h-12 items-center justify-center gap-2 rounded-full px-4 text-base font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            <FileSpreadsheet className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" /> Load the spreadsheet
+          </Link>
         </div>
       ) : (
         <>
@@ -46,6 +49,9 @@ async function StockContent() {
             <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
           </Link>
           <StockList levels={sortStock(levels, today)} today={today} />
+          <Link href="/app/stock/import" className="flex min-h-12 items-center justify-center gap-2 rounded-full px-4 text-base font-semibold text-gray-700 hover:bg-gray-100">
+            <FileSpreadsheet className="h-5 w-5 text-[var(--hud-amber-text)]" aria-hidden="true" /> Load the spreadsheet
+          </Link>
         </>
       )}
     </div>

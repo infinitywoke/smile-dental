@@ -179,7 +179,7 @@ Baseline (11 Oct, before any change): walk-in 15 taps, 10 typed, 1 date picker, 
     - Rahil's user guide rewritten for the current app: `../for-dr-rahil/Clinic-OS-User-Guide.pdf` (the old one is in `old-2026-10-10/`).
 - Plan: `docs/build/PLAN-2026-10-next.md` (backups to Google Drive, delete patient, undo/remove, website wording + fallback + abuse guards, WhatsApp-verified holds, patient voice note test, appointment lengths, smart voice notes, extras). Waiting for the owner's go-ahead; built directly by the orchestrator, one item at a time, pushed after each.
 
-#### Agent-ready, notifications, HUD, stock and costs (owner-approved 21 Oct) — **resume here**
+#### Agent-ready, notifications, HUD, stock and costs (owner-approved 21 Oct) — **resume here: P3c**
 The owner said "Go" on 21 Oct, with one change: **the 3-second anti-bot rule stays for now.** The orchestrator builds one phase at a time and pushes after each step.
 
 Choices (the plan's recommendations, accepted):
@@ -254,7 +254,7 @@ The multi-clinic foundation comes after this. New tables follow the existing own
         - "N days in a row, every visit sent" counts past clinic days on which every visit was finished and sent (`src/lib/streak.ts`, unit-tested; data in `src/lib/data/streak.ts`; days without visits don't break the run).
     - **Responses:** a short vibration on Android for Start visit, Running late and the switches.
     - **Switches:** the checkbox now covers the whole switch, so a tap anywhere on it works (`FunSwitch`, the notification toggles).
-- [ ] **P3b, part 3:**
+- [x] **P3b, part 3 (22 Oct):**
     - **Pause online booking, built 22 Oct (committed locally; push after the owner runs `supabase/pause-booking-2026-10.sql` and `e2e/cockpit.spec.ts` passes):** `app_config.booking_paused_until` ("infinity": until turned back on); `booking_paused_until()` for the website and app, `set_booking_pause()` for the clinic owner only; `get_open_slots` returns nothing and `submit_booking_request` refuses ("Online booking is paused right now") while paused. The migration was generated from schema.sql by a script so both copies match (the live functions were checked against schema.sql first: identical apart from line endings), and was test-applied on top of the committed schema. Website: the booking card becomes "call or WhatsApp" while paused. Cockpit: a WEBSITE line opens a sheet to pause for the rest of today (back on at midnight), until turned back on, or to turn it back on. Checks: booking 149 (14 new), logic 35, notify 31, stock 18; `src/lib/booking-pause.ts` unit-tested. The e2e test account is not the clinic owner, so it only checks the line, the sheet and the refusal, never pausing the live site.
     - **Live 22 Oct:** the owner ran the pause SQL (both live functions then matched schema.sql exactly); full suite 89 passed; pushed 4601ee9, live within a minute.
     - **Instant payments, done 22 Oct:** Cash received / Payment received (UPI) show the payment at once ("Saving…") and take it off what is due; the UPI screen closes at once; the server's copy (same payment id) replaces the row; a failed save removes it and shows the error on the card. Removing a payment or Undo clears the saving row so it can't come back. `e2e/visit.spec.ts` now waits for the Undo offer (the server has the payment) before trying Delete visit.
@@ -266,8 +266,29 @@ The multi-clinic foundation comes after this. New tables follow the existing own
     - **Also:** the `stock_levels` view (on hand, next expiry); the private `cost-bills` folder with per-account access; and the morning brief now lists up to five low items ("Low: Composite A2").
     - **Names:** chosen so they don't bring back the removed `expenses`, `recurring_expenses` and `treatment_items`.
     - **Checks:** `supabase/tests/stock.check.mjs` 18/18 (notify 31/31, booking 133/133 and logic 35/35 still pass).
-- [ ] **P4, part 2: the screens:**
+- [x] **P4, part 2: the screens (22 Oct; waiting on Rahil's filled-in spreadsheet and the lab fee decision below):**
     - **Live 22 Oct:** the owner ran `supabase/stock-costs-2026-10.sql`; the full browser suite passed against it (87), then 2a and 2b were pushed (be4a964, live within a minute).
+    - **2d Load the spreadsheet, done 22 Oct:** Stock → **Load the spreadsheet** (`/app/stock/import`): a button when the stock list is empty, a link under it otherwise. No database change.
+        - **Who:** Rahil, or the owner signed in as him on a PC, picks the filled-in `Stock-and-costs-to-fill.xlsx`. Nothing is saved until he taps **Load into Clinic OS**.
+        - **Reading:** the phone reads the file (`src/lib/xlsx.ts`, on `fflate`; a cell formatted as a date comes back as a date; exceljs was tried and dropped because it brings a flagged `uuid`). `src/lib/xlsx-write.ts` makes workbooks for the tests only.
+        - **What it shows first:**
+            - stock items with their starting count, low level, price, expiry, kind and supplier;
+            - regular bills, each first due on the next of its days (a 31st is a short month's last day, as `dueOn` does); a yearly bill says to check its month;
+            - what each treatment uses;
+            - lab fees, counted only;
+            - **Check these:** every row it skipped or had to guess, with the sheet and row number.
+        - **Rules** (`planStockImport` in `src/lib/stock-import.ts`, unit-tested):
+            - sheets and columns are found by their names and headings; the grey "Example:" rows are skipped;
+            - a blank kind is Other, a blank unit is piece, and units are made singular ("Boxes" is box);
+            - dates are read day first (30/06/2027), and a month alone means its last day;
+            - a row without a treatment adds another item to the treatment above it;
+            - treatment names are matched to the price list whatever dash or spacing he typed.
+        - **Loading again adds nothing:** items and bills already in Clinic OS under the same name are left as they are, and so is what a treatment already uses at the same amount.
+        - **Saving:** the server works the plan out again from the rows (`loadStockSpreadsheet`, `src/lib/actions/stock-import.ts`), never trusting the phone's plan. It saves in order: items with their starting counts (both or neither), then bills, then materials. If a step fails, tapping Load again finishes the job.
+        - **Tests:** `src/lib/xlsx.test.ts` and `src/lib/stock-import.test.ts` (19), and `e2e/stock-import.spec.ts` (a wrong file is refused; preview, Load, loading again; the item, its history and Regular bills).
+    - **Also fixed (22 Oct): Delete visit right after a payment.** The full suite caught `visit.spec.ts` "Delete visit is refused while it holds a payment" failing once.
+        - **Cause:** Delete visit checked the page's payments, which only include a new payment after the page refreshes. A tap within that moment asked "Delete this visit?" instead of refusing at once. The server still refused, so nothing could be lost.
+        - **Fix:** the payment card tells the page about a payment tapped there (`onSaving`), and Delete visit counts it at once.
     - **2c What each treatment uses, done 22 Oct:** Stock → "What each treatment uses" (`/app/stock/materials`): every price-list option with its materials, their cost at last prices, and the price minus materials; a sheet per option adds an item with how much one uses, or removes it. The item page lists the treatments that use it. `chargeName` in `src/lib/pricing.ts` now names charges for both the visit's price list and the materials, since the database trigger matches on that exact name. The browser test checks the trigger on the live database: a visit's charge takes one off, removing it gives it back.
     - **2a Stock, done 22 Oct (commit 607ad2f):** the Stock tab (low first, then expiring within 30 days, search from 8 items), Add an item (with the starting count as an "in" move), the item page (on hand, Add stock, Used or thrown away, Count, history in words, Remove for moves made there), Edit and Remove from the list (archive; also drops its treatment materials). Low and expiring stock shows on the Cockpit; the bottom bar is Today · Patients · + · Stock · Money and Settings is the gear on the Cockpit. Logic in `src/lib/stock.ts` (unit-tested); `getStock` returns `ready: false` before the SQL, so Today and the tab don't break.
     - **2b Costs, done 22 Oct (committed locally, not pushed: same condition as 2a, plus `e2e/costs.spec.ts`):** Money shows Spent and "Left after costs" (collected minus the month's costs) and leads to Costs (`/app/costs?m=`): spent by kind with bars, Add a cost (amount, what for, paid to, paid by, date, note, bill photo uploaded under the cost's own id so a retry never stores it twice), the regular bills due that month with **Mark paid** (amount editable; once a month, by the database's unique index), every cost (opens with its bill photo and Delete). Regular bills (`/app/costs/regular`): add, edit, stop (one never due yet is deleted). No Salary option: he works alone. Logic in `src/lib/costs.ts` (unit-tested).
@@ -280,7 +301,7 @@ The multi-clinic foundation comes after this. New tables follow the existing own
     - import Rahil's spreadsheet of supplies, costs and lab fees. The blank he fills in is `for-dr-rahil/Stock-and-costs-to-fill.xlsx` (outside the repo, made 21 Oct). Headers are in row 2 and data starts in row 3; skip rows starting "Example:".
         - **Supplies:** Item, Kind (the `stock_items` categories), Counted in (unit), How many now (the first count), Warn me at (low level), Usual supplier, Price per unit (₹), Expiry date.
         - **Regular bills:** Bill, Kind (Rent, Electricity, Internet and phone, Software, Equipment payment, Repairs, Other: the `fixed_costs` categories; no Salary, he works alone), Amount (₹), Every (Month or Year), Usually paid on (day of the month).
-        - **Lab fees:** Work, Lab, Fee (₹). No table holds these yet: decide whether they become a cost per visit or a fee per treatment for margins.
+        - **Lab fees:** Work, Lab, Fee (₹). No table holds these yet: decide whether they become a cost per visit or a fee per treatment for margins. Until then the load counts them and says they aren't loaded, and Rahil adds a lab fee under Costs → Lab when he pays it.
         - **Materials per treatment:** the 35 price-list options, named exactly as the sheet names charges, then Item used and How much per treatment (extra rows for extra items).
 - [ ] **P3c. The HUD for Visit, Patients, Requests and Money.**
 
