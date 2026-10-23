@@ -20,15 +20,16 @@ body {
 
 /* ---- Clinic OS, the Cockpit (the HUD) ----------------------------------------------------------
    The Tailwind colours the app's screens use, redefined for the Cockpit's light and dark themes, so
-   every screen follows. Colours A, "Clinic colours" (owner, 22 Oct 2026): navy and gold on cream, from
-   the clinic's logo and printed price list; gold only for small brand touches (the open tab's mark, the
+   every screen follows. Colours A, "Clinic colours" (owner, 22 Oct 2026): navy and gold from the
+   clinic's logo and printed price list, on white with neutral greys (owner, 23 Oct: the first cream
+   "feels a bit off"); gold only for small brand touches (the open tab's mark, the holiday dots, the
    Walk-in button in dark), never for meaning. data-theme on .hud is the dentist's
    choice in Settings ("system" follows the phone). In dark, white becomes the panel colour and the
    grays run the other way, so light text sits on dark panels; blue (the app's primary) is navy in
    light and near-white in dark. The Quiet Cockpit (docs/BUILD_LOG.md): calm screens, and amber only
    for what needs him (a request waiting, money due, a visit not sent, low stock). */
 .hud {
-  --hud-bg: #FAF6EE;
+  --hud-bg: #FFFFFF;
   --hud-grid: transparent;
   --hud-amber: #F0A63A;
   --hud-amber-text: #7A4A00;
@@ -41,11 +42,11 @@ body {
   font-family: var(--font-hud-body), system-ui, sans-serif;
   background-color: var(--hud-bg);
   --color-white: #FFFFFF;
-  --color-gray-50: #FAF6EE;
-  --color-gray-100: #F2EADA;
-  --color-gray-200: #E6DCCB;
-  --color-gray-300: #D8CCB4;
-  --color-gray-400: #77746B;
+  --color-gray-50: #F8F9FB;
+  --color-gray-100: #F1F3F6;
+  --color-gray-200: #E4E7EC;
+  --color-gray-300: #CED3DB;
+  --color-gray-400: #6F7685;
   --color-gray-500: #5A6478;
   --color-gray-600: #4A5470;
   --color-gray-700: #34405E;

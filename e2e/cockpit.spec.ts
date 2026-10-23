@@ -87,7 +87,7 @@ test('Practice holds Money, Costs, Stock and Settings; the look is light until c
   const look = page.getByRole('radiogroup', { name: 'Look' })
   await expect(look.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
   await expect(root).toHaveAttribute('data-theme', 'light')
-  expect(await root.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(250, 246, 238)')
+  expect(await root.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)')
 
   await look.getByRole('radio', { name: 'Dark' }).click()
   await expect(root).toHaveAttribute('data-theme', 'dark')

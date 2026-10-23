@@ -297,10 +297,10 @@ const page = (title, body) => `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#FAF6EE">
+<meta name="theme-color" content="#FFFFFF">
 <title>${title} - Clinic OS</title>
 <style>
-  :root { color-scheme: light dark; --bg: #FAF6EE; --text: #071534; --muted: #5E6472; --button: #071534; --button-text: #F5EFE3 }
+  :root { color-scheme: light dark; --bg: #FFFFFF; --text: #071534; --muted: #5E6472; --button: #071534; --button-text: #F5EFE3 }
   @media (prefers-color-scheme: dark) { :root { --bg: #071534; --text: #F5EFE3; --muted: #B8BFCC; --button: #F5EFE3; --button-text: #071534 } }
   body { margin: 0; min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif }
   main { width: 100%; max-width: 22rem; padding: 24px 16px; box-sizing: border-box; text-align: center }
