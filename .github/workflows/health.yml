@@ -42,14 +42,3 @@ jobs:
             echo "::error::$count error(s) on Clinic OS screens in the last day: the list is in this step's log"
             exit 1
           fi
-
-      # Supabase pauses a free project nobody uses for a week; the browser tests' own one is used only
-      # on Sundays and for pull requests (docs/BROWSER-TESTS.md)
-      - name: Keep the browser tests' database awake
-        if: always()
-        env:
-          URL: ${{ secrets.E2E_SUPABASE_URL }}
-          KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "Not set up yet"; exit 0; fi
-          curl -s -o /dev/null -w 'Test database: %{http_code}\n' --max-time 30 -H "apikey: $KEY" "$URL/rest/v1/" || true

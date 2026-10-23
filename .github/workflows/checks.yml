@@ -1,6 +1,6 @@
 # Every push to main and every pull request (Dependabot's too): the type check, the lint, the unit
 # tests, a production build and the database checks (PGlite, a throwaway Postgres). A failure emails the
-# owner. The browser tests run beside these, on a test database of their own (browser-tests.yml).
+# owner. The browser tests run on the build machine before each push, not here (owner, 23 Oct 2026).
 name: Checks
 
 # Not for changes to the documents alone (the build log): nothing to check, and the minutes add up
