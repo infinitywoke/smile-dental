@@ -283,7 +283,8 @@ async function keepPages(urls, maxAge) {
 
 async function fetchAndKeep(href) {
   const since = generation
-  const response = await fetch(href, { redirect: 'manual' })
+  // Marked, so the server doesn't take the copy for the doctor opening the record (the access log)
+  const response = await fetch(href, { redirect: 'manual', headers: { 'X-Clinic-Keep': '1' } })
   // Gone (a visit deleted): its copy goes too
   if (response.status === 404) return (await caches.open(PAGES)).delete(href)
   if (!keepable(response)) return

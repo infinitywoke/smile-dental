@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { isAllowedEmail } from '@/lib/allowed-email'
+import { logAccess } from '@/lib/data/access-log'
 
 // Only paths inside Clinic OS are allowed, so a sign-in link can't send the doctor elsewhere
 function safeNext(value: FormDataEntryValue | null): string {
@@ -25,5 +26,7 @@ export async function signIn(formData: FormData) {
   if (error) {
     redirect('/login?error=invalid')
   }
+  // With the client that now holds the session (the request's cookies don't have it yet)
+  await logAccess({ action: 'signed in' }, supabase)
   redirect(next)
 }

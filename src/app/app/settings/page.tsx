@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { cookies } from 'next/headers'
-import { Bell, ChevronRight } from 'lucide-react'
+import { Bell, ChevronRight, History } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { THEME_COOKIE, themeFrom } from '@/lib/theme'
 import { Card, ScreenLoading } from '@/components/clinic/ui'
@@ -28,6 +28,11 @@ async function SettingsContent() {
       <Link href="/app/notifications" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white px-4 font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200">
         <Bell className="h-5 w-5 text-gray-500" aria-hidden="true" />
         <span className="flex-1">Notifications</span>
+        <ChevronRight className="h-5 w-5 text-gray-400" aria-hidden="true" />
+      </Link>
+      <Link href="/app/settings/access" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white px-4 font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200">
+        <History className="h-5 w-5 text-gray-500" aria-hidden="true" />
+        <span className="flex-1">Access log</span>
         <ChevronRight className="h-5 w-5 text-gray-400" aria-hidden="true" />
       </Link>
       <OfflineLockCard />

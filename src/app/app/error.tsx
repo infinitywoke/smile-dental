@@ -1,10 +1,17 @@
 'use client' // Error boundaries must be Client Components
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
+import { reportError } from '@/lib/report-error'
 
-// Shown when a Clinic OS screen fails to load (e.g. no connection)
-export default function ClinicError({ retry }: { error: Error & { digest?: string }; retry: () => void }) {
+// Shown when a Clinic OS screen fails to load (e.g. no connection). The error is reported, so the owner
+// hears of one that isn't a lost connection (src/lib/report-error.ts).
+export default function ClinicError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+  useEffect(() => {
+    reportError(error)
+  }, [error])
+
   return (
     <div className="space-y-4 rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-gray-200">
       <AlertCircle className="mx-auto h-10 w-10 text-red-500" />

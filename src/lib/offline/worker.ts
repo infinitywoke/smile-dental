@@ -1,4 +1,5 @@
 import { removePushSubscription, savePushSubscription } from '@/lib/actions/notifications'
+import { deviceName as deviceNameOf } from '@/lib/device'
 
 // The one service worker (public/sw.js): notifications, and the copies of the screens that let Clinic OS
 // open with no signal. Its scope is /app, which takes in Today (/app itself) as well as every screen
@@ -85,13 +86,8 @@ async function moveOver(registration: ServiceWorkerRegistration) {
   await old.unregister()
 }
 
-// "Android · Chrome", "iPhone · Safari"
-export function deviceName(): string {
-  const ua = navigator.userAgent
-  const os = /android/i.test(ua) ? 'Android' : /iphone|ipad/i.test(ua) ? 'iPhone' : /windows/i.test(ua) ? 'Windows' : /mac os/i.test(ua) ? 'Mac' : 'This device'
-  const browser = /edg\//i.test(ua) ? 'Edge' : /samsungbrowser/i.test(ua) ? 'Samsung Internet' : /chrome|crios/i.test(ua) ? 'Chrome' : /firefox/i.test(ua) ? 'Firefox' : /safari/i.test(ua) ? 'Safari' : 'browser'
-  return `${os} · ${browser}`
-}
+// This phone: "Android · Chrome", "iPhone · Safari"
+export const deviceName = () => deviceNameOf(navigator.userAgent)
 
 // Asks the worker to keep these screens, fetched now while there is signal. One it kept within maxAge
 // (milliseconds) stays as it is.

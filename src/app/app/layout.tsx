@@ -12,6 +12,7 @@ import { PageTransition } from '@/components/clinic/PageTransition'
 import { ThemeColor } from '@/components/clinic/ThemeColor'
 import { OutboxSync } from '@/components/clinic/Outbox'
 import { OfflineCopies } from '@/components/clinic/OfflineCopies'
+import { ErrorReporter } from '@/components/clinic/ErrorReporter'
 import { WhatsAppBusiness } from '@/components/clinic/WhatsAppBusiness'
 
 const body = Manrope({ subsets: ['latin'], variable: '--font-hud-body' })
@@ -58,6 +59,8 @@ async function DoctorGate({ children }: { children: React.ReactNode }) {
       <OutboxSync />
       {/* Keeps the screens on the phone, so the app opens with no signal */}
       <OfflineCopies />
+      {/* Tells the owner of errors on these screens (the daily health check) */}
+      <ErrorReporter />
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-28"><PageTransition>{children}</PageTransition></main>
       <BottomNav stockAlert={!!stock && stock.low + stock.expiring > 0} />
       <WhatsAppBusiness />

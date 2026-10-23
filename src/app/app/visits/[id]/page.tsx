@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { getDoctor } from '@/lib/auth'
 import { getQuickMedicines, getVisit } from '@/lib/data/visits'
 import { getUsualCharges, getVisitBill } from '@/lib/data/billing'
+import { logAccess } from '@/lib/data/access-log'
 import { VisitFlow } from '@/components/clinic/VisitFlow'
 import { ScreenLoading } from '@/components/clinic/ui'
 
@@ -9,6 +10,8 @@ async function VisitPageContent({ params, searchParams }: PageProps<'/app/visits
   const { id } = await params
   const { step } = await searchParams
   const [doctor, visit, bill, medicines, usual] = await Promise.all([getDoctor(), getVisit(id), getVisitBill(id), getQuickMedicines(), getUsualCharges()])
+
+  await logAccess({ action: 'opened visit', patientId: visit.patient.id, visitId: visit.id })
 
   // "Collect" links end in ?step=bill: they land on the payment card
   return <VisitFlow key={visit.id} doctorId={doctor.id} visit={visit} bill={bill} medicines={medicines} usual={usual} focus={step === 'bill' ? 'payment' : null} />

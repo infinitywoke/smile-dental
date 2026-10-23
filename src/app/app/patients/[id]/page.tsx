@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Cake, Camera, CalendarClock, ChevronDown, ChevronRight, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { getPatientHub } from '@/lib/data/patient-hub'
+import { logAccess } from '@/lib/data/access-log'
 import { formatDate } from '@/lib/dates'
 import { isBirthday, patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
@@ -18,6 +19,7 @@ import { genderLabel } from '@/lib/gender'
 async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
   const { id } = await params
   const { patient, visits, coming, balance, todayVisitId, appointmentTodayId, due } = await getPatientHub(id)
+  await logAccess({ action: 'opened patient', patientId: patient.id })
   const age = patientAge(patient)
   const startClass = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-4 text-lg font-extrabold text-white shadow-sm hover:bg-blue-700 disabled:opacity-70'
 
