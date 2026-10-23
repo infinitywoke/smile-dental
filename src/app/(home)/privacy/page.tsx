@@ -87,6 +87,11 @@ export default function PrivacyPage() {
                 These service providers store or process information on our behalf so that we can run the clinic. They may
                 keep data on servers outside India.
               </p>
+              <p>
+                So that the clinic&apos;s app keeps working when the phone has no signal, the dentist&apos;s phone keeps a copy of
+                the screens he opened, such as the day&apos;s appointments, for up to one day. With no signal they open only after
+                the phone&apos;s own fingerprint or PIN, and they are deleted when he signs out.
+              </p>
             </Part>
 
             <Part title="5. WhatsApp messages">
@@ -118,15 +123,26 @@ export default function PrivacyPage() {
               <ul>
                 <li>tell you what information we hold about you and give you access to it;</li>
                 <li>correct or update anything that is wrong or out of date;</li>
-                <li>delete your information, unless we need to keep it to meet a legal obligation.</li>
+                <li>delete your information, unless we need to keep it to meet a legal obligation;</li>
+                <li>stop using your information, if you withdraw your consent (we keep only what the law requires);</li>
+                <li>let someone you name use these rights for you, if you cannot because of illness or death.</li>
               </ul>
               <p>
                 You can also raise any concern with us about how your information is handled. Contact us using the details
-                below and we will respond as soon as we can.
+                below and we will respond as soon as we can. If you are not satisfied with our reply, you can complain to the
+                Data Protection Board of India.
               </p>
             </Part>
 
-            <Part title="9. Contact us">
+            <Part title="9. If something goes wrong">
+              <p>
+                If your information is ever lost, stolen or seen by someone who should not see it, we will tell you without
+                delay: what happened, what it means for you and what you can do. We will also report it to the Data
+                Protection Board of India, as the law requires.
+              </p>
+            </Part>
+
+            <Part title="10. Contact us">
               <p>
                 For any question or request about your privacy or your records, please speak to {siteConfig.dentist.name} at
                 the clinic, email <a href={`mailto:${siteConfig.email}`}>{siteConfig.email}</a> or call{' '}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeft, CalendarCheck, CalendarDays, MessageCircle, Mic, Phone, Zap } from 'lucide-react'
 import { bookingReasons, homeServices } from '@/config/site'
@@ -491,6 +492,8 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
                 {pending ? 'Sending…' : 'Request this appointment'}
               </button>
               <p className="h-hint">Next, WhatsApp opens with your request written: just tap Send. {promise}</p>
+              {/* The notice the data protection law asks for: what the details are kept for, and where to read more */}
+              <p className="h-hint">The clinic keeps these details to arrange and prepare for your visit. <Link href="/privacy">Privacy policy</Link></p>
               <button type="button" className="h-linkbtn h-center" onClick={() => submit('call')} disabled={pending}>
                 No WhatsApp? Ask the clinic to call you
               </button>
