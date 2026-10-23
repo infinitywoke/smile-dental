@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
 import {
-  blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, newPhone, newRunId, signIn, testDb, visible, whatsappText,
+  blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, newPhone, newRunId, showMonth, signIn, testDb, visible, whatsappText,
 } from './helpers'
 import { inIndia } from '../src/lib/schedule'
 
@@ -136,14 +136,16 @@ test('the Visit: a usual charge is one tap with Undo, the next visit can be mont
   await chip.click()
   await expect.poll(charges).toEqual([amount])
 
-  // The suggestion is a week on; a date further away comes from the month calendar
+  // The suggestion is a week on; a date further away comes from the calendar (two months on, through
+  // its months view)
   await expect(visible(page.getByText(/^Suggested: /))).toBeVisible({ timeout: 30_000 })
   await expect(page.getByRole('group', { name: 'When' })).toHaveCount(0)
   await visible(page.getByRole('button', { name: 'Pick another date' })).click()
   const picker = page.getByRole('dialog', { name: 'Next visit' })
-  const month = picker.getByRole('combobox', { name: 'Month', exact: true })
-  const next = await month.locator('option').nth(2).getAttribute('value')
-  await month.selectOption(next!)
+  const [y, m] = inIndia(new Date()).date.split('-').map(Number)
+  const later = new Date(Date.UTC(y, m - 1 + 2, 1))
+  const next = `${later.getUTCFullYear()}-${String(later.getUTCMonth() + 1).padStart(2, '0')}`
+  await showMonth(picker, next)
   // The first open day of that month with a free time
   const days = picker.getByRole('group', { name: /^Days of / }).getByRole('button', { disabled: false })
   for (let i = 0; i < (await days.count()); i++) {

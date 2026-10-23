@@ -9,7 +9,7 @@ import { confirmationMessage, declineMessage, movedMessage, whatsappLink } from 
 import { parseGender } from '@/lib/gender'
 import { patientAge, titleCaseName } from '@/lib/patient-fields'
 import { findPatientsByPhone, namesList, searchPatients, withSameName } from '@/lib/data/patients'
-import { getDaySchedule, getDaysOff, type DaySchedule } from '@/lib/data/appointments'
+import { getBusyCounts, getDaySchedule, getDaysOff, type DaySchedule } from '@/lib/data/appointments'
 
 type Result = { error?: string }
 type WithWhatsapp = Result & {
@@ -443,9 +443,13 @@ export async function getScheduleForDate(date: string, length: number = DEFAULT_
   return getDaySchedule(date, clinicLength(length))
 }
 
-// The days blocked off whole in the year from this day, for the month calendar
-export async function getDaysOffFrom(date: string): Promise<string[]> {
+// A month on the calendar: how many are booked each day, and the days blocked off whole
+export type CalendarMonth = { booked: Record<string, number>; daysOff: string[] }
+export async function getCalendarMonth(month: string): Promise<CalendarMonth> {
   await getDoctor()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return []
-  return getDaysOff(date, 366)
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return { booked: {}, daysOff: [] }
+  const [y, m] = month.split('-').map(Number)
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const [booked, daysOff] = await Promise.all([getBusyCounts(`${month}-01`, days), getDaysOff(`${month}-01`, days)])
+  return { booked, daysOff }
 }

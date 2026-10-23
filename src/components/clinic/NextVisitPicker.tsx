@@ -1,14 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getDaysOffFrom, getScheduleForDate } from '@/lib/actions/appointments'
+import { getScheduleForDate } from '@/lib/actions/appointments'
 import type { DayBlock, DaySchedule } from '@/lib/data/appointments'
 import { isNetworkError } from '@/lib/offline/outbox'
 import { DEFAULT_LENGTH, addDays, blockInstant, formatDay, isClosedDay, startsFor } from '@/lib/schedule'
+import { Calendar } from './Calendar'
 import { HolidayNote } from './HolidayNote'
-import { MonthCalendar } from './MonthCalendar'
 import { SlotGrid } from './SlotGrid'
 import { WhenPicker } from './WhenPicker'
+
+// The next visit may be a check-up a year or more away
+const AHEAD_DAYS = 2 * 365
 
 // With no signal: every time of the day the clinic offers for this length, not yet over (other
 // bookings can't be seen, so the server checks the time once the signal is back)
@@ -19,7 +22,7 @@ function clinicTimes(date: string, minutes: number): DayBlock[] {
     .filter((block) => new Date(block.instant).getTime() > now)
 }
 
-// How long, the day from a month calendar (up to a year ahead), and that day's free times: the time
+// How long, the day from the calendar (up to two years ahead), and that day's free times: the time
 // picked is handed back
 export function NextVisitPicker({
   startDate,
@@ -59,21 +62,9 @@ export function NextVisitPicker({
     }
   }, [date, minutes])
 
-  // The days he blocked off, closed on the calendar (with no signal, only Fridays are)
-  const [daysOff, setDaysOff] = useState<string[]>([])
-  useEffect(() => {
-    let cancelled = false
-    getDaysOffFrom(minDate)
-      .then((days) => !cancelled && setDaysOff(days))
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [minDate])
-
   const loading = !failed && (schedule?.date !== date || schedule?.length !== minutes)
   const free = schedule && schedule.date === date && schedule.length === minutes ? schedule.blocks.filter((b) => b.state === 'free') : []
-  const calendar = <MonthCalendar selected={date} minDate={minDate} maxDate={addDays(minDate, 365)} isClosed={isClosedDay} daysOff={daysOff} onSelect={setDate} />
+  const calendar = <Calendar selected={date} today={minDate} minDate={minDate} maxDate={addDays(minDate, AHEAD_DAYS)} isClosed={isClosedDay} onSelect={setDate} />
 
   if (failed === 'offline') {
     const times = clinicTimes(date, minutes)
@@ -97,7 +88,7 @@ export function NextVisitPicker({
     <WhenPicker length={minutes} onLength={onMinutes} dayPicker={calendar}>
       <p className="text-base font-bold text-gray-900">Free times on {formatDay(date)}</p>
       <HolidayNote date={date} />
-      {failed &&<p className="text-sm text-red-700">Could not load times. Check the connection and try again.</p>}
+      {failed && <p className="text-sm text-red-700">Could not load times. Check the connection and try again.</p>}
       {loading && <p className="text-sm text-gray-500">Checking availability…</p>}
       {schedule && !loading && (
         schedule.closed ? (

@@ -215,6 +215,21 @@ export const whatsappText = (url: string) => new URL(url).searchParams.get('text
 
 export type Shared = { text: string; files: { name: string; type: string; size: number }[] }
 
+// On a calendar (src/components/clinic/Calendar.tsx): shows the days of a month ("2026-12"), through
+// the months view, changing the year there when it is another
+export async function showMonth(scope: Locator, month: string) {
+  await scope.getByRole('button', { name: /: choose another month$/ }).click()
+  const year = Number(month.slice(0, 4))
+  const shownYear = scope.getByRole('button', { name: /: choose another year$/ })
+  for (let i = 0; i < 5; i++) {
+    const shown = Number(((await shownYear.textContent()) ?? '').trim())
+    if (shown === year) break
+    await scope.getByRole('button', { name: shown < year ? 'Next year' : 'Previous year' }).click()
+  }
+  const name = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', timeZone: 'UTC' })
+  await scope.getByRole('group', { name: `Months of ${year}` }).getByRole('button', { name: new RegExp(`^${name} ${year}`) }).click()
+}
+
 // Playwright can't open Android's share sheet: this makes the page believe it can share files
 // (like Chrome on Android) and records what it shares. Applies from the next page load. Setting
 // sessionStorage "e2e-no-share" before a load turns it off again (a browser without file sharing).

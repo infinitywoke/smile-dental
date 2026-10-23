@@ -2,30 +2,19 @@
 
 import { useRouter } from 'next/navigation'
 import { CalendarDays } from 'lucide-react'
-import type { HolidayKind } from '@/lib/holidays'
+import { isClosedDay } from '@/lib/schedule'
+import { Calendar } from './Calendar'
 import { FullScreen, useBackToClose } from './FullScreen'
-import { HolidayDot } from './HolidayNote'
 
-export type PickerDay = {
-  href: string
-  name: string
-  number: number
-  note: string
-  active: boolean
-  closed: boolean
-  // Its holiday or festival, if any (src/lib/holidays.ts)
-  holiday?: { name: string; kind: HolidayKind } | null
-}
-
-// The date under the day's title: a tap shows the next two weeks, each with how many are booked and
-// its holiday or festival
-export function DayPicker({ label, days }: { label: string; days: PickerDay[] }) {
+// The date under the day's title: a tap opens the calendar (days, months, years), with each day's
+// holiday and how many are booked, to open any day before or after
+export function DayPicker({ label, date, today }: { label: string; date: string; today: string }) {
   const router = useRouter()
   const { open, show, close } = useBackToClose()
 
   // The sheet has its own history entry: take it off first, then go, so Back from the new day isn't the sheet
-  function go(event: React.MouseEvent<HTMLAnchorElement>, href: string) {
-    event.preventDefault()
+  function go(day: string) {
+    const href = day === today ? '/app' : `/app?d=${day}`
     window.addEventListener('popstate', () => router.push(href), { once: true })
     close()
   }
@@ -38,25 +27,9 @@ export function DayPicker({ label, days }: { label: string; days: PickerDay[] })
       </button>
       {open && (
         <FullScreen title="Pick a day" onClose={close}>
-          <ul className="grid grid-cols-4 gap-2 p-4">
-            {days.map((day) => (
-              <li key={day.href}>
-                <a href={day.href} onClick={(event) => go(event, day.href)}
-                  className={`flex h-full min-h-16 flex-col items-center justify-center rounded-xl px-1 py-2 text-xs ring-1 ring-inset ${
-                    day.active ? 'bg-blue-600 text-white ring-blue-600' : day.closed ? 'bg-gray-100 text-gray-500 ring-gray-200' : 'bg-white text-gray-700 ring-gray-300'
-                  }`}>
-                  <span className="font-semibold">{day.name}</span>
-                  <span className="hud-mono text-base font-bold">{day.number}</span>
-                  <span className={day.active ? 'text-blue-100' : 'text-gray-500'}>{day.note}</span>
-                  {day.holiday && (
-                    <span className="flex max-w-full items-center gap-1 font-semibold">
-                      <HolidayDot kind={day.holiday.kind} /><span className="truncate">{day.holiday.name}</span>
-                    </span>
-                  )}
-                </a>
-              </li>
-            ))}
-          </ul>
+          <div className="p-4">
+            <Calendar selected={date} today={today} isClosed={isClosedDay} pickClosed onSelect={go} />
+          </div>
         </FullScreen>
       )}
     </>

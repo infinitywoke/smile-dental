@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertCircle, CalendarCheck, MessageCircle, UserCheck } from 'lucide-react'
 import { confirmBookingRequest, declineBookingRequest, moveAppointment } from '@/lib/actions/appointments'
 import { DEFAULT_LENGTH, addDays, formatDay, formatWhen, inIndia, sameInstant } from '@/lib/schedule'
+import { todayInIndia } from '@/lib/dates'
 import type { DayBlock } from '@/lib/data/appointments'
 import { SlotGrid, isPlaceable } from './SlotGrid'
 import { WhenPicker } from './WhenPicker'
@@ -124,6 +125,7 @@ export function SlotScheduler({ mode, id, label, date, blocks, closed, dayOff, o
         lengthLink={{ path: `${basePath}?d=${date}`, defaultLength: defaultMinutes }}
         day={formatDay(date)}
         date={date}
+        calendar={{ href: dayHref('{date}'), today: todayInIndia(), minDate: todayInIndia() }}
         note={originalInstant && inIndia(originalInstant).date === date ? (mode === 'request' ? 'Day requested' : 'Current day') : null}
         prev={{ href: dayHref(addDays(date, -1)) }}
         next={{ href: dayHref(addDays(date, 1)) }}
