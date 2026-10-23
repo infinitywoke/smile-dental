@@ -82,7 +82,7 @@ export async function getVisit(id: string): Promise<VisitPageData> {
 
   const { data, error } = await supabase
     .from('visits')
-    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts, review_asked_at, birth_year), visit_photos (id, caption, storage_path, created_at), visit_recordings (id, storage_path, seconds, created_at)`)
+    .select(`${VISIT_COLUMNS}, patient:patients!inner (id, name, phone, medical_alerts, review_asked_at, birth_year, birth_date), visit_photos (id, caption, storage_path, created_at), visit_recordings (id, storage_path, seconds, created_at)`)
     .eq('id', id)
     .maybeSingle()
   if (error) throw error

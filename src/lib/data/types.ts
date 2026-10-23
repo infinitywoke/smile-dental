@@ -6,8 +6,10 @@ export type Patient = {
   id: string
   name: string
   phone: string | null
-  // Year of birth (the doctor is asked for an age)
+  // Year of birth (from the date of birth, or from the age when only that is known)
   birth_year?: number | null
+  // When known (YYYY-MM-DD); birth_year is kept in step with it
+  birth_date?: string | null
   // 'female' | 'male' | 'other'; null on patients added before it was asked
   gender?: string | null
   address: string | null
@@ -52,7 +54,7 @@ export type VisitPhoto = {
 }
 
 export type VisitDetail = Visit & {
-  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'review_asked_at' | 'birth_year'>
+  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'review_asked_at' | 'birth_year' | 'birth_date'>
   photos: VisitPhoto[]
   linked_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status'> | null
   next_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status' | 'duration_min'> | null

@@ -4,6 +4,7 @@ import { useActionState, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, RotateCcw, UserCheck } from 'lucide-react'
 import { lookupPhone, type PatientFormState } from '@/lib/actions/patients'
+import { ageOn, birthDateFrom } from '@/lib/patient-fields'
 import { formatPhone, normalizePhone } from '@/lib/phone'
 import type { Patient } from '@/lib/data/types'
 import { parseGender, type Gender } from '@/lib/gender'
@@ -56,7 +57,10 @@ const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Inst
 
 const inputClass =
   'block min-h-12 w-full rounded-xl border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
+const boxClass = inputClass.replace('px-4', 'px-2 text-center')
 const labelClass = 'text-sm font-semibold text-gray-700'
+const switchClass = 'min-h-11 text-sm font-semibold text-blue-700'
+const digits = (event: React.ChangeEvent<HTMLInputElement>) => event.target.value.replace(/\D/g, '')
 
 function PatientFields({
   action,
@@ -71,6 +75,14 @@ function PatientFields({
   const [phone, setPhone] = useState(patient?.phone ? formatPhone(patient.phone) : '')
   const [name, setName] = useState(patient?.name ?? '')
   const [ageText, setAgeText] = useState(age != null ? String(age) : '')
+  // The date of birth as day, month and year; or the age, when that is all the patient knows (one
+  // saved with only an age opens that way)
+  const birthDate = patient?.birth_date ?? null
+  const [byAge, setByAge] = useState(!birthDate && age != null)
+  const [birthDay, setBirthDay] = useState(birthDate ? String(Number(birthDate.slice(8))) : '')
+  const [birthMonth, setBirthMonth] = useState(birthDate ? String(Number(birthDate.slice(5, 7))) : '')
+  const [birthYear, setBirthYear] = useState(birthDate ? birthDate.slice(0, 4) : '')
+  const typedBirthDate = birthDateFrom(birthDay, birthMonth, birthYear)
   const [gender, setGender] = useState<Gender | ''>(parseGender(patient?.gender) ?? '')
   const [address, setAddress] = useState(patient?.address ?? '')
   const [alerts, setAlerts] = useState(patient?.medical_alerts ?? '')
@@ -78,7 +90,7 @@ function PatientFields({
   const [lookup, setLookup] = useState<{ phone: string; matches: { id: string; name: string; age: number | null }[] }>({ phone: '', matches: [] })
 
   // New patient only: anything typed at all (Start fresh shows once there is)
-  const typed = !patient && [phone, name, ageText, gender, address, alerts, heardFrom].some((value) => value.trim() !== '')
+  const typed = !patient && [phone, name, ageText, birthDay, birthMonth, birthYear, gender, address, alerts, heardFrom].some((value) => value.trim() !== '')
   // Left with typing in it (Back, another screen): when it shows again, the top line says whose it is
   const typedRef = useRef(typed)
   useEffect(() => {
@@ -174,12 +186,40 @@ function PatientFields({
         <GenderChoice value={gender} onChange={setGender} name="gender" />
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="age" className={labelClass}>Age (years)</label>
-        <input id="age" name="age" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} autoComplete="off" placeholder="35"
-          value={ageText} onChange={(e) => setAgeText(e.target.value.replace(/\D/g, ''))} className={inputClass} />
-        <input type="hidden" name="age_was" value={age != null ? String(age) : ''} />
-      </div>
+      {byAge ? (
+        <div className="space-y-1.5">
+          <label htmlFor="age" className={labelClass}>Age (years)</label>
+          <input id="age" name="age" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} autoComplete="off" placeholder="35"
+            value={ageText} onChange={(e) => setAgeText(digits(e))} className={inputClass} />
+          <input type="hidden" name="age_was" value={age != null ? String(age) : ''} />
+          <input type="hidden" name="birth_by" value="age" />
+          <button type="button" onClick={() => setByAge(false)} className={switchClass}>Enter the date of birth instead</button>
+        </div>
+      ) : (
+        <fieldset className="space-y-1.5">
+          <legend className={labelClass}>Date of birth</legend>
+          <div className="flex items-end gap-2">
+            <label className="w-16 space-y-1 text-xs font-semibold text-gray-500">
+              Day
+              <input name="birth_day" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={2} autoComplete="off" placeholder="12"
+                value={birthDay} onChange={(e) => setBirthDay(digits(e))} className={boxClass} />
+            </label>
+            <label className="w-16 space-y-1 text-xs font-semibold text-gray-500">
+              Month
+              <input name="birth_month" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={2} autoComplete="off" placeholder="3"
+                value={birthMonth} onChange={(e) => setBirthMonth(digits(e))} className={boxClass} />
+            </label>
+            <label className="w-24 space-y-1 text-xs font-semibold text-gray-500">
+              Year
+              <input name="birth_year_typed" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} autoComplete="off" placeholder="1985"
+                value={birthYear} onChange={(e) => setBirthYear(digits(e))} className={boxClass} />
+            </label>
+            {typedBirthDate && <p className="flex min-h-12 items-center text-base font-semibold text-gray-700">{ageOn(typedBirthDate)} yrs</p>}
+          </div>
+          <input type="hidden" name="birth_date_was" value={birthDate ?? ''} />
+          <button type="button" onClick={() => setByAge(true)} className={switchClass}>Only know the age?</button>
+        </fieldset>
+      )}
 
       <div className="space-y-1.5">
         <label htmlFor="address" className={labelClass}>Address</label>

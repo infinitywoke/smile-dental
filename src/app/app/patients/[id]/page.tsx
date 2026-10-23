@@ -1,9 +1,9 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Camera, CalendarClock, ChevronDown, ChevronRight, MessageCircle, Pencil, Phone } from 'lucide-react'
+import { Cake, Camera, CalendarClock, ChevronDown, ChevronRight, MessageCircle, Pencil, Phone } from 'lucide-react'
 import { getPatientHub } from '@/lib/data/patient-hub'
 import { formatDate } from '@/lib/dates'
-import { patientAge } from '@/lib/patient-fields'
+import { isBirthday, patientAge } from '@/lib/patient-fields'
 import { formatPhone } from '@/lib/phone'
 import { formatRupees } from '@/lib/pricing'
 import { endOf, formatBlock, formatDay, inIndia } from '@/lib/schedule'
@@ -33,6 +33,12 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
           <p className="mt-1 text-sm text-gray-500">
             {[age !== null && `${age} yrs`, genderLabel(patient.gender), formatPhone(patient.phone)].filter(Boolean).join(' · ')}
           </p>
+          {patient.birth_date && (
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500">
+              {isBirthday(patient.birth_date) && <Cake className="h-4 w-4 text-[var(--hud-gold)]" aria-hidden="true" />}
+              {isBirthday(patient.birth_date) ? <span className="font-semibold text-gray-900">Birthday today</span> : 'Born'} {formatDate(patient.birth_date)}
+            </p>
+          )}
         </div>
         {patient.phone && (
           <div className="flex shrink-0 gap-2">

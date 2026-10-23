@@ -128,6 +128,7 @@ create table if not exists public.patients (
   phone text,                 -- 10-digit Indian mobile, digits only
   gender text check (gender in ('female', 'male', 'other')),
   birth_year smallint check (birth_year between 1900 and 2100), -- age is shown as this year's age
+  birth_date date check (birth_date >= date '1900-01-01'), -- when known; birth_year is kept in step
   address text,
   medical_alerts text,        -- allergies, conditions, regular medicines
   heard_from text,            -- how they heard about the clinic

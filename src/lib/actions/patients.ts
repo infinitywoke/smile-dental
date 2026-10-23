@@ -8,7 +8,7 @@ import { findPatientsByPhone, searchPatients } from '@/lib/data/patients'
 import { findOrCreateTodaysVisit } from '@/lib/data/visits'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { formatPhone } from '@/lib/phone'
-import { birthYearFromAge, parseAge, patientAge, titleCaseName } from '@/lib/patient-fields'
+import { birthDateFrom, birthYearFromAge, parseAge, patientAge, titleCaseName } from '@/lib/patient-fields'
 import { parseGender } from '@/lib/gender'
 
 export type PatientFormState = { error?: string }
@@ -26,7 +26,12 @@ function readPatientForm(formData: FormData) {
     address: text('address'),
     medical_alerts: text('medical_alerts'),
     heard_from: text('heard_from'),
-    // Typed as an age; kept as a birth year
+    // The date of birth, typed as day, month and year; or, when only that is known, the age
+    byAge: formData.get('birth_by') === 'age',
+    birthDay: text('birth_day'),
+    birthMonth: text('birth_month'),
+    birthYear: text('birth_year_typed'),
+    birthDateWas: text('birth_date_was'),
     age: text('age'),
     ageWas: text('age_was'),
   }
@@ -34,22 +39,36 @@ function readPatientForm(formData: FormData) {
 
 type PatientInput = ReturnType<typeof readPatientForm>
 
+const birthDateOf = (patient: PatientInput) => birthDateFrom(patient.birthDay, patient.birthMonth, patient.birthYear)
+const birthDateTyped = (patient: PatientInput) => Boolean(patient.birthDay || patient.birthMonth || patient.birthYear)
+
 // Only the name and gender are needed for a new patient; older patients without a gender can still be edited
 function validate(patient: PatientInput, isNew = false): string | null {
   if (!patient.name) return 'Please enter the patient’s name.'
   if (isNew && !patient.gender) return 'Please choose the patient’s gender.'
   if (patient.phone && !isValidPhone(patient.phone)) return 'Please enter a 10-digit mobile number.'
-  if (patient.age && parseAge(patient.age) === null) return 'Please enter the age in years, for example 35.'
+  if (!patient.byAge && birthDateTyped(patient) && !birthDateOf(patient)) return 'Please check the date of birth: day, month and the year in 4 digits, for example 12 3 1985.'
+  if (patient.byAge && patient.age && parseAge(patient.age) === null) return 'Please enter the age in years, for example 35.'
   return null
 }
 
-// The columns to save. The birth year is worked out from the age (this year minus the age).
-// On an edit it is left alone unless the age was changed, so a patient does not age by a year
-// just because the form was saved.
+// The columns to save. A date of birth is kept with its year as the birth year. When only the age is
+// known, the birth year is worked out from it (this year minus the age); on an edit that is left alone
+// unless the age was changed, so a patient does not age by a year just because the form was saved.
+// Date boxes left empty change nothing, unless they held a date of birth before (then it goes).
 function columnsToSave(patient: PatientInput, isNew: boolean) {
-  const { age, ageWas, ...rest } = patient
+  const { byAge, birthDay, birthMonth, birthYear, birthDateWas, age, ageWas, ...rest } = patient
   const columns: Record<string, unknown> = { ...rest }
-  if (isNew || age !== ageWas) columns.birth_year = age ? birthYearFromAge(parseAge(age)!) : null
+  if (!byAge) {
+    const date = birthDateFrom(birthDay, birthMonth, birthYear)
+    if (date || birthDateWas) {
+      columns.birth_date = date
+      columns.birth_year = date ? Number(date.slice(0, 4)) : null
+    }
+  } else if (isNew || age !== ageWas) {
+    columns.birth_date = null
+    columns.birth_year = age ? birthYearFromAge(parseAge(age)!) : null
+  }
   return columns
 }
 

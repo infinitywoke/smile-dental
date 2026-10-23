@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { AlertCircle, ChevronRight } from 'lucide-react'
+import { AlertCircle, Cake, ChevronRight } from 'lucide-react'
 import type { VisitPhoto } from '@/lib/data/types'
 import type { VisitBill } from '@/lib/data/billing'
 import type { VisitPageData } from '@/lib/data/visits'
@@ -12,7 +12,7 @@ import { paymentsHeldMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
 import { DEFAULT_LENGTH, formatTimeOf, formatWhen } from '@/lib/schedule'
 import { otherName, photoCaption, photoKind, photoLabel, type PhotoKind } from '@/lib/visit-status'
-import { patientAge } from '@/lib/patient-fields'
+import { isBirthday, patientAge } from '@/lib/patient-fields'
 import type { UsualCharge } from '@/lib/usual-charges'
 import { ChairReadout } from './VisitHud'
 import { BillSection, type Save } from './BillTools'
@@ -164,6 +164,11 @@ export function VisitFlow({
             <p className="text-sm text-gray-500">
               {[age !== null && `${age} yrs`, `Visit ${visit.number}`, formatDate(visit.visit_date, { weekday: 'short', day: 'numeric', month: 'short' })].filter(Boolean).join(' · ')}
             </p>
+            {isBirthday(visit.patient.birth_date) && (
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+                <Cake className="h-4 w-4 text-[var(--hud-gold)]" aria-hidden="true" /> Birthday today
+              </p>
+            )}
           </div>
           <ChairReadout startedAt={visit.created_at} visitDate={visit.visit_date} sentAt={visit.closed_at ?? null} resend={!!visit.resend_needed} />
         </div>

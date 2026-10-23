@@ -160,8 +160,8 @@ test('"+" opens New patient directly, spots a returning number, and keeps typing
   await expect(visible(page.getByText('Already a patient with this number'))).toBeVisible()
   await expect(visible(page.getByRole('link').filter({ hasText: patientName }))).toBeVisible()
 
-  // The age asks for the number keypad; the heard-from answers are chips only
-  await expect(visible(page.getByLabel(/^Age/))).toHaveAttribute('inputmode', 'numeric')
+  // The date of birth asks for the number keypad; the heard-from answers are chips only
+  for (const part of ['Day', 'Month', 'Year']) await expect(visible(page.getByLabel(part, { exact: true }))).toHaveAttribute('inputmode', 'numeric')
   await expect(page.getByPlaceholder('Or type…')).toHaveCount(0)
 
   await visible(page.getByLabel('Name')).fill(`${runId} half typed`)
@@ -198,21 +198,52 @@ test('without a gender the message shows just above the button', async () => {
   expect(b!.y - (a!.y + a!.height)).toBeLessThan(24)
 })
 
-test('saves with a name and gender, stores the age as a birth year and opens the visit', async () => {
+test('saves with a name and gender, keeps the date of birth (and its year) and opens the visit', async () => {
   await visible(page.getByRole('radio', { name: 'Female' })).click()
-  await visible(page.getByLabel(/^Age/)).fill('40')
+  await visible(page.getByLabel('Day', { exact: true })).fill('12')
+  await visible(page.getByLabel('Month', { exact: true })).fill('3')
+  await visible(page.getByLabel('Year', { exact: true })).fill('1985')
+  const age = Number(today.slice(0, 4)) - 1985 - (today.slice(5) < '03-12' ? 1 : 0)
+  await expect(visible(page.getByText(`${age} yrs`, { exact: true }))).toBeVisible()
   await visible(page.getByRole('button', { name: 'Start visit' })).click()
   await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]+$/)
 
   const { supabase } = await testDb()
-  const { data } = await supabase.from('patients').select('name, birth_year, gender').like('name', `${runId} Half%`)
-  expect(data).toEqual([{ name: `${runId} Half Typed`, birth_year: Number(today.slice(0, 4)) - 40, gender: 'female' }])
+  const { data } = await supabase.from('patients').select('name, birth_year, birth_date, gender').like('name', `${runId} Half%`)
+  expect(data).toEqual([{ name: `${runId} Half Typed`, birth_year: 1985, birth_date: '1985-03-12', gender: 'female' }])
 
   // Back never returns to a form that would save the patient again, and the next form starts empty
   await visible(page.getByRole('link', { name: 'Patients', exact: true })).click()
   await visible(page.getByRole('link', { name: 'Walk-in' })).click()
   await expect(visible(page.getByLabel('Name'))).toHaveValue('')
   await expect(visible(page.getByRole('button', { name: 'Start fresh' }))).toHaveCount(0)
+})
+
+test('when only the age is known, "Only know the age?" keeps it as a birth year', async () => {
+  await visible(page.getByLabel('Name')).fill(`${runId} only age`)
+  await visible(page.getByRole('radio', { name: 'Male', exact: true })).click()
+  await visible(page.getByRole('button', { name: 'Only know the age?' })).click()
+  await expect(visible(page.getByLabel(/^Age/))).toHaveAttribute('inputmode', 'numeric')
+  await visible(page.getByLabel(/^Age/)).fill('40')
+  await visible(page.getByRole('button', { name: 'Start visit' })).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]+$/)
+  const { supabase } = await testDb()
+  const { data } = await supabase.from('patients').select('birth_year, birth_date').like('name', `${runId} Only%`)
+  expect(data).toEqual([{ birth_year: Number(today.slice(0, 4)) - 40, birth_date: null }])
+})
+
+test('on a birthday the patient page and the visit say so, with the age from the date of birth', async () => {
+  // Born in a leap year, so even a 29 February today is a real date of birth
+  const born = `1992-${today.slice(5)}`
+  const patientId = await createPatient(`${runId} Birthday`, newPhone('8'))
+  const { supabase } = await testDb()
+  await supabase.from('patients').update({ birth_date: born, birth_year: 1992 }).eq('id', patientId)
+  await page.goto(`/app/patients/${patientId}`)
+  await expect(visible(page.getByText('Birthday today'))).toBeVisible()
+  await expect(visible(page.getByText(`${Number(today.slice(0, 4)) - 1992} yrs`))).toBeVisible()
+  const visitId = await createVisit(patientId, today, 300)
+  await page.goto(`/app/visits/${visitId}`)
+  await expect(visible(page.getByText('Birthday today'))).toBeVisible()
 })
 
 test('Sign out is at the bottom of Patients', async () => {

@@ -106,6 +106,7 @@ export async function deletePatient(patientId: string, mode: DeleteMode, passwor
           heard_from: null,
           gender: null,
           birth_year: null,
+          birth_date: null,
         })
         .eq('id', patientId),
     ]
