@@ -1,0 +1,59 @@
+# Every push to main and every pull request (Dependabot's too): the type check, the lint, the unit
+# tests, a production build and the database checks (PGlite, a throwaway Postgres). A failure emails the
+# owner. The browser tests still run on the build machine against the test account (docs/BUILD_LOG.md):
+# here they would need a test database of their own.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      # The build only needs these to exist; nothing is fetched while building
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: build-only
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Database checks (PGlite)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pglite"
+          cd "$RUNNER_TEMP/pglite"
+          npm init -y > /dev/null
+          npm install --silent @electric-sql/pglite@0.5
+          for check in "$GITHUB_WORKSPACE"/supabase/tests/*.check.mjs; do
+            cp "$check" .
+            node "$(basename "$check")" "$GITHUB_WORKSPACE"
+          done

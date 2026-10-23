@@ -1,0 +1,21 @@
+# Weekly pull requests for out-of-date packages, the small updates grouped so one look covers them, and
+# monthly ones for the GitHub Actions the workflows use. Each pull request runs the checks
+# (workflows/checks.yml) before anyone merges it. Security fixes come as soon as GitHub knows of one,
+# once "Dependabot security updates" is turned on in the repository's settings (Code security).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    groups:
+      small-updates:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
