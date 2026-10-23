@@ -17,6 +17,8 @@ export type Patient = {
   heard_from: string | null
   // When the Google review request was sent on WhatsApp (null: never)
   review_asked_at?: string | null
+  // When they agreed to the clinic keeping their records (null: not asked yet, or withdrawn)
+  consent_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -54,7 +56,7 @@ export type VisitPhoto = {
 }
 
 export type VisitDetail = Visit & {
-  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'review_asked_at' | 'birth_year' | 'birth_date'>
+  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'review_asked_at' | 'birth_year' | 'birth_date' | 'consent_at'>
   photos: VisitPhoto[]
   linked_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status'> | null
   next_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status' | 'duration_min'> | null

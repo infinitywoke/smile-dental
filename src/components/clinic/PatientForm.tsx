@@ -87,10 +87,12 @@ function PatientFields({
   const [address, setAddress] = useState(patient?.address ?? '')
   const [alerts, setAlerts] = useState(patient?.medical_alerts ?? '')
   const [heardFrom, setHeardFrom] = useState(patient?.heard_from ?? '')
+  const consentWas = patient?.consent_at ?? null
+  const [agreed, setAgreed] = useState(Boolean(consentWas))
   const [lookup, setLookup] = useState<{ phone: string; matches: { id: string; name: string; age: number | null }[] }>({ phone: '', matches: [] })
 
   // New patient only: anything typed at all (Start fresh shows once there is)
-  const typed = !patient && [phone, name, ageText, birthDay, birthMonth, birthYear, gender, address, alerts, heardFrom].some((value) => value.trim() !== '')
+  const typed = !patient && (agreed || [phone, name, ageText, birthDay, birthMonth, birthYear, gender, address, alerts, heardFrom].some((value) => value.trim() !== ''))
   // Left with typing in it (Back, another screen): when it shows again, the top line says whose it is
   const typedRef = useRef(typed)
   useEffect(() => {
@@ -109,8 +111,8 @@ function PatientFields({
     if (state.error) setSaving(false)
   }, [state, setSaving])
 
-  // Only the name and gender are needed; the button looks grey until they are filled
-  const ready = name.trim().length > 0 && (!!patient || gender !== '')
+  // Only the name, the gender and their agreement are needed; the button looks grey until they are there
+  const ready = name.trim().length > 0 && (!!patient || (gender !== '' && agreed))
 
   // Spot returning patients as soon as a full number is typed
   const normalizedPhone = normalizePhone(phone)
@@ -249,8 +251,13 @@ function PatientFields({
         <input type="hidden" name="heard_from" value={heardFrom} />
       </div>
 
-      {/* Stays just above the bottom bar, so it is in reach without scrolling, as the booking screens' Save */}
+      <input type="hidden" name="consent_was" value={consentWas ?? ''} />
+      {patient && <ConsentTick agreed={agreed} onChange={setAgreed} />}
+
+      {/* Stays just above the bottom bar, so it is in reach without scrolling, as the booking screens' Save.
+          A new patient's agreement is the last thing asked, so it sits here too, just above the button. */}
       <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 space-y-2 border-t border-gray-200 bg-gray-50 px-4 pt-2 pb-2">
+        {!patient && <ConsentTick agreed={agreed} onChange={setAgreed} />}
         {state.error && (
           <div className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -265,5 +272,20 @@ function PatientFields({
         </button>
       </div>
     </form>
+  )
+}
+
+// Their agreement to the clinic keeping their records (India's data protection law): asked when they
+// are added. Editing shows what they said, and taking the tick off records that they withdrew it.
+function ConsentTick({ agreed, onChange }: { agreed: boolean; onChange: (agreed: boolean) => void }) {
+  return (
+    <label className="flex min-h-12 cursor-pointer items-center gap-3">
+      <input type="checkbox" name="consent" value="yes" checked={agreed} onChange={(e) => onChange(e.target.checked)}
+        className="h-6 w-6 shrink-0 rounded border-gray-300 text-blue-600" />
+      <span className="min-w-0">
+        <span className="block text-base font-semibold text-gray-900">They agree to the clinic keeping their records</span>
+        <span className="block text-xs text-gray-500">Their details and treatment notes, for their care. Ask them first.</span>
+      </span>
+    </label>
   )
 }

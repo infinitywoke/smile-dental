@@ -88,7 +88,8 @@ export function openDay(daysAhead: number): string {
 
 export async function createPatient(name: string, phone: string): Promise<string> {
   const { supabase } = await testDb()
-  const { data, error } = await supabase.from('patients').insert({ name, phone, gender: 'male' }).select('id').single()
+  // Agreed to the clinic keeping their records, as a patient added on the New patient form has
+  const { data, error } = await supabase.from('patients').insert({ name, phone, gender: 'male', consent_at: new Date().toISOString() }).select('id').single()
   if (error) throw new Error(`creating patient: ${error.message}`)
   return data.id as string
 }

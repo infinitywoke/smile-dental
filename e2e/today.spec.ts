@@ -198,19 +198,30 @@ test('without a gender the message shows just above the button', async () => {
   expect(b!.y - (a!.y + a!.height)).toBeLessThan(24)
 })
 
-test('saves with a name and gender, keeps the date of birth (and its year) and opens the visit', async () => {
+test('saves with a name, gender and their agreement, keeps the date of birth (and its year) and opens the visit', async () => {
   await visible(page.getByRole('radio', { name: 'Female' })).click()
   await visible(page.getByLabel('Day', { exact: true })).fill('12')
   await visible(page.getByLabel('Month', { exact: true })).fill('3')
   await visible(page.getByLabel('Year', { exact: true })).fill('1985')
   const age = Number(today.slice(0, 4)) - 1985 - (today.slice(5) < '03-12' ? 1 : 0)
   await expect(visible(page.getByText(`${age} yrs`, { exact: true }))).toBeVisible()
-  await visible(page.getByRole('button', { name: 'Start visit' })).click()
+
+  // Their agreement is asked last, just above the button, which stays in reach with it
+  const start = visible(page.getByRole('button', { name: 'Start visit' }))
+  const agree = visible(page.getByRole('checkbox', { name: /agree to the clinic keeping/ }))
+  await expect(agree).not.toBeChecked()
+  await start.click()
+  await expect(visible(page.getByText(/^Please ask if they agree to the clinic keeping their records/))).toBeVisible()
+  await expect(start).toBeInViewport()
+  await agree.check()
+  await start.click()
   await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]+$/)
+  await expect(visible(page.getByText(/^Ask once:/))).toHaveCount(0)
 
   const { supabase } = await testDb()
-  const { data } = await supabase.from('patients').select('name, birth_year, birth_date, gender').like('name', `${runId} Half%`)
-  expect(data).toEqual([{ name: `${runId} Half Typed`, birth_year: 1985, birth_date: '1985-03-12', gender: 'female' }])
+  const { data } = await supabase.from('patients').select('name, birth_year, birth_date, gender, consent_at').like('name', `${runId} Half%`)
+  expect(data).toEqual([{ name: `${runId} Half Typed`, birth_year: 1985, birth_date: '1985-03-12', gender: 'female', consent_at: expect.any(String) }])
+  expect(Date.now() - new Date(data![0].consent_at).getTime()).toBeLessThan(5 * 60_000)
 
   // Back never returns to a form that would save the patient again, and the next form starts empty
   await visible(page.getByRole('link', { name: 'Patients', exact: true })).click()
@@ -225,6 +236,7 @@ test('when only the age is known, "Only know the age?" keeps it as a birth year'
   await visible(page.getByRole('button', { name: 'Only know the age?' })).click()
   await expect(visible(page.getByLabel(/^Age/))).toHaveAttribute('inputmode', 'numeric')
   await visible(page.getByLabel(/^Age/)).fill('40')
+  await visible(page.getByRole('checkbox', { name: /agree to the clinic keeping/ })).check()
   await visible(page.getByRole('button', { name: 'Start visit' })).click()
   await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]+$/)
   const { supabase } = await testDb()

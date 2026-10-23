@@ -7,6 +7,7 @@ import type { VisitPhoto } from '@/lib/data/types'
 import type { VisitBill } from '@/lib/data/billing'
 import type { VisitPageData } from '@/lib/data/visits'
 import { deleteVisit } from '@/lib/actions/visits'
+import { recordConsent } from '@/lib/actions/patients'
 import { applyOutbox, sentWaiting as sentWaitingIn, shownNextVisit } from '@/lib/offline/apply'
 import { paymentsHeldMessage } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
@@ -173,6 +174,7 @@ export function VisitFlow({
           <ChairReadout startedAt={visit.created_at} visitDate={visit.visit_date} sentAt={visit.closed_at ?? null} resend={!!visit.resend_needed} />
         </div>
         <MedicalAlert alerts={visit.patient.medical_alerts} />
+        {!visit.patient.consent_at && <AskConsent patientId={visit.patient.id} />}
       </div>
 
       <div id="visit-notes" className="scroll-mt-4">
@@ -260,6 +262,43 @@ export function VisitFlow({
     </div>
     </SavesProvider>
     </UndoProvider>
+  )
+}
+
+// Patients added before the New patient form asked (or booked from the website or by phone) are asked
+// at their next visit, once: the tap saves it and the question goes
+function AskConsent({ patientId }: { patientId: string }) {
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [agreed, setAgreed] = useState(false)
+  if (agreed) return null
+
+  function agree() {
+    setError(null)
+    startTransition(async () => {
+      try {
+        const result = await recordConsent(patientId)
+        if (result.error) setError(result.error)
+        else setAgreed(true)
+      } catch {
+        setError('No signal: tap again when it’s back.')
+      }
+    })
+  }
+
+  return (
+    <div className="space-y-2 rounded-xl bg-white p-3 ring-1 ring-gray-200">
+      <div className="flex items-center gap-3">
+        <p className="min-w-0 flex-1 text-sm text-gray-700">
+          <span className="font-semibold text-gray-900">Ask once:</span> may the clinic keep their details and treatment notes, for their care?
+        </p>
+        <button type="button" onClick={agree} disabled={pending}
+          className="min-h-12 shrink-0 rounded-full px-4 text-base font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-50 disabled:opacity-60">
+          {pending ? 'Saving…' : 'They agree'}
+        </button>
+      </div>
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    </div>
   )
 }
 

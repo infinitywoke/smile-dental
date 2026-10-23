@@ -51,6 +51,7 @@ test('saving New patient opens the Visit page, and Back goes to Today, not the f
   await visible(page.getByLabel('WhatsApp number')).fill(phone)
   await visible(page.getByRole('radio', { name: 'Male', exact: true })).click()
   await visible(page.getByLabel('Medical alerts')).fill('Penicillin allergy')
+  await visible(page.getByRole('checkbox', { name: /agree to the clinic keeping/ })).check()
   await visible(page.getByRole('button', { name: /start visit/i })).click()
 
   // One page, straight away: no "New visit" page, no tabs
@@ -495,4 +496,47 @@ test('Start visit twice from the patient page opens one visit; an empty visit is
   await page.goto('/app')
   await expect(visible(page.getByRole('heading', { name: /^Today/ }))).toBeVisible()
   await expect(visible(page.getByRole('link').filter({ hasText: name }))).toHaveCount(0)
+})
+
+test('a patient added before the form asked is asked at the visit, once; the access log lists the visit', async () => {
+  const name = `${runId} Not Asked`
+  const { supabase } = await testDb()
+  const { data } = await supabase.from('patients').insert({ name, phone: newPhone('8'), gender: 'female' }).select('id').single()
+  const patientId = data!.id as string
+  await page.goto(`/app/patients/${patientId}`)
+  await visible(page.getByRole('button', { name: 'Start visit' })).click()
+  await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+  const visitPage = page.url()
+
+  const ask = visible(page.getByText(/^Ask once:/))
+  await expect(ask).toBeVisible()
+  await visible(page.getByRole('button', { name: 'They agree' })).click()
+  await expect(ask).toHaveCount(0)
+  await expect.poll(async () => (await supabase.from('patients').select('consent_at').eq('id', patientId).single()).data?.consent_at).toBeTruthy()
+  await page.reload()
+  await expect(visible(page.getByRole('heading', { name }))).toBeVisible()
+  await expect(visible(page.getByText(/^Ask once:/))).toHaveCount(0)
+
+  // Settings > Access log: the visit opened, with this device, and the sign-in
+  await page.goto('/app/settings')
+  await visible(page.getByRole('link', { name: 'Access log' })).click()
+  await expect(page).toHaveURL(/\/app\/settings\/access$/)
+  // Written once the screen had gone to the phone, so it can take a moment
+  const opened = visible(page.locator(`a[href="${new URL(visitPage).pathname}"]`))
+  await expect(async () => {
+    await page.reload()
+    await expect(opened).toHaveText(name, { timeout: 2_000 })
+  }).toPass({ timeout: 20_000 })
+  await expect(opened).toHaveCount(1)
+  await expect(visible(page.getByRole('heading', { name: 'Sign-ins' }))).toBeVisible()
+  await expect(visible(page.getByText(/Chrome/)).first()).toBeVisible()
+
+  // Withdrawn on the patient's Edit: the tick comes off, and the next visit asks again
+  await page.goto(`/app/patients/${patientId}/edit`)
+  const agree = visible(page.getByRole('checkbox', { name: /agree to the clinic keeping/ }))
+  await expect(agree).toBeChecked()
+  await agree.uncheck()
+  await visible(page.getByRole('button', { name: 'Save changes' })).click()
+  await expect(page).toHaveURL(new RegExp(`/app/patients/${patientId}$`))
+  expect((await supabase.from('patients').select('consent_at').eq('id', patientId).single()).data?.consent_at).toBeNull()
 })

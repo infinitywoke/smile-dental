@@ -34,6 +34,9 @@ function readPatientForm(formData: FormData) {
     birthDateWas: text('birth_date_was'),
     age: text('age'),
     ageWas: text('age_was'),
+    // They agree to the clinic keeping their records; and when they agreed, before this save
+    consent: formData.get('consent') === 'yes',
+    consentWas: text('consent_was'),
   }
 }
 
@@ -42,13 +45,15 @@ type PatientInput = ReturnType<typeof readPatientForm>
 const birthDateOf = (patient: PatientInput) => birthDateFrom(patient.birthDay, patient.birthMonth, patient.birthYear)
 const birthDateTyped = (patient: PatientInput) => Boolean(patient.birthDay || patient.birthMonth || patient.birthYear)
 
-// Only the name and gender are needed for a new patient; older patients without a gender can still be edited
+// A new patient needs a name, a gender and their agreement to the clinic keeping their records (asked
+// last); older patients without a gender can still be edited
 function validate(patient: PatientInput, isNew = false): string | null {
   if (!patient.name) return 'Please enter the patient’s name.'
   if (isNew && !patient.gender) return 'Please choose the patient’s gender.'
   if (patient.phone && !isValidPhone(patient.phone)) return 'Please enter a 10-digit mobile number.'
   if (!patient.byAge && birthDateTyped(patient) && !birthDateOf(patient)) return 'Please check the date of birth: day, month and the year in 4 digits, for example 12 3 1985.'
   if (patient.byAge && patient.age && parseAge(patient.age) === null) return 'Please enter the age in years, for example 35.'
+  if (isNew && !patient.consent) return 'Please ask if they agree to the clinic keeping their records, then tick it.'
   return null
 }
 
@@ -56,9 +61,12 @@ function validate(patient: PatientInput, isNew = false): string | null {
 // known, the birth year is worked out from it (this year minus the age); on an edit that is left alone
 // unless the age was changed, so a patient does not age by a year just because the form was saved.
 // Date boxes left empty change nothing, unless they held a date of birth before (then it goes).
+// Agreeing keeps the time they first agreed; taking the tick off records that they withdrew.
 function columnsToSave(patient: PatientInput, isNew: boolean) {
-  const { byAge, birthDay, birthMonth, birthYear, birthDateWas, age, ageWas, ...rest } = patient
+  const { byAge, birthDay, birthMonth, birthYear, birthDateWas, age, ageWas, consent, consentWas, ...rest } = patient
   const columns: Record<string, unknown> = { ...rest }
+  if (consent && (isNew || !consentWas)) columns.consent_at = new Date().toISOString()
+  if (!consent && consentWas) columns.consent_at = null
   if (!byAge) {
     const date = birthDateFrom(birthDay, birthMonth, birthYear)
     if (date || birthDateWas) {
@@ -118,6 +126,17 @@ export async function updatePatient(id: string, _prev: PatientFormState, formDat
 
   revalidatePath('/app', 'layout')
   redirect(`/app/patients/${id}`)
+}
+
+// Asked at a visit, once, for patients added before the New patient form asked (or booked from the
+// website or by phone)
+export async function recordConsent(patientId: string): Promise<{ error?: string }> {
+  await getDoctor()
+  const supabase = await createClient()
+  const { error } = await supabase.from('patients').update({ consent_at: new Date().toISOString() }).eq('id', patientId).is('consent_at', null)
+  if (error) return { error: 'Could not save. Please try again.' }
+  revalidatePath('/app', 'layout')
+  return {}
 }
 
 // Used while typing a phone number, to spot returning patients
