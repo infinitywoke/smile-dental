@@ -1,13 +1,15 @@
 # Every push to main and every pull request (Dependabot's too): the type check, the lint, the unit
 # tests, a production build and the database checks (PGlite, a throwaway Postgres). A failure emails the
-# owner. The browser tests still run on the build machine against the test account (docs/BUILD_LOG.md):
-# here they would need a test database of their own.
+# owner. The browser tests run beside these, on a test database of their own (browser-tests.yml).
 name: Checks
 
+# Not for changes to the documents alone (the build log): nothing to check, and the minutes add up
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
 
 permissions:
   contents: read

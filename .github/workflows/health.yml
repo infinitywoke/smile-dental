@@ -1,0 +1,55 @@
+# Every morning: the website, the booking page and the sign-in page answer, and no Clinic OS screen
+# reported an error in the last day (src/lib/report-error.ts keeps them in app_errors: the screen, the
+# device and the error, nothing about a patient). Anything wrong fails the run, so GitHub emails the
+# owner; the run's log lists the errors.
+name: Daily health check
+
+on:
+  schedule:
+    - cron: '30 2 * * *' # 08:00 India time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SITE: https://smile-dental-hin3.vercel.app
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: The website, the booking page and the sign-in page answer
+        run: |
+          status=0
+          for path in / /book /login; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --retry 2 --retry-delay 20 --max-time 30 "$SITE$path") || code=000
+            echo "$path: $code"
+            if [ "$code" != 200 ]; then echo "::error::$SITE$path answered $code"; status=1; fi
+          done
+          exit $status
+
+      - name: No errors on Clinic OS screens in the last day
+        if: always()
+        run: |
+          if [ -z "$DB_URL" ]; then echo "::error::Secret missing: SUPABASE_DB_URL (see docs/BACKUPS.md)"; exit 1; fi
+          last_day="from public.app_errors where at > now() - interval '24 hours'"
+          count=$(psql "$DB_URL" -tA -v ON_ERROR_STOP=1 -c "select count(*) $last_day")
+          echo "Errors in the last 24 hours: $count"
+          if [ "$count" -gt 0 ]; then
+            psql "$DB_URL" -P pager=off -v ON_ERROR_STOP=1 -c "select to_char(at at time zone 'Asia/Kolkata', 'DD Mon HH24:MI') as at, place as screen, device, left(message, 300) as error $last_day order by at"
+            echo "::error::$count error(s) on Clinic OS screens in the last day: the list is in this step's log"
+            exit 1
+          fi
+
+      # Supabase pauses a free project nobody uses for a week; the browser tests' own one is used only
+      # on Sundays and for pull requests (docs/BROWSER-TESTS.md)
+      - name: Keep the browser tests' database awake
+        if: always()
+        env:
+          URL: ${{ secrets.E2E_SUPABASE_URL }}
+          KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "Not set up yet"; exit 0; fi
+          curl -s -o /dev/null -w 'Test database: %{http_code}\n' --max-time 30 -H "apikey: $KEY" "$URL/rest/v1/" || true

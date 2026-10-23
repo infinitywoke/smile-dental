@@ -37,7 +37,8 @@ jobs:
       TABLES: patients visits visit_charges payments visit_photos visit_recordings appointments booking_requests time_off app_config share_links tally_settings
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
-      # Supabase Storage, through its S3-compatible endpoint (read)
+      # Supabase Storage, through its S3-compatible endpoint (read; and the tidy-up deletes the voice
+      # notes of the website requests it removes)
       RCLONE_CONFIG_SUPA_TYPE: s3
       RCLONE_CONFIG_SUPA_PROVIDER: Other
       RCLONE_CONFIG_SUPA_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
@@ -137,3 +138,14 @@ jobs:
           echo "Backup sizes:"
           rclone size vault:database
           rclone size vault:photos/current
+
+      # Only once the night's copy is safe (supabase/records-2026-10.sql): the access log after a year,
+      # error reports after 90 days, and website requests that never became a booking after six months,
+      # with their voice notes
+      - name: Tidy up old records
+        run: |
+          "$PG/psql" "$DB_URL" -tA -v ON_ERROR_STOP=1 -c "select f from public.tidy_old_records() f where f is not null" > tidied-voice.txt
+          echo "Voice notes of removed requests: $(grep -c . tidied-voice.txt || true)"
+          while read -r f; do
+            if [ -n "$f" ]; then rclone deletefile "supa:request-voice/$f" || echo "::warning::could not delete voice note $f"; fi
+          done < tidied-voice.txt
