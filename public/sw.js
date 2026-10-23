@@ -1,6 +1,7 @@
 // Clinic OS service worker: shows the notifications the server sends, opens the right screen when one
-// is tapped, and keeps a copy of each screen and of the app's own files on the phone, so the app still
-// opens with no signal (src/lib/offline/worker.ts starts it; the outbox saves what is done meanwhile).
+// is tapped, takes photos shared to Clinic OS from other apps, and keeps a copy of each screen and of
+// the app's own files on the phone, so the app still opens with no signal (src/lib/offline/worker.ts
+// starts it; the outbox saves what is done meanwhile).
 //
 // In development (?mode=dev) it caches nothing, so code changes always show, unless ?offline=1 (the
 // offline tests): then files are taken from the network first, and a slow page is waited for.
@@ -73,10 +74,15 @@ self.addEventListener('notificationclick', (event) => {
 const isAppPage = (url) => url.pathname === '/app' || url.pathname.startsWith('/app/')
 
 self.addEventListener('fetch', (event) => {
-  if (!OFFLINE) return
   const { request } = event
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
+  // Photos shared to Clinic OS from another app (the phone's share sheet), copies kept or not
+  if (request.method === 'POST' && url.pathname === '/app/share') {
+    event.respondWith(sharedPhotos(request))
+    return
+  }
+  if (!OFFLINE) return
   if (request.method === 'GET' && request.mode === 'navigate' && isAppPage(url)) event.respondWith(openPage(event))
   else if (request.method === 'GET' && url.pathname.startsWith('/_next/static/')) event.respondWith(openFile(event))
   // A change saved on a screen (a server action): its copy is made again once the changes stop
@@ -130,6 +136,32 @@ async function openPage(event) {
     showedCopy = true
     return (await unlocked()) ? marked(copy) : locked()
   }
+}
+
+// Photos shared from the gallery or WhatsApp: kept on the phone like a photo taken with no signal, not
+// yet given to a visit (src/lib/offline/photo-store.ts); /app/share asks which visit they are for, and
+// the visit uploads them
+async function sharedPhotos(request) {
+  const form = await request.formData()
+  const files = form.getAll('photos').filter((file) => typeof file === 'object' && file.type.startsWith('image/'))
+  if (files.length > 0) {
+    const db = await new Promise((resolve, reject) => {
+      const open = indexedDB.open('clinic-offline', 1)
+      open.onupgradeneeded = () => open.result.createObjectStore('photos', { keyPath: 'key' })
+      open.onsuccess = () => resolve(open.result)
+      open.onerror = () => reject(open.error)
+    })
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('photos', 'readwrite')
+      for (const file of files) {
+        tx.objectStore('photos').put({ key: crypto.randomUUID(), visitId: '', blob: file, name: file.name || 'photo.jpg', type: file.type, at: Date.now() })
+      }
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+    db.close()
+  }
+  return Response.redirect('/app/share', 303)
 }
 
 // A sign-in redirect or an error page is never kept

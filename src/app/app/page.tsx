@@ -31,6 +31,7 @@ import { NextPatient } from '@/components/clinic/NextPatient'
 import { DayPicker } from '@/components/clinic/DayPicker'
 import { KeepCopies } from '@/components/clinic/OfflineCopies'
 import { HolidayNote } from '@/components/clinic/HolidayNote'
+import { AppBadge } from '@/components/clinic/AppBadge'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const DUES_SHOWN = 5
@@ -109,6 +110,8 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   return (
     <UndoProvider>
     <div className="space-y-6">
+      {/* The app icon's number: requests waiting for a decision */}
+      <AppBadge count={requests.length} />
       {/* Each visit and patient on today's list, and each bill to collect, opens with no signal too */}
       {isToday && (
         <KeepCopies urls={[

@@ -42,6 +42,20 @@ export async function forgetAllPhotos(): Promise<void> {
   await withStore('readwrite', (store) => store.clear())
 }
 
+// Photos shared from another app (the share sheet, public/sw.js) that no visit has yet
+export async function sharedPhotos(): Promise<KeptPhoto[]> {
+  const all = (await withStore<KeptPhoto[]>('readonly', (store) => store.getAll())) ?? []
+  return all.filter((p) => !p.visitId).sort((a, b) => a.at - b.at)
+}
+
+// Gives shared photos to a visit: its page uploads them when it opens (PhotoGallery)
+export async function givePhotos(keys: string[], visitId: string): Promise<void> {
+  for (const key of keys) {
+    const photo = await withStore<KeptPhoto | undefined>('readonly', (store) => store.get(key))
+    if (photo) await keepPhoto({ ...photo, visitId })
+  }
+}
+
 export async function keptPhotos(visitId: string): Promise<KeptPhoto[]> {
   const all = (await withStore<KeptPhoto[]>('readonly', (store) => store.getAll())) ?? []
   return all.filter((p) => p.visitId === visitId).sort((a, b) => a.at - b.at)
