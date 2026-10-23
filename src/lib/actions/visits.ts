@@ -12,7 +12,7 @@ import { MAX_PHOTOS_TO_SEND, paymentsHeldMessage } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { DEFAULT_LENGTH, clinicStartOf, isLength, lengthLabel } from '@/lib/schedule'
 import { PHOTO_KINDS, photoCaption, type PhotoKind } from '@/lib/visit-status'
-import { cancelledMessage, confirmationMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
+import { cancelledMessage, confirmationMessage, messageLanguage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_NOTES = 20_000
@@ -119,7 +119,7 @@ export async function bookNextVisit(
   const supabase = await createClient()
   const { data: visit } = await supabase
     .from('visits')
-    .select('patient_id, closed_at, patient:patients!inner (name, phone)')
+    .select('patient_id, closed_at, patient:patients!inner (name, phone, language)')
     .eq('id', visitId)
     .maybeSingle()
   if (!visit) return { error: 'That visit was not found.' }
@@ -154,11 +154,10 @@ export async function bookNextVisit(
   }
   refreshClinicScreens()
 
-  const patient = visit.patient as unknown as { name: string; phone: string | null }
+  const patient = visit.patient as unknown as { name: string; phone: string | null; language: string | null }
   if (!visit.closed_at || !patient.phone) return {}
-  const message = existing
-    ? movedMessage({ name: patient.name, startsAt: block.iso })
-    : confirmationMessage({ name: patient.name, startsAt: block.iso })
+  const to = { name: patient.name, startsAt: block.iso, language: messageLanguage(patient.language) }
+  const message = existing ? movedMessage(to) : confirmationMessage(to)
   return { whatsappUrl: whatsappLink(patient.phone, message) }
 }
 
@@ -170,7 +169,7 @@ export async function removeNextVisit(visitId: string): Promise<Result & { whats
   const supabase = await createClient()
   const { data: visit } = await supabase
     .from('visits')
-    .select('closed_at, patient:patients!inner (name, phone)')
+    .select('closed_at, patient:patients!inner (name, phone, language)')
     .eq('id', visitId)
     .maybeSingle()
   if (!visit) return { error: 'That visit was not found.' }
@@ -182,9 +181,9 @@ export async function removeNextVisit(visitId: string): Promise<Result & { whats
     .select('starts_at')
   if (error) return { error: 'Could not remove the next visit. Please try again.' }
   refreshClinicScreens()
-  const patient = visit.patient as unknown as { name: string; phone: string | null }
+  const patient = visit.patient as unknown as { name: string; phone: string | null; language: string | null }
   if (removed.length === 0 || !visit.closed_at || !patient.phone) return {}
-  return { whatsappUrl: whatsappLink(patient.phone, cancelledMessage({ name: patient.name, startsAt: removed[0].starts_at })) }
+  return { whatsappUrl: whatsappLink(patient.phone, cancelledMessage({ name: patient.name, startsAt: removed[0].starts_at, language: messageLanguage(patient.language) })) }
 }
 
 // What the WhatsApp message says, read fresh from the database at the tap

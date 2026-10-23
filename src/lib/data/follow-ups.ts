@@ -8,7 +8,7 @@ import { indiaDayBounds } from './visits'
 // The lists on Today that empty themselves as he taps: tomorrow's reminders, patients who didn't
 // come, and 6-month check-ups. Each item leaves its list once it is sent (or set aside).
 
-type Person = { id: string; name: string; phone: string | null }
+type Person = { id: string; name: string; phone: string | null; language: string | null }
 
 export type Reminder = { id: string; starts_at: string; reminded: boolean; patient: Person }
 
@@ -21,7 +21,7 @@ export async function getReminders(today: string = todayInIndia()): Promise<{ da
   const { start, end } = indiaDayBounds(date)
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, starts_at, reminded_at, patient:patients!inner (id, name, phone)')
+    .select('id, starts_at, reminded_at, patient:patients!inner (id, name, phone, language)')
     .eq('status', 'booked')
     .is('visit_id', null)
     .gte('starts_at', start)
@@ -47,7 +47,7 @@ export async function getMissed(): Promise<Missed[]> {
   const since = new Date(Date.now() - MISSED_DAYS * 24 * 60 * 60 * 1000).toISOString()
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, starts_at, patient:patients!inner (id, name, phone)')
+    .select('id, starts_at, patient:patients!inner (id, name, phone, language)')
     .eq('status', 'no_show')
     .is('followed_up_at', null)
     .gte('starts_at', since)
@@ -85,13 +85,13 @@ export async function getRecalls(today: string = todayInIndia()): Promise<Recall
   const cutoff = new Date(Date.UTC(y, m - 1 - RECALL_MONTHS, d)).toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('patients')
-    .select('id, name, phone, recalled_at, visits (visit_date)')
+    .select('id, name, phone, language, recalled_at, visits (visit_date)')
     .not('phone', 'is', null)
     .order('visit_date', { referencedTable: 'visits', ascending: false })
     .limit(1, { referencedTable: 'visits' })
   if (error) throw error
   const rows = (data as unknown as (Person & { recalled_at: string | null; visits: { visit_date: string }[] })[])
-    .map((p) => ({ id: p.id, name: p.name, phone: p.phone, recalledAt: p.recalled_at, lastVisit: p.visits[0]?.visit_date ?? '' }))
+    .map((p) => ({ id: p.id, name: p.name, phone: p.phone, language: p.language, recalledAt: p.recalled_at, lastVisit: p.visits[0]?.visit_date ?? '' }))
     .filter((p) => p.lastVisit && p.lastVisit <= cutoff && (!p.recalledAt || p.recalledAt.slice(0, 10) < p.lastVisit))
   if (rows.length === 0) return []
   const { data: ahead, error: aheadError } = await supabase

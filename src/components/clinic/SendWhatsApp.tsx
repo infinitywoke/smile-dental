@@ -12,7 +12,7 @@ import { formatDate } from '@/lib/dates'
 import type { ShownBill } from '@/lib/offline/apply'
 import { isNetworkError, readOutbox } from '@/lib/offline/outbox'
 import { photoLabel, type PhotoKind } from '@/lib/visit-status'
-import { firstName, whatsappLink } from '@/lib/whatsapp'
+import { firstName, messageLanguage, whatsappLink } from '@/lib/whatsapp'
 import type { UploadCounts } from './PhotoGallery'
 import { openWhatsApp } from '@/lib/whatsapp-business'
 import { useSaves } from './Outbox'
@@ -231,6 +231,7 @@ export function SendWhatsApp({
         summary: data.summary,
         nextAppointment: data.nextAppointment,
         photos: tickedPhotos.flatMap((p) => (photoLinks[p.id] ? [{ label: nameOf(p), url: photoLinks[p.id] }] : [])),
+        language: messageLanguage(visit.patient.language),
       }),
     )
 
@@ -326,7 +327,7 @@ export function SendWhatsApp({
       ) : null}
 
       {sent && phone && (
-        <ReviewRequest patientId={visit.patient.id} name={visit.patient.name} phone={phone} askedAt={visit.patient.review_asked_at ?? null} />
+        <ReviewRequest patientId={visit.patient.id} name={visit.patient.name} phone={phone} askedAt={visit.patient.review_asked_at ?? null} language={messageLanguage(visit.patient.language)} />
       )}
 
       {sending.state === 'ready' && (

@@ -5,7 +5,7 @@ import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { BLOCK_MINUTES, DEFAULT_LENGTH, blockInstant, clinicBlockOf, clinicStartOf, formatTimeOf, isLength, lengthLabel } from '@/lib/schedule'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
-import { confirmationMessage, declineMessage, movedMessage, whatsappLink } from '@/lib/whatsapp'
+import { confirmationMessage, declineMessage, messageLanguage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 import { parseGender } from '@/lib/gender'
 import { patientAge, titleCaseName } from '@/lib/patient-fields'
 import { findPatientsByPhone, namesList, searchPatients, withSameName } from '@/lib/data/patients'
@@ -164,7 +164,7 @@ export async function bookAppointment(
   const supabase = await createClient()
   const { data: patient, error: patientError } = await supabase
     .from('patients')
-    .select('name, phone')
+    .select('name, phone, language')
     .eq('id', patientId)
     .maybeSingle()
   if (patientError || !patient) return { error: 'That patient was not found.' }
@@ -195,7 +195,7 @@ export async function bookAppointment(
     appointmentId,
     patientId,
     startsAt: block.iso,
-    whatsappUrl: patient.phone ? whatsappLink(patient.phone, confirmationMessage({ name: patient.name, startsAt: block.iso })) : undefined,
+    whatsappUrl: patient.phone ? whatsappLink(patient.phone, confirmationMessage({ name: patient.name, startsAt: block.iso, language: messageLanguage(patient.language) })) : undefined,
   }
 }
 
@@ -269,16 +269,16 @@ export async function moveAppointment(appointmentId: string, startsAt: string, m
     .update({ starts_at: block.iso, duration_min: length })
     .eq('id', appointmentId)
     .eq('status', 'booked')
-    .select('id, patient:patients!inner (name, phone)')
+    .select('id, patient:patients!inner (name, phone, language)')
     .maybeSingle()
   if (error) return { error: messageOf(error, 'Could not move the appointment.') }
   if (!data) return { error: 'That appointment was not found.' }
 
-  const patient = data.patient as unknown as { name: string; phone: string | null }
+  const patient = data.patient as unknown as { name: string; phone: string | null; language: string | null }
   refresh()
   return {
     appointmentId,
-    whatsappUrl: patient.phone ? whatsappLink(patient.phone, movedMessage({ name: patient.name, startsAt: block.iso })) : undefined,
+    whatsappUrl: patient.phone ? whatsappLink(patient.phone, movedMessage({ name: patient.name, startsAt: block.iso, language: messageLanguage(patient.language) })) : undefined,
   }
 }
 

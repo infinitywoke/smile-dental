@@ -37,6 +37,8 @@ function readPatientForm(formData: FormData) {
     // They agree to the clinic keeping their records; and when they agreed, before this save
     consent: formData.get('consent') === 'yes',
     consentWas: text('consent_was'),
+    // The language of their WhatsApp messages, when the form asks (Kannada once it is checked)
+    language: formData.has('language') ? (formData.get('language') === 'kn' ? 'kn' : null) : undefined,
   }
 }
 
@@ -65,6 +67,7 @@ function validate(patient: PatientInput, isNew = false): string | null {
 function columnsToSave(patient: PatientInput, isNew: boolean) {
   const { byAge, birthDay, birthMonth, birthYear, birthDateWas, age, ageWas, consent, consentWas, ...rest } = patient
   const columns: Record<string, unknown> = { ...rest }
+  if (rest.language === undefined) delete columns.language
   if (consent && (isNew || !consentWas)) columns.consent_at = new Date().toISOString()
   if (!consent && consentWas) columns.consent_at = null
   if (!byAge) {

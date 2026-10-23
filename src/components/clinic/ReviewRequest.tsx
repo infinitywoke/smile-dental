@@ -5,14 +5,14 @@ import { Star } from 'lucide-react'
 import { setReviewAsked } from '@/lib/actions/follow-ups'
 import { formatDate } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
-import { firstName, reviewMessage, whatsappLink } from '@/lib/whatsapp'
+import { firstName, reviewMessage, whatsappLink, type MessageLanguage } from '@/lib/whatsapp'
 import { markSent } from '@/lib/mark-sent'
 import { saveThenOpen } from './FollowUps'
 import { useUndo } from './UndoBar'
 
 // After the bill is sent: one tap asks for a Google review on WhatsApp. Offered for every patient,
 // once (the date shows after); Undo if it was tapped by mistake.
-export function ReviewRequest({ patientId, name, phone, askedAt }: { patientId: string; name: string; phone: string; askedAt: string | null }) {
+export function ReviewRequest({ patientId, name, phone, askedAt, language }: { patientId: string; name: string; phone: string; askedAt: string | null; language: MessageLanguage }) {
   const offerUndo = useUndo()
   const [asked, setAsked] = useState<string | null>(askedAt)
 
@@ -24,7 +24,7 @@ export function ReviewRequest({ patientId, name, phone, askedAt }: { patientId: 
     )
   }
 
-  const href = whatsappLink(phone, reviewMessage({ name }))
+  const href = whatsappLink(phone, reviewMessage({ name, language }))
   return (
     <a href={href}
       onClick={(event) => {

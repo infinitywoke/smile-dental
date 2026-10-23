@@ -9,6 +9,7 @@ import { formatPhone, normalizePhone } from '@/lib/phone'
 import type { Patient } from '@/lib/data/types'
 import { parseGender, type Gender } from '@/lib/gender'
 import { GenderChoice } from '@/components/GenderChoice'
+import { KANNADA_READY } from '@/lib/whatsapp'
 
 type Props = {
   action: (prev: PatientFormState, formData: FormData) => Promise<PatientFormState>
@@ -54,6 +55,8 @@ export function PatientForm(props: Props) {
 }
 
 const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Instagram', 'Doctor referral']
+// The language of their WhatsApp messages ('' is English)
+const LANGUAGES = [['', 'English'], ['kn', 'ಕನ್ನಡ']] as const
 
 const inputClass =
   'block min-h-12 w-full rounded-xl border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
@@ -87,12 +90,13 @@ function PatientFields({
   const [address, setAddress] = useState(patient?.address ?? '')
   const [alerts, setAlerts] = useState(patient?.medical_alerts ?? '')
   const [heardFrom, setHeardFrom] = useState(patient?.heard_from ?? '')
+  const [language, setLanguage] = useState<string>(patient?.language === 'kn' ? 'kn' : '')
   const consentWas = patient?.consent_at ?? null
   const [agreed, setAgreed] = useState(Boolean(consentWas))
   const [lookup, setLookup] = useState<{ phone: string; matches: { id: string; name: string; age: number | null }[] }>({ phone: '', matches: [] })
 
   // New patient only: anything typed at all (Start fresh shows once there is)
-  const typed = !patient && (agreed || [phone, name, ageText, birthDay, birthMonth, birthYear, gender, address, alerts, heardFrom].some((value) => value.trim() !== ''))
+  const typed = !patient && (agreed || [phone, name, ageText, birthDay, birthMonth, birthYear, gender, address, alerts, heardFrom, language].some((value) => value.trim() !== ''))
   // Left with typing in it (Back, another screen): when it shows again, the top line says whose it is
   const typedRef = useRef(typed)
   useEffect(() => {
@@ -250,6 +254,24 @@ function PatientFields({
         </div>
         <input type="hidden" name="heard_from" value={heardFrom} />
       </div>
+
+      {/* Only once Dr. Rahil has checked the Kannada messages (src/lib/whatsapp.ts) */}
+      {KANNADA_READY && (
+        <div className="space-y-1.5">
+          <p className={labelClass}>WhatsApp messages in</p>
+          <div className="flex flex-wrap gap-2">
+            {LANGUAGES.map(([value, label]) => (
+              <button key={value} type="button" aria-pressed={language === value} onClick={() => setLanguage(value)}
+                className={`min-h-12 rounded-full px-4 text-base font-medium ring-1 ring-inset transition-colors ${
+                  language === value ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <input type="hidden" name="language" value={language} />
+        </div>
+      )}
 
       <input type="hidden" name="consent_was" value={consentWas ?? ''} />
       {patient && <ConsentTick agreed={agreed} onChange={setAgreed} />}

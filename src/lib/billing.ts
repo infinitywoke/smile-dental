@@ -1,6 +1,6 @@
 import { formatRupees } from '@/lib/pricing'
 import { formatDate } from '@/lib/dates'
-import { appointmentLines, messageHeader, messageSignOff, QUESTIONS_LINE, SHORT_LOCATION } from '@/lib/whatsapp'
+import { appointmentLines, kannadaDate, messageHeader, messageSignOff, questionsLine, SHORT_LOCATION, type MessageLanguage } from '@/lib/whatsapp'
 
 // Money is added in paise so 0.1 + 0.2 never shows as 0.30000000000000004
 export function sumAmounts(items: { amount: number }[]): number {
@@ -112,8 +112,14 @@ export function visitMessage(args: {
   summary?: BillSummary | null
   nextAppointment?: { starts_at: string } | null
   photos?: { label: string; url: string }[]
+  language?: MessageLanguage
 }): string {
-  const out = [...messageHeader(args.patientName), `Thank you for visiting us on ${formatDate(args.visitDate)}.`]
+  const { language = 'en' } = args
+  const kn = language === 'kn'
+  const out = [
+    ...messageHeader(args.patientName, language),
+    kn ? `${kannadaDate(args.visitDate, true)} ರಂದು ನಮ್ಮಲ್ಲಿಗೆ ಬಂದಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for visiting us on ${formatDate(args.visitDate)}.`,
+  ]
   const lines = args.lines ?? []
   const payments = args.payments ?? []
   const summary = args.summary
@@ -121,34 +127,36 @@ export function visitMessage(args: {
   if (summary && lines.length > 0) {
     out.push(
       '',
-      '*Treatment & charges*',
-      ...lines.map((line) => `- ${line.description || 'Charge'}: ${formatRupees(line.amount)}`),
-      `*Total: ${formatRupees(summary.total)}*`,
+      kn ? '*ಚಿಕಿತ್ಸೆ ಮತ್ತು ಶುಲ್ಕ*' : '*Treatment & charges*',
+      ...lines.map((line) => `- ${line.description || (kn ? 'ಶುಲ್ಕ' : 'Charge')}: ${formatRupees(line.amount)}`),
+      kn ? `*ಒಟ್ಟು: ${formatRupees(summary.total)}*` : `*Total: ${formatRupees(summary.total)}*`,
     )
   }
 
   // This visit's payments, the other visits in one line, then one bold line: what the patient owes
   // (all visits together) or has in advance. Nothing charged, paid or owed: no Payment section.
   if (summary && (summary.total > 0 || summary.paid > 0 || summary.due !== 0)) {
-    out.push('', '*Payment*')
+    out.push('', kn ? '*ಪಾವತಿ*' : '*Payment*')
     if (summary.paid > 0) {
-      const methods = [...new Set(payments.map((p) => (p.method === 'upi' ? 'UPI' : 'Cash')))].join(' + ')
-      out.push(`Paid: ${formatRupees(summary.paid)}${methods ? ` (${methods})` : ''}`)
+      const methods = [...new Set(payments.map((p) => (p.method === 'upi' ? 'UPI' : kn ? 'ನಗದು' : 'Cash')))].join(' + ')
+      out.push(`${kn ? 'ಪಾವತಿಸಿದ್ದು' : 'Paid'}: ${formatRupees(summary.paid)}${methods ? ` (${methods})` : ''}`)
     }
-    if (summary.earlier > 0) out.push(`Due from other visits: ${formatRupees(summary.earlier)}`)
-    else if (summary.earlier < 0) out.push(`Advance from other visits: ${formatRupees(-summary.earlier)}`)
-    if (summary.due > 0) out.push(`*Balance due: ${formatRupees(summary.due)}*`)
-    else if (summary.due < 0) out.push(`*Advance with us: ${formatRupees(-summary.due)}*`)
-    else out.push('*Paid in full.* Thank you!')
+    if (summary.earlier > 0) out.push(`${kn ? 'ಇತರ ಭೇಟಿಗಳ ಬಾಕಿ' : 'Due from other visits'}: ${formatRupees(summary.earlier)}`)
+    else if (summary.earlier < 0) out.push(`${kn ? 'ಇತರ ಭೇಟಿಗಳ ಮುಂಗಡ' : 'Advance from other visits'}: ${formatRupees(-summary.earlier)}`)
+    if (summary.due > 0) out.push(`*${kn ? 'ಬಾಕಿ ಮೊತ್ತ' : 'Balance due'}: ${formatRupees(summary.due)}*`)
+    else if (summary.due < 0) out.push(`*${kn ? 'ನಮ್ಮಲ್ಲಿರುವ ಮುಂಗಡ' : 'Advance with us'}: ${formatRupees(-summary.due)}*`)
+    else out.push(kn ? '*ಪೂರ್ತಿ ಪಾವತಿಯಾಗಿದೆ.* ಧನ್ಯವಾದಗಳು!' : '*Paid in full.* Thank you!')
   }
 
   if (args.nextAppointment?.starts_at) {
-    out.push('', '*Next appointment*', ...appointmentLines(args.nextAppointment.starts_at), SHORT_LOCATION)
+    out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), SHORT_LOCATION)
   }
 
   const photos = args.photos ?? []
   if (photos.length > 0) {
-    out.push('', photos.length === 1 ? '*Your photo* _(the link works for 30 days)_' : '*Your photos* _(the links work for 30 days)_')
+    out.push('', kn
+      ? (photos.length === 1 ? '*ನಿಮ್ಮ ಫೋಟೋ* _(ಲಿಂಕ್ 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತದೆ)_' : '*ನಿಮ್ಮ ಫೋಟೋಗಳು* _(ಲಿಂಕ್ಗಳು 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತವೆ)_')
+      : (photos.length === 1 ? '*Your photo* _(the link works for 30 days)_' : '*Your photos* _(the links work for 30 days)_'))
     const counts = new Map<string, number>()
     for (const photo of photos) counts.set(photo.label, (counts.get(photo.label) ?? 0) + 1)
     const seen = new Map<string, number>()
@@ -159,7 +167,7 @@ export function visitMessage(args: {
     }
   }
 
-  out.push('', QUESTIONS_LINE, ...messageSignOff())
+  out.push('', questionsLine(language), ...messageSignOff(language))
   return out.join('\n')
 }
 

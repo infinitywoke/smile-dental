@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { CalendarX, MessageCircle } from 'lucide-react'
 import { getAppointment } from '@/lib/data/appointments'
 import { formatBlock, formatDay, inIndia } from '@/lib/schedule'
-import { cancelledMessage, firstName, whatsappLink } from '@/lib/whatsapp'
+import { cancelledMessage, firstName, messageLanguage, whatsappLink } from '@/lib/whatsapp'
 import { ScreenLoading } from '@/components/clinic/ui'
 
 // Right after Cancel: the time is free again; one optional tap tells the patient on WhatsApp
@@ -16,7 +16,7 @@ async function CancelledContent({ params }: PageProps<'/app/appointments/[id]/ca
 
   const { name, phone } = appointment.patient
   const { date, time } = inIndia(appointment.starts_at)
-  const whatsappUrl = phone ? whatsappLink(phone, cancelledMessage({ name, startsAt: appointment.starts_at })) : null
+  const whatsappUrl = phone ? whatsappLink(phone, cancelledMessage({ name, startsAt: appointment.starts_at, language: messageLanguage(appointment.patient.language) })) : null
 
   return (
     <div className="space-y-4 rounded-2xl bg-white p-5 text-center shadow-sm ring-1 ring-gray-200">

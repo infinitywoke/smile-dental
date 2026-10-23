@@ -3,13 +3,14 @@
 import { AlertTriangle } from 'lucide-react'
 import { LATE_MINUTES, NO_SHOW_MINUTES, nextTiming } from '@/lib/next-patient'
 import { formatTimeOf } from '@/lib/schedule'
+import type { MessageLanguage } from '@/lib/whatsapp'
 import { DidntComeButton } from './FollowUps'
 import { RunningLate } from './RunningLate'
 import { StartVisitButton } from './StartVisitButton'
 import { useNow } from './useNow'
 
 type Next = { appointmentId: string; patientId: string; name: string; startsAt: string; detail: string; alert: boolean }
-type Later = { id: string; name: string; startsAt: string; phone: string }
+type Later = { id: string; name: string; startsAt: string; phone: string; language: MessageLanguage }
 
 // Today's next patient, docked low where the thumb is: Start visit, and Running late. Once they are a few
 // minutes late, the time and Running late turn amber; ten minutes late, Didn't come is offered too.

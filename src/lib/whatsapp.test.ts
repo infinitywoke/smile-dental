@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { bookingRequestMessage, cancelledMessage, confirmationMessage, declineMessage, movedMessage, runningLateMessage } from './whatsapp'
+import {
+  bookingRequestMessage, cancelledMessage, confirmationMessage, declineMessage, kannadaDate, kannadaTime, messageLanguage, missedMessage,
+  movedMessage, recallMessage, reminderMessage, reviewMessage, runningLateMessage,
+} from './whatsapp'
 import { visitMessage } from './billing'
 
 // Messages to a patient carry the patient's first name and nothing else that identifies them:
@@ -96,5 +99,97 @@ describe('the website request to the clinic', () => {
     expect(text.startsWith('*Appointment request (website)*')).toBe(true)
     expect(text).not.toContain('Warm regards')
     expect(text).toContain('Open in Clinic OS: https://x/r')
+  })
+})
+
+describe('messages in Kannada', () => {
+  const starts = '2026-10-15T12:30:00.000Z' // Thu 15 Oct, 6:00 PM in India
+  const KN_HEADER = '*Smile Dental Clinic*\n_Dr. Rahil Yusuf, BDS_\n\nನಮಸ್ಕಾರ Prakash ಅವರೇ,\n'
+  const KN_SIGN_OFF = '\n\nಶುಭಾಶಯಗಳೊಂದಿಗೆ,\n*Dr. Rahil Yusuf*\nSmile Dental Clinic, ಕಟಪಾಡಿ'
+  // English words left in a Kannada message, apart from names, WhatsApp, Google, UPI, the address and links
+  const englishLeft = (text: string) =>
+    text.split('\n')
+      .filter((line) => !line.startsWith('📍') && !line.startsWith('- ') && !/https?:\/\//.test(line))
+      .join('\n')
+      .replace(/Smile Dental Clinic|Dr\. Rahil Yusuf|BDS|Prakash|WhatsApp|Google|\(review\)|UPI/g, '')
+      .match(/[A-Za-z]{2,}/g) ?? []
+
+  it('only for a patient set to Kannada', () => {
+    expect(messageLanguage('kn')).toBe('kn')
+    expect(messageLanguage(null)).toBe('en')
+    expect(messageLanguage(undefined)).toBe('en')
+    expect(messageLanguage('fr')).toBe('en')
+    expect(confirmationMessage({ name: 'Prakash Shetty', startsAt: starts })).toBe(confirmationMessage({ name: 'Prakash Shetty', startsAt: starts, language: 'en' }))
+  })
+
+  it.each([
+    ['2026-10-15', false, 'ಗುರುವಾರ, 15 ಅಕ್ಟೋಬರ್'],
+    ['2026-11-01', false, 'ಭಾನುವಾರ, 1 ನವೆಂಬರ್'],
+    ['2026-10-15', true, '15 ಅಕ್ಟೋಬರ್ 2026'],
+    ['2027-01-09', true, '9 ಜನವರಿ 2027'],
+  ])('writes %s (with the year: %s) as %j', (date, withYear, expected) => {
+    expect(kannadaDate(date, withYear)).toBe(expected)
+  })
+
+  it.each([
+    ['08:30', 'ಬೆಳಿಗ್ಗೆ 8:30'],
+    ['11:45', 'ಬೆಳಿಗ್ಗೆ 11:45'],
+    ['12:00', 'ಮಧ್ಯಾಹ್ನ 12:00'],
+    ['14:30', 'ಮಧ್ಯಾಹ್ನ 2:30'],
+    ['16:00', 'ಸಂಜೆ 4:00'],
+    ['19:00', 'ಸಂಜೆ 7:00'],
+    ['20:30', 'ರಾತ್ರಿ 8:30'],
+  ])('writes %s as %j', (time, expected) => {
+    expect(kannadaTime(time)).toBe(expected)
+  })
+
+  it('the confirmation: Kannada header, day and time, first name only', () => {
+    const text = confirmationMessage({ name: 'Prakash Shetty', startsAt: starts, language: 'kn' })
+    expect(text.startsWith(KN_HEADER)).toBe(true)
+    expect(text.endsWith(KN_SIGN_OFF)).toBe(true)
+    expect(text).toContain('*ಖಚಿತವಾಗಿದೆ*')
+    expect(text).toContain('📅 *ಗುರುವಾರ, 15 ಅಕ್ಟೋಬರ್*')
+    expect(text).toContain('🕗 *ಸಂಜೆ 6:00*')
+    expect(text).toContain('📍 1st Floor, YM Zohara Building')
+    expect(text).not.toContain('Shetty')
+  })
+
+  it('every message is in Kannada all through, with the same look as the English one', () => {
+    const name = 'Prakash Shetty'
+    const messages = [
+      confirmationMessage({ name, startsAt: starts, language: 'kn' }),
+      movedMessage({ name, startsAt: starts, language: 'kn' }),
+      cancelledMessage({ name, startsAt: starts, language: 'kn' }),
+      declineMessage({ name, language: 'kn' }),
+      reminderMessage({ name, startsAt: starts, tomorrow: true, language: 'kn' }),
+      reminderMessage({ name, startsAt: starts, tomorrow: false, language: 'kn' }),
+      missedMessage({ name, startsAt: starts, language: 'kn' }),
+      runningLateMessage({ name, startsAt: starts, minutes: 15, language: 'kn' }),
+      recallMessage({ name, lastVisit: '2026-04-11', language: 'kn' }),
+      reviewMessage({ name, language: 'kn' }),
+      visitMessage({
+        patientName: name,
+        visitDate: '2026-10-11',
+        lines: [{ description: 'Root canal treatment (46)', amount: 3500 }, { description: '', amount: 200 }],
+        payments: [{ amount: 1000, method: 'upi' }, { amount: 500, method: 'cash' }],
+        summary: { total: 3700, paid: 1500, balance: 2200, earlier: 300, due: 2500 },
+        nextAppointment: { starts_at: starts },
+        photos: [{ label: 'X-ray', url: 'https://example.com/x.jpg' }],
+        language: 'kn',
+      }),
+    ]
+    for (const text of messages) {
+      expect(text.startsWith(KN_HEADER)).toBe(true)
+      expect(text.endsWith(KN_SIGN_OFF)).toBe(true)
+      expect(englishLeft(text)).toEqual([])
+      expect(text).not.toContain('Shetty')
+      expect(text).not.toMatch(FORBIDDEN)
+    }
+    expect(messages[10]).toContain('- ಶುಲ್ಕ: ₹200')
+    expect(messages[10]).toContain('ಪಾವತಿಸಿದ್ದು: ₹1,500 (UPI + ನಗದು)')
+    expect(messages[10]).toContain('ಇತರ ಭೇಟಿಗಳ ಬಾಕಿ: ₹300')
+    expect(messages[10]).toContain('*ಬಾಕಿ ಮೊತ್ತ: ₹2,500*')
+    expect(messages[10]).toContain('11 ಅಕ್ಟೋಬರ್ 2026 ರಂದು')
+    expect(messages[8]).toContain('(11 ಏಪ್ರಿಲ್ 2026)')
   })
 })

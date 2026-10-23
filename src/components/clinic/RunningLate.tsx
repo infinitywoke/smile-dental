@@ -3,14 +3,14 @@
 import { useState } from 'react'
 import { MessageCircle, Timer } from 'lucide-react'
 import { formatTimeOf } from '@/lib/schedule'
-import { runningLateMessage, whatsappLink } from '@/lib/whatsapp'
+import { runningLateMessage, whatsappLink, type MessageLanguage } from '@/lib/whatsapp'
 import { FullScreen, useBackToClose } from './FullScreen'
 
 const LATE_BY = [10, 15, 20, 30]
 
 // Running late: a WhatsApp message to each patient still to come today, written for them; he taps Send.
 // The button turns amber once the next patient's time has passed (he is running behind).
-export function RunningLate({ patients, behind }: { patients: { id: string; name: string; startsAt: string; phone: string }[]; behind: boolean }) {
+export function RunningLate({ patients, behind }: { patients: { id: string; name: string; startsAt: string; phone: string; language: MessageLanguage }[]; behind: boolean }) {
   const sheet = useBackToClose()
   const [minutes, setMinutes] = useState(15)
   const [sent, setSent] = useState<string[]>([])
@@ -47,7 +47,7 @@ export function RunningLate({ patients, behind }: { patients: { id: string; name
                       <span className="block truncate font-semibold text-gray-900">{p.name}</span>
                       <span className="hud-mono block text-sm text-gray-500">{formatTimeOf(p.startsAt)}</span>
                     </span>
-                    <a href={whatsappLink(p.phone, runningLateMessage({ name: p.name, startsAt: p.startsAt, minutes }))}
+                    <a href={whatsappLink(p.phone, runningLateMessage({ name: p.name, startsAt: p.startsAt, minutes, language: p.language }))}
                       target="_blank" rel="noopener noreferrer" onClick={() => setSent((s) => [...s, p.id])}
                       className={`flex min-h-12 items-center gap-2 rounded-xl px-4 font-semibold ${sent.includes(p.id) ? 'bg-gray-100 text-gray-600' : 'bg-blue-600 text-white'}`}>
                       <MessageCircle className="h-5 w-5" aria-hidden="true" />{sent.includes(p.id) ? 'Sent' : 'Send'}

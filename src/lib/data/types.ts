@@ -19,6 +19,8 @@ export type Patient = {
   review_asked_at?: string | null
   // When they agreed to the clinic keeping their records (null: not asked yet, or withdrawn)
   consent_at?: string | null
+  // The language of their WhatsApp messages: 'kn' for Kannada, null for English
+  language?: string | null
   created_at: string
   updated_at: string
 }
@@ -56,7 +58,7 @@ export type VisitPhoto = {
 }
 
 export type VisitDetail = Visit & {
-  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'review_asked_at' | 'birth_year' | 'birth_date' | 'consent_at'>
+  patient: Pick<Patient, 'id' | 'name' | 'phone' | 'medical_alerts' | 'review_asked_at' | 'birth_year' | 'birth_date' | 'consent_at' | 'language'>
   photos: VisitPhoto[]
   linked_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status'> | null
   next_appointment?: Pick<Appointment, 'id' | 'starts_at' | 'status' | 'duration_min'> | null

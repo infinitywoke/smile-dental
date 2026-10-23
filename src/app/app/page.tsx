@@ -21,7 +21,7 @@ import { getMissed, getRecalls, getReminders, type Missed, type Recall } from '@
 import { DidntComeButton, MissedList, RecallCard, RemindersCard } from '@/components/clinic/FollowUps'
 import { UndoProvider } from '@/components/clinic/UndoBar'
 import { getMoneyOn } from '@/lib/data/tally'
-import { missedMessage, recallMessage, reminderMessage, whatsappLink } from '@/lib/whatsapp'
+import { messageLanguage, missedMessage, recallMessage, reminderMessage, whatsappLink } from '@/lib/whatsapp'
 import { openStatus } from '@/lib/clinic-hours'
 import { nextAppointment } from '@/lib/next-patient'
 import { getBookingPause } from '@/lib/actions/booking'
@@ -65,16 +65,16 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   const over = (startsAt: string, minutes: number) => new Date(startsAt).getTime() + minutes * 60_000 < now
   const reminderItems = (reminders?.items ?? []).map((r) => ({
     id: r.id, startsAt: r.starts_at, name: r.patient.name, patientId: r.patient.id, reminded: r.reminded,
-    href: r.patient.phone ? whatsappLink(r.patient.phone, reminderMessage({ name: r.patient.name, startsAt: r.starts_at, tomorrow: reminders!.tomorrow })) : null,
+    href: r.patient.phone ? whatsappLink(r.patient.phone, reminderMessage({ name: r.patient.name, startsAt: r.starts_at, tomorrow: reminders!.tomorrow, language: messageLanguage(r.patient.language) })) : null,
   }))
   const showReminders = reminderItems.some((r) => !r.reminded && r.href)
   const missedItems = missed.map((m) => ({
     id: m.id, startsAt: m.starts_at, name: m.patient.name, patientId: m.patient.id, phone: m.patient.phone,
-    href: m.patient.phone ? whatsappLink(m.patient.phone, missedMessage({ name: m.patient.name, startsAt: m.starts_at })) : null,
+    href: m.patient.phone ? whatsappLink(m.patient.phone, missedMessage({ name: m.patient.name, startsAt: m.starts_at, language: messageLanguage(m.patient.language) })) : null,
   }))
   const recallItems = recalls.slice(0, RECALLS_SHOWN).map((r) => ({
     patientId: r.id, name: r.name, lastVisit: r.lastVisit, recalledAt: r.recalledAt,
-    href: whatsappLink(r.phone!, recallMessage({ name: r.name, lastVisit: r.lastVisit })),
+    href: whatsappLink(r.phone!, recallMessage({ name: r.name, lastVisit: r.lastVisit, language: messageLanguage(r.language) })),
   }))
 
   const poolBlocks = schedule.blocks.filter((b) => b.state === 'free' || b.state === 'blocked' || b.state === 'request')
@@ -103,7 +103,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   const next = isToday ? nextAppointment(booked, at) : null
   const later = booked
     .filter((a) => new Date(a.starts_at).getTime() > now && a.patient.phone)
-    .map((a) => ({ id: a.id, name: a.patient.name, startsAt: a.starts_at, phone: a.patient.phone! }))
+    .map((a) => ({ id: a.id, name: a.patient.name, startsAt: a.starts_at, phone: a.patient.phone!, language: messageLanguage(a.patient.language) }))
   const website = pause?.ready ? { paused: pause.until !== null, text: pauseText(pause.until, at) } : null
   const needsYou = requests.length > 0 || showDues.length > 0 || missedItems.length > 0
 

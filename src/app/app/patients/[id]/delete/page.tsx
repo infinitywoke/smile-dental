@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { getPatient, getPatientFootprint } from '@/lib/data/patients'
 import { formatRupees } from '@/lib/pricing'
 import { formatWhen } from '@/lib/schedule'
-import { cancelledMessage, firstName, whatsappLink } from '@/lib/whatsapp'
+import { cancelledMessage, firstName, messageLanguage, whatsappLink } from '@/lib/whatsapp'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 import { DeletePatientForm } from '@/components/clinic/DeletePatientForm'
 
@@ -13,7 +13,7 @@ async function DeletePatientContent({ params }: PageProps<'/app/patients/[id]/de
   const { id } = await params
   const [patient, footprint] = await Promise.all([getPatient(id), getPatientFootprint(id)])
   const next = footprint.coming[0]
-  const tellUrl = next && patient.phone ? whatsappLink(patient.phone, cancelledMessage({ name: patient.name, startsAt: next.starts_at })) : null
+  const tellUrl = next && patient.phone ? whatsappLink(patient.phone, cancelledMessage({ name: patient.name, startsAt: next.starts_at, language: messageLanguage(patient.language) })) : null
 
   return (
     <div className="space-y-5">
