@@ -50,10 +50,13 @@ Until the four secrets below exist, the "Browser tests" run says so and stops (g
 
 ## Good to know
 
-- The test project's data is only test data: patients named `E2E-…`, made and deleted by each run.
+- The test project is **smile-clinic-test** (ref `prdobgcyvecxqzqjhsip`, region Tokyo), made by the owner
+  on 23 Oct 2026. Its data is only test data: patients named `E2E-…`, made and deleted by each run.
 - A free project that nobody uses for a week is paused by Supabase. The daily health check keeps it awake; if it is
   paused anyway, **Restore** it in Supabase and run the tests again.
 - When `supabase/schema.sql` changes (a new table or column), run the change on the test project too,
-  as on the clinic's, or the tests that use it fail.
+  as on the clinic's, or the tests that use it fail:
+  `npx supabase db query --linked --project-ref prdobgcyvecxqzqjhsip --file supabase/<change>.sql`
+  (test data only, so no need to pause the website first).
 - The build machine can run the same tests against the same test project: put its URL and key in
   `.env.local` and the login in `.env.test.local`.
