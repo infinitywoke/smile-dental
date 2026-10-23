@@ -53,10 +53,6 @@ export function bookingRequestMessage(args: {
 export type MessageLanguage = 'en' | 'kn'
 export const messageLanguage = (value: string | null | undefined): MessageLanguage => (value === 'kn' ? 'kn' : 'en')
 
-// The Kannada messages go to patients once Dr. Rahil has checked their wording (Settings > Messages in
-// Kannada). Until then no patient can be set to Kannada, so every message stays in English.
-export const KANNADA_READY = false
-
 const KN_WEEKDAYS = ['ಭಾನುವಾರ', 'ಸೋಮವಾರ', 'ಮಂಗಳವಾರ', 'ಬುಧವಾರ', 'ಗುರುವಾರ', 'ಶುಕ್ರವಾರ', 'ಶನಿವಾರ']
 const KN_MONTHS = ['ಜನವರಿ', 'ಫೆಬ್ರವರಿ', 'ಮಾರ್ಚ್', 'ಏಪ್ರಿಲ್', 'ಮೇ', 'ಜೂನ್', 'ಜುಲೈ', 'ಆಗಸ್ಟ್', 'ಸೆಪ್ಟೆಂಬರ್', 'ಅಕ್ಟೋಬರ್', 'ನವೆಂಬರ್', 'ಡಿಸೆಂಬರ್']
 

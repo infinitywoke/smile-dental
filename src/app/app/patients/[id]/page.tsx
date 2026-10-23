@@ -33,7 +33,7 @@ async function PatientPageContent({ params }: PageProps<'/app/patients/[id]'>) {
             <span className="truncate">{patient.name}</span>
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            {[age !== null && `${age} yrs`, genderLabel(patient.gender), formatPhone(patient.phone)].filter(Boolean).join(' · ')}
+            {[age !== null && `${age} yrs`, genderLabel(patient.gender), formatPhone(patient.phone), patient.language === 'kn' && 'WhatsApp in ಕನ್ನಡ'].filter(Boolean).join(' · ')}
           </p>
           {patient.birth_date && (
             <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500">

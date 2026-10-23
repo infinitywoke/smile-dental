@@ -37,7 +37,7 @@ function readPatientForm(formData: FormData) {
     // They agree to the clinic keeping their records; and when they agreed, before this save
     consent: formData.get('consent') === 'yes',
     consentWas: text('consent_was'),
-    // The language of their WhatsApp messages, when the form asks (Kannada once it is checked)
+    // The language of their WhatsApp messages, when the form asks ('kn' for Kannada, else English)
     language: formData.has('language') ? (formData.get('language') === 'kn' ? 'kn' : null) : undefined,
   }
 }

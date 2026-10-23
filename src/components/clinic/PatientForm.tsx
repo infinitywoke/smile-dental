@@ -9,7 +9,6 @@ import { formatPhone, normalizePhone } from '@/lib/phone'
 import type { Patient } from '@/lib/data/types'
 import { parseGender, type Gender } from '@/lib/gender'
 import { GenderChoice } from '@/components/GenderChoice'
-import { KANNADA_READY } from '@/lib/whatsapp'
 
 type Props = {
   action: (prev: PatientFormState, formData: FormData) => Promise<PatientFormState>
@@ -255,23 +254,20 @@ function PatientFields({
         <input type="hidden" name="heard_from" value={heardFrom} />
       </div>
 
-      {/* Only once Dr. Rahil has checked the Kannada messages (src/lib/whatsapp.ts) */}
-      {KANNADA_READY && (
-        <div className="space-y-1.5">
-          <p className={labelClass}>WhatsApp messages in</p>
-          <div className="flex flex-wrap gap-2">
-            {LANGUAGES.map(([value, label]) => (
-              <button key={value} type="button" aria-pressed={language === value} onClick={() => setLanguage(value)}
-                className={`min-h-12 rounded-full px-4 text-base font-medium ring-1 ring-inset transition-colors ${
-                  language === value ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'
-                }`}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <input type="hidden" name="language" value={language} />
+      <div className="space-y-1.5">
+        <p className={labelClass}>WhatsApp messages in</p>
+        <div className="flex flex-wrap gap-2">
+          {LANGUAGES.map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={language === value} onClick={() => setLanguage(value)}
+              className={`min-h-12 rounded-full px-4 text-base font-medium ring-1 ring-inset transition-colors ${
+                language === value ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'
+              }`}>
+              {label}
+            </button>
+          ))}
         </div>
-      )}
+        <input type="hidden" name="language" value={language} />
+      </div>
 
       <input type="hidden" name="consent_was" value={consentWas ?? ''} />
       {patient && <ConsentTick agreed={agreed} onChange={setAgreed} />}

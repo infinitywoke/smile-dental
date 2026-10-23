@@ -5,8 +5,8 @@ import { visitMessage } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { addDays, blockInstant, isClosedDay } from '@/lib/schedule'
 import {
-  KANNADA_READY, cancelledMessage, confirmationMessage, declineMessage, missedMessage, movedMessage, recallMessage,
-  reminderMessage, reviewMessage, runningLateMessage, type MessageLanguage,
+  cancelledMessage, confirmationMessage, declineMessage, missedMessage, movedMessage, recallMessage, reminderMessage,
+  reviewMessage, runningLateMessage, type MessageLanguage,
 } from '@/lib/whatsapp'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
 
@@ -63,9 +63,8 @@ async function MessagesContent() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Messages in Kannada</h1>
         <p className="mt-1 text-sm text-gray-600">
-          {KANNADA_READY
-            ? 'What a patient set to Kannada gets on WhatsApp, with made-up details.'
-            : 'Not sent to any patient yet. This is what a patient who prefers Kannada would get on WhatsApp, with made-up details. If any words should change, note the message and the better words and pass them on; once they read right, Kannada can be turned on for those patients.'}
+          What a patient who prefers Kannada gets on WhatsApp, with made-up details. Set it on their record: New
+          patient or Edit, &ldquo;WhatsApp messages in&rdquo; ಕನ್ನಡ.
         </p>
       </div>
       {kannada.map((message, i) => (
