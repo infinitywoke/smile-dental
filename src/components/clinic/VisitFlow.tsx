@@ -27,6 +27,7 @@ import { MedicalAlert } from './ui'
 import { UndoProvider } from './UndoBar'
 import { NoteCharges, NoteUnclear } from './NoteSuggestions'
 import { PrescriptionCard } from './PrescriptionCard'
+import { prescriptionLines } from '@/lib/prescription'
 import { SavesProvider, useOutbox, useQueuedSaves } from './Outbox'
 import type { NoteSuggestions as Suggestions } from '@/lib/actions/smart-notes'
 
@@ -246,7 +247,7 @@ export function VisitFlow({
 
       <div id="visit-sent" className="scroll-mt-4">
         <SendWhatsApp visit={visit} bill={bill} nextAppointment={next?.startsAt ?? null} sentWaiting={sentWaiting}
-          nameOf={nameOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
+          prescription={prescriptionLines(notesText).length > 0} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
       </div>
 
       <DeleteVisit visit={visit} payments={heldPayments} />

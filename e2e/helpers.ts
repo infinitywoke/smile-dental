@@ -214,8 +214,6 @@ export async function captureWhatsapp(page: Page) {
 
 export const whatsappText = (url: string) => new URL(url).searchParams.get('text') ?? ''
 
-export type Shared = { text: string; files: { name: string; type: string; size: number }[] }
-
 // On a calendar (src/components/clinic/Calendar.tsx): shows the days of a month ("2026-12"), through
 // the months view, changing the year there when it is another
 export async function showMonth(scope: Locator, month: string) {
@@ -229,41 +227,4 @@ export async function showMonth(scope: Locator, month: string) {
   }
   const name = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', timeZone: 'UTC' })
   await scope.getByRole('group', { name: `Months of ${year}` }).getByRole('button', { name: new RegExp(`^${name} ${year}`) }).click()
-}
-
-// Playwright can't open Android's share sheet: this makes the page believe it can share files
-// (like Chrome on Android) and records what it shares. Applies from the next page load. Setting
-// sessionStorage "e2e-no-share" before a load turns it off again (a browser without file sharing).
-export async function stubShareSheet(page: Page) {
-  await page.addInitScript(() => {
-    let off = false
-    try {
-      off = !!sessionStorage.getItem('e2e-no-share')
-    } catch {
-      // No storage on this page (an opaque origin): nothing to stub
-      return
-    }
-    if (off) {
-      Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
-      Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
-      return
-    }
-    const shared: unknown[] = []
-    ;(window as unknown as { __shared: unknown[] }).__shared = shared
-    Object.defineProperty(navigator, 'canShare', {
-      configurable: true,
-      value: (data?: ShareData) => !!data?.files?.length && data.files.every((f) => f.type.startsWith('image/')),
-    })
-    Object.defineProperty(navigator, 'share', {
-      configurable: true,
-      value: async (data: ShareData) => {
-        shared.push({ text: data.text ?? '', files: (data.files ?? []).map((f) => ({ name: f.name, type: f.type, size: f.size })) })
-      },
-    })
-  })
-  return {
-    shared: () => page.evaluate(() => (window as unknown as { __shared?: Shared[] }).__shared ?? []),
-    // The next page loads behave like a browser that can't share files
-    turnOff: () => page.evaluate(() => sessionStorage.setItem('e2e-no-share', '1')),
-  }
 }

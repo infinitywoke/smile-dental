@@ -38,21 +38,22 @@ type Sending =
 // and to forget a message made ready before the photos to send changed
 export type SendHandle = { send: () => void; reset: () => void }
 
-// One message to the patient: bill, payments, balance, next appointment and the ticked photos, in one
-// tap. At the tap it first waits for anything still saving (a next visit, charge or payment tapped just
-// before), then the server reads the bill and the next appointment fresh and makes one short link to
-// the ticked photos (a page that shows them for 30 days: src/app/r/[token]/page.tsx), and the message is
-// built from that reply. WhatsApp shows the text before it is sent.
+// One message to the patient: bill, payments, balance, next appointment, the typed prescription and the
+// ticked photos, in one tap. At the tap it first waits for anything still saving (notes, a next visit,
+// charge or payment tapped just before), then the server reads the bill and the next appointment fresh
+// and makes one short link to the prescription and the photos (a page that shows them for 30 days:
+// src/app/r/[token]/page.tsx), and the message is built from that reply. WhatsApp shows the text before
+// it is sent.
 // With no signal (or saves still waiting on the phone, which the server doesn't have yet) the message
 // is made on the phone from the bill and next visit on show; WhatsApp sends it once it has signal, and
-// "WhatsApp sent" is recorded when the app has signal again. The photo link needs the server, so then
-// the photos wait (or he unticks them).
+// "WhatsApp sent" is recorded when the app has signal again. The link needs the server, so then a
+// prescription waits for the signal, and photos wait too (or he unticks them).
 export function SendWhatsApp({
   visit,
   bill,
   nextAppointment,
   sentWaiting,
-  nameOf,
+  prescription,
   uploads,
   whenSaved,
   handle,
@@ -66,8 +67,8 @@ export function SendWhatsApp({
   nextAppointment: string | null
   // "WhatsApp sent" was recorded on this phone and is waiting to be saved
   sentWaiting: boolean
-  // What a photo is called in the message ("Prescription", the name he typed, "Photo")
-  nameOf: (photo: VisitPhoto) => string
+  // The notes hold a typed prescription: it goes in the message's link
+  prescription: boolean
   // Photos not on the visit yet: Send waits for them (or for him to remove them)
   uploads: UploadCounts
   // Resolves once every save tapped before Send has reached the server
@@ -108,11 +109,11 @@ export function SendWhatsApp({
       ? `${photos(uploads.uploading)} still uploading…`
       : uploads.failed > 0
         ? `${photos(uploads.failed)} failed to upload and ${uploads.failed === 1 ? 'is' : 'are'} being tried again. Remove ${uploads.failed === 1 ? 'it' : 'them'} to send without.`
-        : tickedPhotos.length > MAX_PHOTOS_TO_SEND
-          ? `You can send up to ${MAX_PHOTOS_TO_SEND} photos at a time.`
+        : tickedPhotos.length + (prescription ? 1 : 0) > MAX_PHOTOS_TO_SEND
+          ? prescription ? `You can send up to ${MAX_PHOTOS_TO_SEND - 1} photos with the prescription.` : `You can send up to ${MAX_PHOTOS_TO_SEND} photos at a time.`
           : null
 
-  const linkWith = (data: Omit<MessageData, 'photoLink'>, photoLink: string | null) =>
+  const linkWith = (data: Omit<MessageData, 'photoLink'>, photoLink: MessageData['photoLink']) =>
     whatsappLink(
       phone!,
       visitMessage({
@@ -122,15 +123,15 @@ export function SendWhatsApp({
         payments: data.payments,
         summary: data.summary,
         nextAppointment: data.nextAppointment,
-        photoLink: photoLink ? { url: photoLink, labels: tickedPhotos.map((p) => nameOf(p)) } : null,
+        photoLink,
         language: messageLanguage(visit.patient.language),
       }),
     )
 
-  // The message made here, from the bill and next visit on show. The link to the photos needs the
-  // server, so with photos ticked it can't be made this way (null).
+  // The message made here, from the bill and next visit on show. The link needs the server, so with a
+  // prescription or photos ticked it can't be made this way (null).
   const linkHere = () =>
-    tickedPhotos.length > 0
+    prescription || tickedPhotos.length > 0
       ? null
       : linkWith({ charges: bill.charges, payments: bill.payments, summary: bill.summary, nextAppointment: nextAppointment ? { starts_at: nextAppointment } : null }, null)
 
@@ -189,7 +190,12 @@ export function SendWhatsApp({
     // He tapped again meanwhile: that try's reply is the one used
     if (tries.current !== thisTry) return
     if (!link) {
-      setSending({ state: 'failed', message: "No signal, so the link to the photos can't be made. Untick the photos to send the message without them, or wait for the signal." })
+      setSending({
+        state: 'failed',
+        message: prescription
+          ? "No signal, so the prescription's link can't be made. Send it when the signal is back."
+          : "No signal, so the link to the photos can't be made. Untick the photos to send the message without them, or wait for the signal.",
+      })
       return
     }
     // Quick enough: open WhatsApp now, still counted as the doctor's tap. Otherwise "Message ready"

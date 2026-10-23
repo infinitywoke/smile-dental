@@ -1,35 +1,17 @@
 'use client'
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { AlertCircle, Download, Eye, FileText, Loader2, Plus, Send, X } from 'lucide-react'
-import { siteConfig } from '@/config/site'
+import { useEffect, useMemo, useState } from 'react'
+import { Download, Eye, FileText, Plus, X } from 'lucide-react'
 import { formatDate } from '@/lib/dates'
 import { addPrescriptionLine, adviceText, prescriptionLines, removePrescriptionLine } from '@/lib/prescription'
 import { drawPrescription } from '@/lib/prescription-image'
 import { firstName } from '@/lib/whatsapp'
 import { useUndo } from './UndoBar'
 
-// Phones that can share files (Android Chrome) send the image through the share sheet; others download it
-let shareFilesSupport: boolean | null = null
-function canShareFilesNow(): boolean {
-  if (shareFilesSupport === null) {
-    try {
-      shareFilesSupport =
-        typeof navigator.share === 'function' &&
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare({ files: [new File([new Uint8Array(1)], 'photo.jpg', { type: 'image/jpeg' })] })
-    } catch {
-      shareFilesSupport = false
-    }
-  }
-  return shareFilesSupport
-}
-const noSubscribe = () => () => {}
-const useCanShareFiles = () => useSyncExternalStore(noSubscribe, canShareFilesNow, () => false)
-
 // The typed prescription: its medicines are the "Prescription:" lines of the notes (the smart notes
-// write them there; the quick buttons add more), so editing a dose is editing the note. Sent as a
-// letterhead image through the share sheet (WhatsApp), or downloaded where a phone can't share files.
+// write them there; the quick buttons add more), so editing a dose is editing the note. It goes with
+// the WhatsApp message, in its short link, drawn on the clinic's letterhead (the same picture as the
+// preview here); Download keeps a copy, to print.
 export function PrescriptionCard({
   notes,
   edit,
@@ -50,11 +32,9 @@ export function PrescriptionCard({
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
   const [preview, setPreview] = useState(false)
-  const [shareError, setShareError] = useState<string | null>(null)
-  const canShareFiles = useCanShareFiles()
   const date = formatDate(visitDate)
 
-  // The image is drawn ahead of the tap: Android opens the share sheet only straight after a tap
+  // The picture is drawn ahead, for the preview and the download
   const key = JSON.stringify([lines, advice, patientName, date])
   const [image, setImage] = useState<{ key: string; blob: Blob } | null>(null)
   useEffect(() => {
@@ -88,22 +68,6 @@ export function PrescriptionCard({
       edit((text) => addPrescriptionLine(text, line))
       return {}
     })
-  }
-
-  // Straight from the tap, with nothing awaited first
-  function share() {
-    if (!blob) return
-    setShareError(null)
-    const data: ShareData = { files: [new File([blob], fileName, { type: 'image/jpeg' })], text: `Prescription · ${siteConfig.name} · ${date}` }
-    try {
-      if (!navigator.canShare(data)) throw new Error('cannot share')
-      navigator.share(data).catch((e: unknown) => {
-        if (e instanceof DOMException && e.name === 'AbortError') return
-        setShareError("Couldn't open sharing. Please tap again.")
-      })
-    } catch {
-      setShareError("This phone couldn't attach the prescription. Please tap again.")
-    }
   }
 
   const quick = medicines.filter((m) => !lines.some((l) => l.trim().toLowerCase() === m.trim().toLowerCase()))
@@ -181,24 +145,12 @@ export function PrescriptionCard({
               className="flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-white px-4 text-base font-semibold text-gray-700 ring-1 ring-gray-300 disabled:opacity-60">
               <Eye className="h-5 w-5" /> {preview ? 'Hide' : 'Preview'}
             </button>
-            {canShareFiles ? (
-              <button type="button" onClick={share} disabled={!blob}
-                className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-base font-semibold text-white disabled:opacity-60">
-                {blob ? <Send className="h-5 w-5" /> : <Loader2 className="h-5 w-5 animate-spin" />} Send prescription
-              </button>
-            ) : (
-              <a href={url ?? undefined} download={fileName} aria-disabled={!url}
-                className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-base font-semibold text-white aria-disabled:opacity-60">
-                <Download className="h-5 w-5" /> Download prescription
-              </a>
-            )}
+            <a href={url ?? undefined} download={fileName} aria-disabled={!url}
+              className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-gray-700 ring-1 ring-gray-300 aria-disabled:opacity-60">
+              <Download className="h-5 w-5 text-gray-500" /> Download prescription
+            </a>
           </div>
-          {canShareFiles && <p className="text-center text-sm text-gray-600">Then pick WhatsApp and {firstName(patientName)}&apos;s chat.</p>}
-          {shareError && (
-            <p role="alert" className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {shareError}
-            </p>
-          )}
+          <p className="text-center text-sm text-gray-600">It goes with the WhatsApp message, in its link.</p>
         </div>
       )}
     </section>

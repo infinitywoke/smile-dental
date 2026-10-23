@@ -44,10 +44,12 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, width: number): strin
 }
 
 let logo: Promise<HTMLImageElement | null> | null = null
+let signature: Promise<HTMLImageElement | null> | null = null
 
 export async function drawPrescription(sheet: PrescriptionSheet): Promise<Blob> {
   logo ??= loadImage(siteConfig.media.logo)
-  const logoImg = await logo
+  signature ??= siteConfig.dentist.signature ? loadImage(siteConfig.dentist.signature) : Promise.resolve(null)
+  const [logoImg, signatureImg] = await Promise.all([logo, signature])
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
   const degree = siteConfig.dentist.qualifications.split(',')[0].trim()
@@ -143,8 +145,13 @@ export async function drawPrescription(sheet: PrescriptionSheet): Promise<Blob> 
     })
   }
 
-  // Signature
+  // Signature: his own over the line, once the clinic has added it (siteConfig.dentist.signature)
   const sigY = H - 200
+  if (signatureImg && signatureImg.height > 0) {
+    const ratio = signatureImg.width / signatureImg.height
+    const h = Math.min(120, 340 / ratio)
+    ctx.drawImage(signatureImg, W - PAD - h * ratio, sigY - h - 8, h * ratio, h)
+  }
   ctx.fillStyle = '#9ca3af'
   ctx.fillRect(W - PAD - 360, sigY, 360, 2)
   ctx.fillStyle = INK

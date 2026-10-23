@@ -6,18 +6,21 @@ import { photosWord } from '@/lib/billing'
 import { formatDate } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
 import { createPublicClient } from '@/lib/supabase/public'
+import { isSharedPrescription, type SharedItem } from '@/lib/share-link'
 import { firstName, kannadaDate, messageLanguage, questionsLine } from '@/lib/whatsapp'
 import { ScreenLoading } from '@/components/clinic/ui'
+import { SharedPrescription } from '@/components/SharedPrescription'
 
-// The page a visit message's photo link opens (src/lib/actions/visits.ts makes the link): the ticked
-// photos, for 30 days, to anyone with the link and to no one else. Kept out of search engines.
+// The page a visit message's link opens (src/lib/actions/visits.ts makes the link): the typed
+// prescription on the letterhead and the ticked photos, for 30 days, to anyone with the link and to no
+// one else. Kept out of search engines.
 export const metadata: Metadata = {
   title: `Your photos · ${siteConfig.name}`,
   robots: { index: false, follow: false },
 }
 
 type Shared =
-  | { visit_date: string; first_name: string; language: string | null; expires_at: string; photos: { label: string; url: string }[] }
+  | { visit_date: string; first_name: string; language: string | null; expires_at: string; photos: SharedItem[] }
   | { expired: true }
 
 // 32 random characters; anything else is not one of the clinic's links
@@ -37,9 +40,9 @@ function Page({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto w-full max-w-lg flex-1 space-y-5 bg-white px-4 py-6">{children}</main>
 }
 
-// "Prescription-12-Oct-2026.jpg": what the photo is and the visit's date, in letters and numbers only
-const fileName = (label: string, date: string, url: string) =>
-  `${`${label} ${date}`.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '')}.${new URL(url).pathname.split('.').pop() || 'jpg'}`
+// "Prescription-12-Oct-2026.jpg": what it is and the visit's date, in letters and numbers only
+const fileName = (label: string, date: string, extension: string) =>
+  `${`${label} ${date}`.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '')}.${extension}`
 
 async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
   const { token } = await params
@@ -63,6 +66,7 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
   const date = kn ? kannadaDate(shared.visit_date, true) : formatDate(shared.visit_date)
   const until = inIndia(shared.expires_at).date
   const labels = shared.photos.map((p) => p.label)
+  const save = kn ? 'ಉಳಿಸಿ' : 'Save'
   // Two X-rays read "X-ray 1", "X-ray 2"
   const numbered = labels.map((label, i) => (labels.filter((l) => l === label).length > 1 ? `${label} ${labels.slice(0, i + 1).filter((l) => l === label).length}` : label))
   return (
@@ -73,17 +77,25 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">{kn ? photosWord(labels, 'kn') : `Your ${photosWord(labels)}`}</h1>
         <p className="text-sm text-gray-600">{date}</p>
       </div>
-      {shared.photos.map((photo, i) => (
-        <figure key={photo.url} className="space-y-2">
+      {shared.photos.map((item, i) => (
+        <figure key={i} className="space-y-2">
           <figcaption className="font-semibold text-gray-900">{numbered[i]}</figcaption>
-          <a href={photo.url} target="_blank" rel="noopener noreferrer" className="block">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a 30-day link to the clinic's private photo */}
-            <img src={photo.url} alt={numbered[i]} className="w-full rounded-xl bg-gray-50 ring-1 ring-gray-200" />
-          </a>
-          <a href={`${photo.url}&download=${encodeURIComponent(fileName(numbered[i], formatDate(shared.visit_date), photo.url))}`}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 text-base font-semibold text-blue-700 ring-1 ring-inset ring-blue-200">
-            <Download className="h-5 w-5" aria-hidden="true" /> {kn ? 'ಉಳಿಸಿ' : 'Save'}
-          </a>
+          {isSharedPrescription(item) ? (
+            <SharedPrescription
+              sheet={{ firstName: firstName(shared.first_name), date: formatDate(shared.visit_date), medicines: item.medicines, advice: item.advice }}
+              alt={numbered[i]} fileName={fileName(numbered[i], formatDate(shared.visit_date), 'jpg')} saveLabel={save} />
+          ) : (
+            <>
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a 30-day link to the clinic's private photo */}
+                <img src={item.url} alt={numbered[i]} className="w-full rounded-xl bg-gray-50 ring-1 ring-gray-200" />
+              </a>
+              <a href={`${item.url}&download=${encodeURIComponent(fileName(numbered[i], formatDate(shared.visit_date), new URL(item.url).pathname.split('.').pop() || 'jpg'))}`}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 text-base font-semibold text-blue-700 ring-1 ring-inset ring-blue-200">
+                <Download className="h-5 w-5" aria-hidden="true" /> {save}
+              </a>
+            </>
+          )}
         </figure>
       ))}
       <p lang={kn ? 'kn' : 'en'} className="text-sm text-gray-600">
