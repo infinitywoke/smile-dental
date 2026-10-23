@@ -98,8 +98,9 @@ export default function PrivacyPage() {
               <p>
                 Bills, prescriptions, appointment details and reminders are sent to you on WhatsApp from the clinic&apos;s
                 phone. The dentist sends each message himself, one at a time. We do not use automated or bulk messaging.
-                When a prescription photo is shared over WhatsApp, it is sent as a secure link that expires automatically
-                after 30 days. If you would rather not receive reminders, just tell us.
+                Prescription and X-ray photos come in the message as a private link that works for 30 days, then stops.
+                Anyone you forward the link to can see the photos until then, so share it only with your pharmacist or
+                another doctor. If you would rather not receive reminders, just tell us.
               </p>
             </Part>
 

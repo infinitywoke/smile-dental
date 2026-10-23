@@ -1,6 +1,8 @@
 'use server'
 
+import { randomBytes } from 'node:crypto'
 import { RedirectType, redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { PHOTO_BUCKET } from '@/lib/visit-status'
@@ -11,7 +13,8 @@ import { getNextVisitSuggestion } from '@/lib/data/next-visit'
 import { MAX_PHOTOS_TO_SEND, paymentsHeldMessage } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
 import { DEFAULT_LENGTH, clinicStartOf, isLength, lengthLabel } from '@/lib/schedule'
-import { PHOTO_KINDS, photoCaption, type PhotoKind } from '@/lib/visit-status'
+import { PHOTO_KINDS, otherName, photoCaption, photoKind, photoLabel, type PhotoKind } from '@/lib/visit-status'
+import { siteConfig } from '@/config/site'
 import { cancelledMessage, confirmationMessage, messageLanguage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -192,14 +195,23 @@ export type MessageData = {
   payments: VisitBill['payments']
   summary: VisitBill['summary']
   nextAppointment: { starts_at: string } | null
-  // 30-day links for the ticked photos, by photo id
-  links: Record<string, string>
+  // One short link to a page with the ticked photos, for 30 days (null: none ticked)
+  photoLink: string | null
 }
+
+// The address the doctor is using (the live site, or the test server), for links in messages
+async function siteOrigin(): Promise<string> {
+  const origin = (await headers()).get('origin')
+  return origin && /^https?:\/\/[^/]+$/.test(origin) ? origin : siteConfig.url
+}
+
+const PHOTO_LINK_FAILED = 'Could not prepare the photo link. Please try again.'
 
 // The doctor tapped Send on WhatsApp. Reads the bill and the next appointment fresh (server actions
 // run one after another, so a booking, charge or payment tapped just before is already saved) and
-// makes the 30-day links for the ticked photos (only now, and only photos of this visit). Nothing is
-// recorded here: markWhatsappSent records the send once WhatsApp is actually opened.
+// makes the short link for the ticked photos (only now, and only photos of this visit): 30-day file
+// links for them, kept with a new 32-character code (share_links) that the page /r/<code> looks up.
+// Nothing else is recorded here: markWhatsappSent records the send once WhatsApp is actually opened.
 export async function prepareWhatsapp(visitId: string, photoIds: string[] = []): Promise<Result & { message?: MessageData }> {
   await getDoctor()
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
@@ -207,7 +219,7 @@ export async function prepareWhatsapp(visitId: string, photoIds: string[] = []):
   if (photoIds.some((id) => !UUID.test(id))) return { error: 'Invalid photo.' }
   const supabase = await createClient()
 
-  let fresh: Omit<MessageData, 'links'>
+  let fresh: Omit<MessageData, 'photoLink'>
   try {
     const bill = await getVisitBill(visitId)
     const { next } = await appointmentsOfVisit(visitId, bill.patient.id)
@@ -221,23 +233,26 @@ export async function prepareWhatsapp(visitId: string, photoIds: string[] = []):
     return { error: 'Could not prepare the message. Please try again.' }
   }
 
-  const links: Record<string, string> = {}
+  let photoLink: string | null = null
   if (photoIds.length > 0) {
-    const { data: photos, error } = await supabase.from('visit_photos').select('id, storage_path').eq('visit_id', visitId).in('id', photoIds)
-    if (error || photos.length !== new Set(photoIds).size) return { error: 'Could not prepare the photo links. Please try again.' }
+    const { data: photos, error } = await supabase
+      .from('visit_photos').select('id, storage_path, caption').eq('visit_id', visitId).in('id', photoIds).order('created_at')
+    if (error || photos.length !== new Set(photoIds).size) return { error: PHOTO_LINK_FAILED }
     const { data: signed, error: signError } = await supabase.storage
       .from(PHOTO_BUCKET)
       .createSignedUrls(photos.map((p) => p.storage_path), SHARE_LINK_SECONDS)
-    if (signError || !signed) return { error: 'Could not prepare the photo links. Please try again.' }
-    const idByPath = new Map(photos.map((p) => [p.storage_path, p.id]))
-    for (const item of signed) {
-      const id = item.path ? idByPath.get(item.path) : undefined
-      if (id && item.signedUrl) links[id] = item.signedUrl
-    }
-    if (Object.keys(links).length !== photos.length) return { error: 'Could not prepare the photo links. Please try again.' }
+    if (signError || !signed) return { error: PHOTO_LINK_FAILED }
+    const urlByPath = new Map(signed.flatMap((item) => (item.path && item.signedUrl ? [[item.path, item.signedUrl] as const] : [])))
+    const shown = photos.map((p) => ({ label: photoLabel(photoKind(p.caption), otherName(p.caption)), url: urlByPath.get(p.storage_path) }))
+    if (shown.some((p) => !p.url)) return { error: PHOTO_LINK_FAILED }
+    // 24 random bytes: 32 characters that can't be guessed
+    const token = randomBytes(24).toString('base64url')
+    const { error: linkError } = await supabase.from('share_links').insert({ visit_id: visitId, token, photos: shown })
+    if (linkError) return { error: PHOTO_LINK_FAILED }
+    photoLink = `${await siteOrigin()}/r/${token}`
   }
 
-  return { message: { ...fresh, links } }
+  return { message: { ...fresh, photoLink } }
 }
 
 // WhatsApp is opening with the message: records every send as "WhatsApp sent" (the latest time) and

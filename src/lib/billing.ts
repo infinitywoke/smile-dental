@@ -100,10 +100,19 @@ export function summarise(args: {
   return { total, paid, balance, earlier: Math.round((due - balance) * 100) / 100, due }
 }
 
+// What the ticked photos are, for the message and their page: "prescription", "X-rays", "photos"; in
+// Kannada "ನಿಮ್ಮ ಫೋಟೋ" (your photo) or "ನಿಮ್ಮ ಫೋಟೋಗಳು"
+export function photosWord(labels: string[], language: MessageLanguage = 'en'): string {
+  const one = labels.length === 1
+  if (language === 'kn') return one ? 'ನಿಮ್ಮ ಫೋಟೋ' : 'ನಿಮ್ಮ ಫೋಟೋಗಳು'
+  const all = (label: string) => labels.every((l) => l === label)
+  return all('Prescription') ? (one ? 'prescription' : 'prescriptions') : all('X-ray') ? (one ? 'X-ray' : 'X-rays') : one ? 'photo' : 'photos'
+}
+
 // The one WhatsApp message after a visit, laid out for a phone: a header, the treatment and charges,
-// what was paid and what is still due, the next appointment, and (only on phones that can't share
-// the photos themselves) a 30-day link to each photo, named by its kind. Sections with nothing in
-// them are left out. First name only; nothing else about the patient.
+// what was paid and what is still due, the next appointment, and one short link to the ticked photos
+// (a page that shows them for 30 days). Sections with nothing in them are left out. First name only;
+// nothing else about the patient.
 export function visitMessage(args: {
   patientName: string
   visitDate: string
@@ -111,7 +120,8 @@ export function visitMessage(args: {
   payments?: { amount: number; method: 'upi' | 'cash' }[]
   summary?: BillSummary | null
   nextAppointment?: { starts_at: string } | null
-  photos?: { label: string; url: string }[]
+  // One short link to the ticked photos, and what they are ("Prescription", "X-ray", a typed name)
+  photoLink?: { url: string; labels: string[] } | null
   language?: MessageLanguage
 }): string {
   const { language = 'en' } = args
@@ -152,19 +162,10 @@ export function visitMessage(args: {
     out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), SHORT_LOCATION)
   }
 
-  const photos = args.photos ?? []
-  if (photos.length > 0) {
-    out.push('', kn
-      ? (photos.length === 1 ? '*ನಿಮ್ಮ ಫೋಟೋ* _(ಲಿಂಕ್ 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತದೆ)_' : '*ನಿಮ್ಮ ಫೋಟೋಗಳು* _(ಲಿಂಕ್ಗಳು 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತವೆ)_')
-      : (photos.length === 1 ? '*Your photo* _(the link works for 30 days)_' : '*Your photos* _(the links work for 30 days)_'))
-    const counts = new Map<string, number>()
-    for (const photo of photos) counts.set(photo.label, (counts.get(photo.label) ?? 0) + 1)
-    const seen = new Map<string, number>()
-    for (const photo of photos) {
-      const n = (seen.get(photo.label) ?? 0) + 1
-      seen.set(photo.label, n)
-      out.push(`- ${photo.label}${counts.get(photo.label)! > 1 ? ` ${n}` : ''}: ${photo.url}`)
-    }
+  // "*Your prescription* _(the link works for 30 days)_", then the link
+  const link = args.photoLink
+  if (link && link.labels.length > 0) {
+    out.push('', kn ? `*${photosWord(link.labels, 'kn')}* _(ಲಿಂಕ್ 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತದೆ)_` : `*Your ${photosWord(link.labels)}* _(the link works for 30 days)_`, link.url)
   }
 
   out.push('', questionsLine(language), ...messageSignOff(language))

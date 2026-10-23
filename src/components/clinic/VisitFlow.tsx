@@ -246,7 +246,7 @@ export function VisitFlow({
 
       <div id="visit-sent" className="scroll-mt-4">
         <SendWhatsApp visit={visit} bill={bill} nextAppointment={next?.startsAt ?? null} sentWaiting={sentWaiting}
-          kindOf={kindOf} nameOf={nameOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
+          nameOf={nameOf} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
       </div>
 
       <DeleteVisit visit={visit} payments={heldPayments} />

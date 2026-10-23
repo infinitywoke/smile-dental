@@ -2,11 +2,10 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
-import { formatDate } from '../src/lib/dates'
 import { addDays, formatBlock, inIndia } from '../src/lib/schedule'
 import {
   blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, createVisit, newPhone, newRunId, photoFolderFiles,
-  signIn, stubShareSheet, testDb, visible, whatsappText,
+  signIn, testDb, visible, whatsappText,
 } from './helpers'
 
 // A walk-in's visit on ONE page that saves by itself: new patient, notes, a photo marked Prescription,
@@ -178,17 +177,7 @@ async function sendOnWhatsapp() {
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
 }
 
-let share: Awaited<ReturnType<typeof stubShareSheet>>
-
-test('Send tapped straight after booking the next visit: a professional message with no photo link; then the prescription goes as a photo', async () => {
-  // An Android phone: it can share files
-  share = await stubShareSheet(page)
-  await page.reload()
-  const photoButton = visible(page.getByRole('button', { name: 'Send prescription photo' }))
-  // Step 2 only appears once the message has gone
-  await expect(visible(page.getByRole('link', { name: 'Send on WhatsApp' }))).toBeVisible()
-  await expect(photoButton).toHaveCount(0)
-
+test('Send tapped straight after booking the next visit: one message with the bill, the next visit and a short link to the prescription', async () => {
   const whatsapp = await captureWhatsapp(page)
   // No waiting between the two taps: Send waits for the booking itself
   await visible(page.getByRole('button', { name: /^Book / })).click()
@@ -203,50 +192,64 @@ test('Send tapped straight after booking the next visit: a professional message 
   expect(text).toContain('*Payment*\nPaid: ₹1,000 (Cash)\n*Balance due: ₹200*')
   expect(text).toMatch(/\*Next appointment\*\n📅 \*\w+day, \d{1,2} \w+\*\n🕗 \*\d{1,2}:\d{2} (AM|PM)\*\n📍 /)
   expect(text).toContain('Warm regards,\n*Dr. Rahil Yusuf*\nSmile Dental Clinic, Katapadi')
-  // The photo goes as a file, so no link is made or sent
+  // The prescription: one short link in the text, no storage address, no second step
+  expect(text).toMatch(/\*Your prescription\* _\(the link works for 30 days\)_\nhttps?:\/\/[^\s/]+\/r\/[A-Za-z0-9_-]{32}\n/)
   expect(text).not.toContain('storage/v1/object')
-  expect(text).not.toContain('Prescription:')
   expect(await bookedCount()).toBe(1)
 
-  // Coming back, the visit says the message went, shows the booking, and offers the photo
+  // Coming back, the visit says the message went and shows the booking
   await page.goto(visitUrl)
   await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toBeVisible()
   await expect(visible(page.getByText(/Booked: /))).toBeVisible()
-  await expect(photoButton).toBeEnabled({ timeout: 30_000 })
-  await photoButton.click()
-  await expect.poll(async () => (await share.shared()).length).toBe(1)
-  const [sharedNow] = await share.shared()
-  expect(sharedNow.files).toHaveLength(1)
-  expect(sharedNow.files[0].type).toMatch(/^image\//)
-  expect(sharedNow.files[0].size).toBeGreaterThan(0)
-  expect(sharedNow.files[0].name).toMatch(/^Prescription-\d{1,2}-\w{3}-\d{4}\.(jpg|png|webp)$/)
-  expect(sharedNow.text).toBe(`Prescription · Smile Dental Clinic · ${formatDate(inIndia(new Date()).date)}`)
-
-  // It stays, so he can send it again
-  await photoButton.click()
-  await expect.poll(async () => (await share.shared()).length).toBe(2)
+  await expect(page.getByRole('button', { name: /^Send .*photo/ })).toHaveCount(0)
 })
 
-test('a browser that cannot share files gets a 30-day prescription link in the text instead; nothing doubles', async () => {
-  await share.turnOff()
+test('the link shows the prescription to anyone with it, signed out, for 30 days; a wrong or expired link shows no photo', async ({ browser }) => {
+  const { supabase } = await testDb()
+  const { data: links } = await supabase.from('share_links').select('token, expires_at').eq('visit_id', visitId).order('created_at', { ascending: false })
+  const { token, expires_at } = links![0]
+  const days = (new Date(expires_at).getTime() - Date.now()) / 86_400_000
+  expect(days).toBeGreaterThan(29)
+  expect(days).toBeLessThan(31)
+
+  // Another phone, not signed in
+  const elsewhere = await browser.newContext()
+  const stranger = await elsewhere.newPage()
+  await stranger.goto(`/r/${token}`)
+  await expect(stranger.getByRole('heading', { name: 'Your prescription' })).toBeVisible()
+  await expect(stranger.getByText(`Dear ${runId},`)).toBeVisible()
+  const photo = stranger.getByRole('img', { name: 'Prescription' })
+  await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), { timeout: 20_000 }).toBe(true)
+  await expect(stranger.getByRole('link', { name: 'Save' })).toHaveAttribute('href', /&download=Prescription-\d{1,2}-\w{3}-\d{4}\.(jpg|png|webp)$/)
+  await expect(stranger.getByText(/works until/)).toBeVisible()
+  // Nothing else about the patient
+  await expect(stranger.getByText(patientName)).toHaveCount(0)
+  await expect(stranger.getByText(/Penicillin|Balance|₹/)).toHaveCount(0)
+
+  // One letter off: nothing
+  await stranger.goto(`/r/${token.slice(0, -1)}${token.endsWith('A') ? 'B' : 'A'}`)
+  await expect(stranger.getByRole('heading', { name: "This link doesn't work" })).toBeVisible()
+  await expect(stranger.getByRole('img')).toHaveCount(0)
+
+  // Once it has run out
+  await supabase.from('share_links').update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq('token', token)
+  await stranger.goto(`/r/${token}`)
+  await expect(stranger.getByRole('heading', { name: 'This link has expired' })).toBeVisible()
+  await expect(stranger.getByRole('img')).toHaveCount(0)
+  await elsewhere.close()
+})
+
+test('sending again makes a fresh link and never books or bills twice', async () => {
   await page.reload()
   await expect(visible(page.getByText('WhatsApp sent', { exact: true }))).toBeVisible()
-  await expect(visible(page.getByRole('button', { name: 'Send prescription photo' }))).toHaveCount(0)
-
   const whatsapp = await captureWhatsapp(page)
   await sendOnWhatsapp()
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain('*Your photo* _(the link works for 30 days)_')
-  const link = text.match(/- Prescription: (https:\/\/\S+\/storage\/v1\/object\/sign\/visit-photos\/\S+)/)?.[1]
-  expect(link).toBeTruthy()
-  const token = new URL(link!).searchParams.get('token')!
-  const { exp } = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
-  const days = (exp * 1000 - Date.now()) / 86_400_000
-  expect(days).toBeGreaterThan(29)
-  expect(days).toBeLessThan(31)
-  // Sending again never books or bills twice
+  expect(text).toMatch(/\/r\/[A-Za-z0-9_-]{32}\n/)
   expect(text).toContain('*Total: ₹1,200*')
   expect(await bookedCount()).toBe(1)
+  const { supabase } = await testDb()
+  expect((await supabase.from('share_links').select('token').eq('visit_id', visitId)).data).toHaveLength(2)
   await page.goto(visitUrl)
 })
 

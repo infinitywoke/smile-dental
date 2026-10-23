@@ -1,14 +1,31 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { AlertCircle, Download, Eye, FileText, Loader2, Plus, Send, X } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { formatDate } from '@/lib/dates'
 import { addPrescriptionLine, adviceText, prescriptionLines, removePrescriptionLine } from '@/lib/prescription'
 import { drawPrescription } from '@/lib/prescription-image'
 import { firstName } from '@/lib/whatsapp'
-import { useCanShareFiles } from './SendWhatsApp'
 import { useUndo } from './UndoBar'
+
+// Phones that can share files (Android Chrome) send the image through the share sheet; others download it
+let shareFilesSupport: boolean | null = null
+function canShareFilesNow(): boolean {
+  if (shareFilesSupport === null) {
+    try {
+      shareFilesSupport =
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [new File([new Uint8Array(1)], 'photo.jpg', { type: 'image/jpeg' })] })
+    } catch {
+      shareFilesSupport = false
+    }
+  }
+  return shareFilesSupport
+}
+const noSubscribe = () => () => {}
+const useCanShareFiles = () => useSyncExternalStore(noSubscribe, canShareFilesNow, () => false)
 
 // The typed prescription: its medicines are the "Prescription:" lines of the notes (the smart notes
 // write them there; the quick buttons add more), so editing a dose is editing the note. Sent as a

@@ -41,7 +41,7 @@ function samples(language: MessageLanguage, day: string, earlier: string) {
       payments: [{ amount: 1000, method: 'upi' }],
       summary: { total: 1200, paid: 1000, balance: 200, earlier: 0, due: 200 },
       nextAppointment: { starts_at: startsAt },
-      photos: [{ label: 'X-ray', url: `${siteConfig.url}/r/sample` }],
+      photoLink: { url: `${siteConfig.url}/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345`, labels: ['Prescription'] },
       language,
     }) },
     { title: 'Google review', text: reviewMessage({ name, language }) },

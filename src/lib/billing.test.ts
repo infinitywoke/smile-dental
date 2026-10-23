@@ -166,7 +166,7 @@ describe('visitMessage', () => {
       payments: [{ amount: 2000, method: 'upi' }],
       summary: summarise({ charges: [{ amount: 3500 }, { amount: 200 }], payments: [{ amount: 2000 }], owed: 1700 }),
       nextAppointment: nextVisit,
-      photos: [{ label: 'Prescription', url: 'https://example.com/p.jpg' }],
+      photoLink: { url: 'https://example.com/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345', labels: ['Prescription'] },
     })
     expect(text).toBe(
       [
@@ -190,8 +190,8 @@ describe('visitMessage', () => {
         '🕗 *6:00 PM*',
         '📍 1st Floor, YM Zohara Building, Shirva Road, Katapadi',
         '',
-        '*Your photo* _(the link works for 30 days)_',
-        '- Prescription: https://example.com/p.jpg',
+        '*Your prescription* _(the link works for 30 days)_',
+        'https://example.com/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345',
         '',
         'For any questions, call or WhatsApp us on +91 6361816711.',
         '',
@@ -213,8 +213,8 @@ describe('visitMessage', () => {
     expect(text).toContain('Warm regards,')
   })
 
-  it('a visit with nothing but a prescription sent as a photo has no sections and no links', () => {
-    const text = visitMessage({ patientName: 'Asha Rao', visitDate: '2026-10-12', lines: [], payments: [], photos: [] })
+  it('a visit with nothing on its bill and no photos ticked has no sections and no links', () => {
+    const text = visitMessage({ patientName: 'Asha Rao', visitDate: '2026-10-12', lines: [], payments: [], photoLink: null })
     expect(text).not.toMatch(/https?:\/\//)
     expect(text).not.toContain('*Payment*')
     expect(text).not.toContain('*Next appointment*')
@@ -283,20 +283,13 @@ describe('visitMessage', () => {
     expect(text).not.toContain('Paid in full')
   })
 
-  it('names each photo by its kind and numbers repeats', () => {
-    const text = visitMessage({
-      patientName: 'Asha Rao',
-      visitDate: '2026-10-12',
-      photos: [
-        { label: 'Prescription', url: 'https://x/1' },
-        { label: 'X-ray', url: 'https://x/2' },
-        { label: 'X-ray', url: 'https://x/3' },
-      ],
-    })
-    expect(text).toContain('*Your photos* _(the links work for 30 days)_')
-    expect(text).toContain('- Prescription: https://x/1')
-    expect(text).toContain('- X-ray 1: https://x/2')
-    expect(text).toContain('- X-ray 2: https://x/3')
+  it('one link for all the ticked photos, named by what they are', () => {
+    const link = (labels: string[]) => visitMessage({ patientName: 'Asha Rao', visitDate: '2026-10-12', photoLink: { url: 'https://x/r/code', labels } })
+    expect(link(['X-ray', 'X-ray'])).toContain('*Your X-rays* _(the link works for 30 days)_\nhttps://x/r/code')
+    expect(link(['Prescription', 'X-ray'])).toContain('*Your photos* _(the link works for 30 days)_\nhttps://x/r/code')
+    expect(link(['Lab slip'])).toContain('*Your photo* _(the link works for 30 days)_')
+    expect(link(['Prescription', 'X-ray']).match(/https:\/\//g)).toHaveLength(1)
+    expect(link([])).not.toContain('https://x/r/code')
   })
 
   it('uses the first name only, never anything else about the patient', () => {

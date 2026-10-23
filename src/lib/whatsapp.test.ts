@@ -174,7 +174,7 @@ describe('messages in Kannada', () => {
         payments: [{ amount: 1000, method: 'upi' }, { amount: 500, method: 'cash' }],
         summary: { total: 3700, paid: 1500, balance: 2200, earlier: 300, due: 2500 },
         nextAppointment: { starts_at: starts },
-        photos: [{ label: 'X-ray', url: 'https://example.com/x.jpg' }],
+        photoLink: { url: 'https://example.com/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345', labels: ['X-ray'] },
         language: 'kn',
       }),
     ]
@@ -190,6 +190,7 @@ describe('messages in Kannada', () => {
     expect(messages[10]).toContain('ಇತರ ಭೇಟಿಗಳ ಬಾಕಿ: ₹300')
     expect(messages[10]).toContain('*ಬಾಕಿ ಮೊತ್ತ: ₹2,500*')
     expect(messages[10]).toContain('11 ಅಕ್ಟೋಬರ್ 2026 ರಂದು')
+    expect(messages[10]).toContain('*ನಿಮ್ಮ ಫೋಟೋ* _(ಲಿಂಕ್ 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತದೆ)_\nhttps://example.com/r/')
     expect(messages[8]).toContain('(11 ಏಪ್ರಿಲ್ 2026)')
   })
 })
