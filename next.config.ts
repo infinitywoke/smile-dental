@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  // The React Compiler: components are memoised for us, so screens redraw only what changed
+  reactCompiler: true,
   experimental: {
     // Visit recordings for smart notes go through a server action
     serverActions: { bodySizeLimit: '5mb' },
