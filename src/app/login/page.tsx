@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { siteConfig } from '@/config/site'
+import { ForgetKeptScreens } from '@/components/clinic/OfflineLock'
 import { signIn } from './actions'
 
 export const metadata: Metadata = {
@@ -21,6 +22,8 @@ const inputClass =
 export default function LoginPage({ searchParams }: PageProps<'/login'>) {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-blue-50 px-4 py-12">
+      {/* Only a signed-out phone sees this page: the screens kept for no signal go */}
+      <ForgetKeptScreens />
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg ring-1 ring-gray-200">
         <div className="text-center">
           <div className="relative mx-auto h-16 w-16">

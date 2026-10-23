@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { clearOutbox } from '@/lib/offline/outbox'
 import { forgetAllPhotos } from '@/lib/offline/photo-store'
-import { forgetCopies } from '@/lib/offline/worker'
+import { forgetCopies, forgetLock } from '@/lib/offline/worker'
 import { useOnline, useOutbox } from './Outbox'
 
 // Notes typed but not saved, saves waiting for the signal, photos not yet uploaded and the screens kept
@@ -19,6 +19,7 @@ async function forgetThisPhone() {
   } catch {
     // Storage can be unavailable; signing out still goes ahead
   }
+  forgetLock()
   await Promise.all([forgetCopies(), forgetAllPhotos()])
 }
 

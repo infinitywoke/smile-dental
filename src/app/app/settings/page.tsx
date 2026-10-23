@@ -6,6 +6,7 @@ import { getDoctor } from '@/lib/auth'
 import { THEME_COOKIE, themeFrom } from '@/lib/theme'
 import { Card, ScreenLoading } from '@/components/clinic/ui'
 import { PracticeTabs } from '@/components/clinic/PracticeTabs'
+import { OfflineLockCard } from '@/components/clinic/OfflineLock'
 import { SignOutButton } from '@/components/clinic/SignOutButton'
 import { ThemeSwitch } from '@/components/clinic/ThemeSwitch'
 
@@ -29,6 +30,7 @@ async function SettingsContent() {
         <span className="flex-1">Notifications</span>
         <ChevronRight className="h-5 w-5 text-gray-400" aria-hidden="true" />
       </Link>
+      <OfflineLockCard />
       <div className="pt-4">
         <SignOutButton />
       </div>

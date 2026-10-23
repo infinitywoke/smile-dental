@@ -9,20 +9,28 @@ const DEV = params.get('mode') === 'dev'
 const OFFLINE = !DEV || params.get('offline') === '1'
 const PAGES = 'clinic-pages-v1'
 const FILES = 'clinic-files-v1'
+// When the phone's fingerprint or PIN last unlocked the kept screens
+const LOCK = 'clinic-lock-v1'
 const PAGE_LIMIT = 60
 const FILE_LIMIT = 300
+// A kept screen is shown for a day at most; older ones are deleted
+const COPY_MAX_AGE = 24 * 60 * 60 * 1000
+// Once unlocked, kept screens open without asking again for this long
+const UNLOCK_MS = 10 * 60 * 1000
 // On a weak signal the copy shows after this long; the fresh screen replaces it when it arrives
 const WAIT_MS = 6000
 // After a change is saved on a screen, its copy is made again once the changes stop for this long
 const SETTLE_MS = 3000
 const SAVED_AT = 'x-clinic-saved-at'
+const UNLOCKED_UNTIL = '/__clinic-unlocked-until'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil((async () => {
-  // Copies an older version of this worker made go
+  // Copies an older version of this worker made go, and so do copies older than a day
   for (const name of await caches.keys()) {
-    if (name.startsWith('clinic-') && name !== PAGES && name !== FILES) await caches.delete(name)
+    if (name.startsWith('clinic-') && ![PAGES, FILES, LOCK].includes(name)) await caches.delete(name)
   }
+  await pruneCopies()
   await self.clients.claim()
 })()))
 
@@ -62,7 +70,7 @@ self.addEventListener('notificationclick', (event) => {
   })())
 })
 
-const isAppPage =(url) => url.pathname === '/app' || url.pathname.startsWith('/app/')
+const isAppPage = (url) => url.pathname === '/app' || url.pathname.startsWith('/app/')
 
 self.addEventListener('fetch', (event) => {
   if (!OFFLINE) return
@@ -83,12 +91,25 @@ self.addEventListener('message', (event) => {
   if (OFFLINE && data.type === 'keep' && Array.isArray(data.urls)) event.waitUntil(keepPages(data.urls, Number(data.maxAge) || 0))
   if (data.type === 'forget') {
     generation++
-    event.waitUntil(caches.delete(PAGES).finally(() => event.ports[0]?.postMessage('forgotten')))
+    event.waitUntil(Promise.all([caches.delete(PAGES), caches.delete(LOCK)]).finally(() => event.ports[0]?.postMessage('forgotten')))
   }
+  // The phone's fingerprint or PIN said yes (on the lock page): kept screens open for a while
+  if (data.type === 'unlocked') event.waitUntil(unlockFor(UNLOCK_MS).finally(() => event.ports[0]?.postMessage('unlocked')))
 })
 
+async function unlocked() {
+  const until = await (await caches.open(LOCK)).match(UNLOCKED_UNTIL)
+  return Boolean(until) && Number(await until.text()) > Date.now()
+}
+
+async function unlockFor(ms) {
+  await (await caches.open(LOCK)).put(UNLOCKED_UNTIL, new Response(String(Date.now() + ms)))
+}
+
 // A screen: from the server when there is signal (and kept for next time), else the phone's copy,
-// marked with when it was made so the screen can say so. One never kept says there is no signal.
+// marked with when it was made so the screen can say so. The copy opens only once the phone's
+// fingerprint or PIN has unlocked it (the lock page, with no patient data, asks first). One never
+// kept, or older than a day, says there is no signal.
 async function openPage(event) {
   const { request } = event
   const since = generation
@@ -107,7 +128,7 @@ async function openPage(event) {
     return await (DEV ? fresh : Promise.race([fresh, new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), WAIT_MS))]))
   } catch {
     showedCopy = true
-    return marked(copy)
+    return (await unlocked()) ? marked(copy) : locked()
   }
 }
 
@@ -115,12 +136,28 @@ async function openPage(event) {
 const keepable = (response) => response.status === 200 && response.type === 'basic' && !response.redirected &&
   (response.headers.get('content-type') || '').includes('text/html')
 
-// The copy of a screen. A visit or a patient opened on another step or tab uses the one kept.
+// The copy of a screen. A visit or a patient opened on another step or tab uses the one kept. One
+// older than a day is never shown, and goes.
 async function copyOf(href) {
   const cache = await caches.open(PAGES)
-  const exact = await cache.match(href)
-  if (exact) return exact
-  return /^\/app\/(visits|patients)\/[^/]+$/.test(new URL(href).pathname) ? cache.match(href, { ignoreSearch: true }) : undefined
+  const loose = /^\/app\/(visits|patients)\/[^/]+$/.test(new URL(href).pathname)
+  const copy = (await cache.match(href)) ?? (loose ? await cache.match(href, { ignoreSearch: true }) : undefined)
+  if (copy && Date.now() - Number(copy.headers.get(SAVED_AT)) > COPY_MAX_AGE) {
+    await cache.delete(href, { ignoreSearch: loose })
+    return undefined
+  }
+  return copy
+}
+
+// Copies older than a day go: when the worker starts, and at most hourly as copies are made
+let pruned = 0
+async function pruneCopies() {
+  pruned = Date.now()
+  const cache = await caches.open(PAGES)
+  for (const key of await cache.keys()) {
+    const copy = await cache.match(key)
+    if (!copy || Date.now() - Number(copy.headers.get(SAVED_AT)) > COPY_MAX_AGE) await cache.delete(key)
+  }
 }
 
 async function keepPage(href, response, since) {
@@ -133,6 +170,7 @@ async function keepPage(href, response, since) {
   if (since !== generation) return
   await cache.put(href, copy)
   await trim(cache, PAGE_LIMIT)
+  if (Date.now() - pruned > 60 * 60 * 1000) await pruneCopies()
 }
 
 // Oldest first: a screen kept again moves to the end
@@ -150,6 +188,10 @@ async function marked(copy) {
 
 function noSignal() {
   return new Response(NO_SIGNAL, { status: 503, headers: { 'content-type': 'text/html; charset=utf-8' } })
+}
+
+function locked() {
+  return new Response(LOCKED, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
 }
 
 // The app's own files (scripts, styles, fonts). Their names change whenever they do, so a kept one is
@@ -249,13 +291,14 @@ function keepLater(href) {
   })
 }
 
-const NO_SIGNAL = `<!doctype html>
+// The worker's own pages, with nothing about any patient in them
+const page = (title, body) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#FAF6EE">
-<title>No signal - Clinic OS</title>
+<title>${title} - Clinic OS</title>
 <style>
   :root { color-scheme: light dark; --bg: #FAF6EE; --text: #071534; --muted: #5E6472; --button: #071534; --button-text: #F5EFE3 }
   @media (prefers-color-scheme: dark) { :root { --bg: #071534; --text: #F5EFE3; --muted: #B8BFCC; --button: #F5EFE3; --button-text: #071534 } }
@@ -263,17 +306,68 @@ const NO_SIGNAL = `<!doctype html>
   main { width: 100%; max-width: 22rem; padding: 24px 16px; box-sizing: border-box; text-align: center }
   h1 { margin: 0 0 8px; font-size: 1.5rem }
   p { margin: 0 0 24px; color: var(--muted) }
+  p:empty, [hidden] { display: none }
   a, button { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; min-height: 48px; border-radius: 12px; font: inherit; font-weight: 700; text-decoration: none }
-  a { margin-bottom: 12px; background: var(--button); color: var(--button-text) }
   button { border: 1px solid currentColor; background: transparent; color: var(--text) }
+  a, .main { margin-bottom: 12px; border: 0; background: var(--button); color: var(--button-text) }
 </style>
 </head>
 <body>
 <main>
-<h1>No signal</h1>
-<p>This screen isn't kept on the phone, so it opens when the signal is back.</p>
-<a href="/app">Go to Today</a>
-<button type="button" onclick="location.reload()">Try again</button>
+${body}
 </main>
 </body>
 </html>`
+
+const NO_SIGNAL = page('No signal', `<h1>No signal</h1>
+<p>This screen isn't kept on the phone, so it opens when the signal is back.</p>
+<a href="/app">Go to Today</a>
+<button type="button" onclick="location.reload()">Try again</button>`)
+
+// A kept screen with no signal: this phone's own fingerprint or PIN first (the key Settings set up,
+// src/lib/offline/worker.ts), then the worker opens kept screens for a while
+const LOCKED = page('No signal', `<h1>No signal</h1>
+<p>This screen is kept on the phone. It opens with this phone's fingerprint or PIN.</p>
+<button id="unlock" class="main" type="button">Unlock</button>
+<p id="why" role="alert"></p>
+<button type="button" onclick="location.reload()">Try again</button>
+<script>
+(() => {
+  const why = document.getElementById('why')
+  const unlock = document.getElementById('unlock')
+  let key = null
+  try {
+    key = localStorage.getItem('clinic-unlock-key')
+  } catch {}
+  if (!key || !window.PublicKeyCredential) {
+    unlock.hidden = true
+    why.textContent = "The lock isn't set up on this phone yet. With signal, set it up in Clinic OS: Settings, then Kept screens."
+  }
+  const bytes = (text) => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))
+  unlock.addEventListener('click', async () => {
+    why.textContent = ''
+    try {
+      await navigator.credentials.get({ publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rpId: location.hostname,
+        allowCredentials: [{ type: 'public-key', id: bytes(key) }],
+        userVerification: 'required',
+        timeout: 60000,
+      } })
+      await new Promise((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = resolve
+        setTimeout(resolve, 2000)
+        navigator.serviceWorker.controller.postMessage({ type: 'unlocked' }, [channel.port2])
+      })
+      location.reload()
+    } catch {
+      why.textContent = 'Not unlocked. Please try again.'
+    }
+  })
+  // The signal came back and the fresh screen is here
+  navigator.serviceWorker?.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'fresh') location.reload()
+  })
+})()
+</script>`)
