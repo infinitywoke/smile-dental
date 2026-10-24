@@ -10,6 +10,25 @@
 - **Dr. Rahil's answers (owner, 19 Oct):** Tally.ERP 9; ledgers "Cash" and "Bank of Baroda" (filled in for him, from `siteConfig.tally`); the accountant needs nothing else each month; lab bills and other expenses stay in Tally only. Still open: the income ledger's name, and each payment or one total per day.
 - **Before relying on it:** import one day's file into a test or backup company first.
 
+## Dr. Rahil's Day Book (owner, 24 Oct 2026)
+
+The owner shared a Day Book export (Tally.ERP 9, company "SMILE DENTAL0", receipts of 7-9 Sep 2026; UTF-16 XML). Kept out of the repo: it holds patient names, ages, places and clinical notes. What it shows about how his books are kept:
+
+| | His Day Book | Clinic OS export until now |
+|---|---|---|
+| Voucher | Receipt, numbered by Tally (641, 642, ...) | Receipt, numbered by Tally |
+| Money in (Dr) | `Cash`, or `Savings A/C` for UPI/bank | `Cash`, or the bank ledger saved on the screen (`Bank of Baroda`) |
+| Credited (Cr) | **Each patient's own ledger**, named name + age + place, like `Asha 40 Katapadi` or `Asha40Katapadi` (an invented example; the spacing varies) | One income ledger (saved as `Shin`, which looks like a test entry) |
+| Party ledger | `PARTYLEDGERNAME` = the cash or bank ledger | not set |
+| Narration | His clinical note in his shorthand: teeth, treatment, medicines (invented example: `3[6] RCT started, IOPA done`) | `Name - Cash - visit 12 Oct 2026` |
+| Amount | Cr patient +amount (ISDEEMEDPOSITIVE No), Dr Cash -amount (Yes) | the same convention |
+
+So a Clinic OS file as saved today would be refused: `Bank of Baroda` and `Shin` are not ledgers in his company. To match his books exactly:
+1. **Bank ledger `Savings A/C`** (done 24 Oct: the screen's default; the saved name still has to be changed once on the screen).
+2. **Party ledger and narration** (done 24 Oct): each receipt names its cash or bank ledger as Tally does, and the narration lists the visit's treatments.
+3. **Credit each patient's own ledger** (waiting for the owner): name + age + place from the patient's record, and a ledger created in the same file for a patient Tally doesn't have yet. Needs: the group his patient ledgers sit under (Sundry Debtors, or an income group), and whether to match his existing ledger names (a list exported from Tally) so old patients don't get a second ledger.
+4. **Before relying on it:** import one day into a backup company and compare its Day Book with this one.
+
 ## The original proposal (12 Oct)
 
 *12 Oct 2026. Owner: "Rahil uses Tally to keep a record of his accounts… see what features we can integrate to make our app much smarter and intelligent while keeping it simple." Written from what TallyPrime offers; check the details with Dr. Rahil before building.*

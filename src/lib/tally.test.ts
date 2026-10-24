@@ -39,9 +39,17 @@ describe('send to Tally', () => {
     expect(file).toContain('<VOUCHER VCHTYPE="Receipt" ACTION="Create">')
     expect(file).toContain('<DATE>20261018</DATE>')
     expect(file).toContain('<NARRATION>Prakash &amp; Sons - UPI - visit 18 Oct 2026</NARRATION>')
-    expect(file).toMatch(/<LEDGERNAME>HDFC Bank<\/LEDGERNAME>\s*<ISDEEMEDPOSITIVE>Yes<\/ISDEEMEDPOSITIVE>\s*<AMOUNT>-700\.00<\/AMOUNT>/)
+    expect(file).toMatch(/<LEDGERNAME>HDFC Bank<\/LEDGERNAME>\s*<ISDEEMEDPOSITIVE>Yes<\/ISDEEMEDPOSITIVE>\s*<ISPARTYLEDGER>Yes<\/ISPARTYLEDGER>\s*<AMOUNT>-700\.00<\/AMOUNT>/)
     expect(file).toMatch(/<LEDGERNAME>Professional Fees<\/LEDGERNAME>\s*<ISDEEMEDPOSITIVE>No<\/ISDEEMEDPOSITIVE>\s*<AMOUNT>700\.00<\/AMOUNT>/)
+    // The cash or bank ledger is the voucher's party, as in Tally's own Day Book export
+    expect(file).toMatch(/<VOUCHERTYPENAME>Receipt<\/VOUCHERTYPENAME>\s*<PARTYLEDGERNAME>HDFC Bank<\/PARTYLEDGERNAME>/)
     expect(tallyXml([], ledgers, 'payment', 'X')).not.toContain('<VOUCHER')
+  })
+
+  it("puts the visit's treatments in the narration, in plain letters, as his Day Book notes do", () => {
+    const withTreatments = { ...payments[1], treatments: ['Root canal treatment (46)', 'X-ray – IOPA'] }
+    const [v] = tallyVouchers([withTreatments], ledgers, 'payment', 'Smile Dental Clinic')
+    expect(v.narration).toBe('Asha Rao - Root canal treatment (46), X-ray IOPA - Cash - visit 11 Oct 2026')
   })
 
   it('totals what a file holds, and tidies ledger names', () => {

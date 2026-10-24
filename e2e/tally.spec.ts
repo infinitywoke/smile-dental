@@ -47,18 +47,19 @@ test('Practice, then Send to Tally: ledger names first, then a file of the new p
   const form = visible(page.getByRole('form', { name: 'Tally ledger names' }))
   // His cash and bank ledger names come filled in
   await expect(form.getByLabel('Cash ledger')).toHaveValue('Cash')
-  await expect(form.getByLabel('Bank ledger (where UPI payments arrive)')).toHaveValue('Bank of Baroda')
+  await expect(form.getByLabel('Bank ledger (where UPI payments arrive)')).toHaveValue('Savings A/C')
   // A Tally group is not a ledger: the screen says so instead of saving a name Tally would refuse
   await form.getByLabel('Income ledger (treatment fees)').fill('Direct Incomes')
   await form.getByRole('button', { name: 'Save' }).click()
   await expect(visible(page.getByRole('alert').filter({ hasText: 'is a group in Tally' }))).toContainText('"Direct Incomes" is a group in Tally, not a ledger')
   await form.getByLabel('Income ledger (treatment fees)').fill('Professional Fees')
   await form.getByRole('button', { name: 'Save' }).click()
-  await expect(visible(page.getByText(/Ledgers: Cash · Bank of Baroda · Professional Fees/))).toBeVisible()
+  await expect(visible(page.getByText(/Ledgers: Cash · Savings A\/C · Professional Fees/))).toBeVisible()
 
   const file = await fileFrom(() => visible(page.getByRole('button', { name: 'Download for Tally' })).click())
-  expect(file).toContain(`<NARRATION>${runId} Tally &amp; Co - Cash - visit`)
-  expect(file).toMatch(new RegExp(String.raw`${runId} Tally &amp; Co - UPI - visit [^<]+</NARRATION>\s*<ALLLEDGERENTRIES.LIST>\s*<LEDGERNAME>Bank of Baroda</LEDGERNAME>\s*<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\s*<AMOUNT>-700.00</AMOUNT>`))
+  // The narration names the treatment, as his Day Book notes do; the bank ledger is the party, as in Tally's own export
+  expect(file).toContain(`<NARRATION>${runId} Tally &amp; Co - Check-up - Cash - visit`)
+  expect(file).toMatch(new RegExp(String.raw`<PARTYLEDGERNAME>Savings A/C</PARTYLEDGERNAME>\s*<NARRATION>${runId} Tally &amp; Co - Check-up - UPI - visit [^<]+</NARRATION>\s*<ALLLEDGERENTRIES.LIST>\s*<LEDGERNAME>Savings A/C</LEDGERNAME>\s*<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\s*<ISPARTYLEDGER>Yes</ISPARTYLEDGER>\s*<AMOUNT>-700.00</AMOUNT>`))
   expect(file).toContain(`<DATE>${today.replace(/-/g, '')}</DATE>`)
   await expect(visible(page.getByRole('status'))).toContainText('Downloaded')
   if (process.env.E2E_SHOTS) await page.screenshot({ path: `${process.env.E2E_SHOTS}/tally.png`, fullPage: true })
@@ -66,7 +67,7 @@ test('Practice, then Send to Tally: ledger names first, then a file of the new p
   // Now sent: the last file can be downloaded again, and it still has them
   await page.reload()
   const again = await fileFrom(() => visible(page.getByRole('button', { name: 'Download again' })).click())
-  expect(again).toContain(`${runId} Tally &amp; Co - UPI`)
+  expect(again).toContain(`${runId} Tally &amp; Co - Check-up - UPI`)
 })
 
 test('a whole month for the accountant, as one entry per day when chosen', async () => {

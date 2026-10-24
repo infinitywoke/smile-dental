@@ -16,6 +16,8 @@ export type TallyPayment = {
   receivedAt: string // ISO
   patientName: string
   visitDate: string // YYYY-MM-DD
+  // What was done at the visit (its bill lines), for the narration: "Root canal (46), X-ray"
+  treatments?: string[]
 }
 
 type Voucher = { date: string; debitLedger: string; amount: number; narration: string }
@@ -36,7 +38,7 @@ export function tallyVouchers(payments: TallyPayment[], ledgers: TallyLedgers, e
       date: inIndia(p.receivedAt).date,
       debitLedger: ledgerFor(p.method),
       amount: p.amount,
-      narration: plain(`${p.patientName} - ${methodLabel(p.method)} - visit ${formatDate(p.visitDate)}`),
+      narration: plain([p.patientName, (p.treatments ?? []).join(', ').slice(0, 200), methodLabel(p.method), `visit ${formatDate(p.visitDate)}`].filter(Boolean).join(' - ')),
     }))
   }
   // One per day and method, in date order, cash first
@@ -57,17 +59,20 @@ export function tallyVouchers(payments: TallyPayment[], ledgers: TallyLedgers, e
   }))
 }
 
-// The whole import file. Debits are negative with ISDEEMEDPOSITIVE Yes, credits positive with No (Tally's convention).
+// The whole import file. Debits are negative with ISDEEMEDPOSITIVE Yes, credits positive with No (Tally's convention);
+// the cash or bank ledger is also the voucher's party ledger, as in Tally's own Day Book export.
 export function tallyXml(payments: TallyPayment[], ledgers: TallyLedgers, entries: TallyEntries, clinicName: string): string {
   const vouchers = tallyVouchers(payments, ledgers, entries, clinicName).map((v) => [
     '    <TALLYMESSAGE xmlns:UDF="TallyUDF">',
     '     <VOUCHER VCHTYPE="Receipt" ACTION="Create">',
     `      <DATE>${tallyDate(v.date)}</DATE>`,
     '      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>',
+    `      <PARTYLEDGERNAME>${xml(v.debitLedger)}</PARTYLEDGERNAME>`,
     `      <NARRATION>${xml(v.narration)}</NARRATION>`,
     '      <ALLLEDGERENTRIES.LIST>',
     `       <LEDGERNAME>${xml(v.debitLedger)}</LEDGERNAME>`,
     '       <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>',
+    '       <ISPARTYLEDGER>Yes</ISPARTYLEDGER>',
     `       <AMOUNT>-${money(v.amount)}</AMOUNT>`,
     '      </ALLLEDGERENTRIES.LIST>',
     '      <ALLLEDGERENTRIES.LIST>',

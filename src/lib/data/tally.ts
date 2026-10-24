@@ -35,13 +35,14 @@ export async function getTallyPayments(window: TallyWindow): Promise<TallyPaymen
   const supabase = await createClient()
   let query = supabase
     .from('payments')
-    .select('id, amount, method, received_at, patient:patients!inner (name), visit:visits!inner (visit_date)')
+    .select('id, amount, method, received_at, patient:patients!inner (name), visit:visits!inner (visit_date, visit_charges (description, kind, created_at))')
   query = window.by === 'recorded'
     ? query.gt('created_at', window.after).lte('created_at', window.upTo)
     : query.gte('received_at', window.from).lt('received_at', window.before)
   const { data, error } = await query.order('received_at').limit(5000)
   if (error) throw error
-  const rows = data as unknown as { id: string; amount: number; method: 'cash' | 'upi'; received_at: string; patient: { name: string }; visit: { visit_date: string } }[]
+  type Line = { description: string; kind: string; created_at: string }
+  const rows = data as unknown as { id: string; amount: number; method: 'cash' | 'upi'; received_at: string; patient: { name: string }; visit: { visit_date: string; visit_charges: Line[] } }[]
   return rows.map((r) => ({
     id: r.id,
     amount: Number(r.amount),
@@ -49,6 +50,11 @@ export async function getTallyPayments(window: TallyWindow): Promise<TallyPaymen
     receivedAt: r.received_at,
     patientName: r.patient.name,
     visitDate: r.visit.visit_date,
+    // What was done, in the order it was billed (a discount isn't a treatment)
+    treatments: [...(r.visit.visit_charges ?? [])]
+      .filter((c) => c.kind !== 'discount' && c.description)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((c) => c.description),
   }))
 }
 
