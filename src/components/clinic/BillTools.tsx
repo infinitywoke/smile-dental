@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useRef, useState, useTransition } from 'react'
-import { CloudOff, Plus, Trash2 } from 'lucide-react'
+import { CloudOff, Percent, Plus, Trash2 } from 'lucide-react'
 import type { ShownCharge } from '@/lib/offline/apply'
+import { signedRupees } from '@/lib/billing'
 import { formatRupees } from '@/lib/pricing'
 import type { UsualCharge } from '@/lib/usual-charges'
 import { useBackToClose } from './FullScreen'
@@ -36,7 +37,7 @@ export function useSaveId(): SaveId {
 }
 
 // The bill: one card with its lines and total and, below them in the same card, the payment (children);
-// then his usual charges one tap each, and "Add charge", which opens the clinic price list
+// then his usual charges one tap each, "Add charge", which opens the clinic price list, and "Discount"
 export function BillSection({
   visitId,
   charges,
@@ -65,6 +66,7 @@ export function BillSection({
   const saves = useSaves()
   const [adding, setAdding] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [discounting, setDiscounting] = useState(false)
 
   // One tap adds a usual charge, as the price list does (same id on a retry, Undo after)
   async function addUsual(item: UsualCharge) {
@@ -99,7 +101,7 @@ export function BillSection({
                 {charge.description}
                 {charge.pending && <span className="flex items-center gap-1 text-xs font-semibold text-gray-500"><CloudOff className="h-3.5 w-3.5" aria-hidden="true" />Waiting to save</span>}
               </p>
-              <p className="shrink-0 text-base font-semibold tabular-nums text-gray-900">{formatRupees(charge.amount)}</p>
+              <p className={`shrink-0 text-base font-semibold tabular-nums ${charge.amount < 0 ? 'text-green-700' : 'text-gray-900'}`}>{signedRupees(charge.amount)}</p>
               <RemoveButton label={`Remove ${charge.description}`} confirm={`Remove "${charge.description}" from the bill?`}
                 onRemove={() => saves.removeCharge(charge.id)} />
             </div>
@@ -129,17 +131,100 @@ export function BillSection({
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         </div>
       )}
-      <button type="button"
-        onClick={() => {
-          // Typed notes are sent first; server actions run in order, so they save before the charge
-          void save(async () => {})
-          sheet.show()
-        }}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-200 hover:bg-gray-50">
-        <Plus className="h-5 w-5 text-gray-500" aria-hidden="true" /> Add charge
-      </button>
+      <div className="flex gap-2">
+        <button type="button"
+          onClick={() => {
+            // Typed notes are sent first; server actions run in order, so they save before the charge
+            void save(async () => {})
+            sheet.show()
+          }}
+          className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-200 hover:bg-gray-50">
+          <Plus className="h-5 w-5 text-gray-500" aria-hidden="true" /> Add charge
+        </button>
+        {total > 0 && !discounting && (
+          <button type="button" onClick={() => setDiscounting(true)}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-gray-200 hover:bg-gray-50">
+            <Percent className="h-5 w-5 text-gray-500" aria-hidden="true" /> Discount
+          </button>
+        )}
+      </div>
+      {discounting && total > 0 && <DiscountForm visitId={visitId} total={total} onDone={() => setDiscounting(false)} />}
       {sheet.open && <PriceListSheet visitId={visitId} saveId={saveId} onAdded={sheet.close} onClose={sheet.close} />}
     </section>
+  )
+}
+
+const DISCOUNT_PERCENTS = [10, 20, 50]
+
+// A discount off this visit's bill, in rupees or a share of it, with an optional reason ("Senior
+// citizen"). Saved as a line of its own below zero (src/lib/actions/billing.ts), with Undo.
+function DiscountForm({ visitId, total, onDone }: { visitId: string; total: number; onDone: () => void }) {
+  const saves = useSaves()
+  const offerUndo = useUndo()
+  const saveId = useSaveId()
+  const [typed, setTyped] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const amount = Number(typed.replace(/[^\d.]/g, ''))
+  const valid = Number.isFinite(amount) && amount > 0 && amount <= total
+
+  async function add() {
+    if (!valid || saving) return
+    setError(null)
+    setSaving(true)
+    const description = reason.trim() ? `Discount (${reason.trim().slice(0, 60)})` : 'Discount'
+    const chargeId = saveId.idFor(`discount|${description}|${amount}`)
+    try {
+      const result = await saves.addCharge(visitId, { description, amount, treatmentSlug: null, discount: true }, chargeId)
+      if (result.error) setError(result.error)
+      else {
+        saveId.done()
+        navigator.vibrate?.(10)
+        offerUndo(`${description}: −${formatRupees(amount)}`, () => saves.removeCharge(chargeId))
+        onDone()
+      }
+    } catch {
+      setError("Couldn't reach the server. Check the internet and try again.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div role="group" aria-label="Discount" className="space-y-3 rounded-2xl bg-white p-4 ring-1 ring-gray-200">
+      <p className="text-sm font-semibold text-gray-700">Discount off {formatRupees(total)}</p>
+      <div className="flex flex-wrap gap-2">
+        {DISCOUNT_PERCENTS.map((p) => (
+          <button key={p} type="button" onClick={() => setTyped(String(Math.round((total * p) / 100)))}
+            className="min-h-11 rounded-full px-4 text-sm font-semibold text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50">
+            {p}%
+          </button>
+        ))}
+      </div>
+      <label className="block space-y-1 text-sm font-semibold text-gray-700">
+        Amount off (₹)
+        <input type="text" inputMode="decimal" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="500"
+          className="block min-h-12 w-full rounded-xl border-0 px-4 text-base text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-600" />
+      </label>
+      <label className="block space-y-1 text-sm font-semibold text-gray-700">
+        Reason (optional)
+        <input type="text" autoComplete="off" maxLength={60} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Senior citizen"
+          className="block min-h-12 w-full rounded-xl border-0 px-4 text-base text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-600" />
+      </label>
+      {typed && !valid && <p className="text-sm text-amber-800">Up to {formatRupees(total)}, the bill as it stands.</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => void add()} disabled={!valid || saving}
+          className="flex min-h-12 flex-1 items-center justify-center rounded-full bg-blue-600 px-4 text-base font-semibold text-white disabled:opacity-60">
+          {saving ? 'Adding…' : valid ? `Take off ${formatRupees(amount)}` : 'Add discount'}
+        </button>
+        <button type="button" onClick={onDone}
+          className="flex min-h-12 items-center justify-center rounded-full px-4 text-base font-semibold text-gray-700 ring-1 ring-gray-300">
+          Cancel
+        </button>
+      </div>
+    </div>
   )
 }
 

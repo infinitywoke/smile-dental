@@ -46,7 +46,7 @@ export type InsightRows = {
   newPatients: { date: string; heardFrom: string | null }[]
   requests: { date: string; status: string }[]
   appointments: { date: string; status: string; seen: boolean }[]
-  charges: { date: string; amount: number; slug: string | null }[]
+  charges: { date: string; amount: number; slug: string | null; discount?: boolean }[]
 }
 
 export type Insights = {
@@ -80,7 +80,8 @@ export function summarise(rows: InsightRows, periods: MonthPeriods, treatmentNam
   }
   const treatments = new Map<string, { name: string; amount: number; count: number }>()
   for (const c of rows.charges.filter(now)) {
-    const name = (c.slug && treatmentNames[c.slug]) || 'Other charges'
+    // Discounts are their own row (below zero), never taken off Other charges
+    const name = c.discount ? 'Discounts' : (c.slug && treatmentNames[c.slug]) || 'Other charges'
     const t = treatments.get(name) ?? { name, amount: 0, count: 0 }
     t.amount += c.amount
     t.count += 1

@@ -23,7 +23,7 @@ export async function getInsights(periods: MonthPeriods): Promise<{ insights: In
     supabase.from('patients').select('heard_from, created_at').gte('created_at', start).lt('created_at', end),
     supabase.from('booking_requests').select('status, created_at').gte('created_at', start).lt('created_at', end),
     supabase.from('appointments').select('status, visit_id, starts_at').gte('starts_at', start).lt('starts_at', end),
-    supabase.from('visit_charges').select('amount, treatment_slug, visit:visits!inner (visit_date)').gte('visit.visit_date', from).lte('visit.visit_date', to),
+    supabase.from('visit_charges').select('amount, kind, treatment_slug, visit:visits!inner (visit_date)').gte('visit.visit_date', from).lte('visit.visit_date', to),
     periods.running ? getDues(100_000) : Promise.resolve(null),
   ])
   for (const r of [payments, visits, patients, requests, appointments, charges]) if (r.error) throw r.error
@@ -35,8 +35,8 @@ export async function getInsights(periods: MonthPeriods): Promise<{ insights: In
     newPatients: patients.data!.map((p) => ({ date: day(p.created_at), heardFrom: p.heard_from })),
     requests: requests.data!.map((r) => ({ date: day(r.created_at), status: r.status })),
     appointments: appointments.data!.map((a) => ({ date: day(a.starts_at), status: a.status, seen: a.status === 'done' || !!a.visit_id })),
-    charges: (charges.data as unknown as { amount: number; treatment_slug: string | null; visit: { visit_date: string } }[])
-      .map((c) => ({ date: c.visit.visit_date, amount: Number(c.amount), slug: c.treatment_slug })),
+    charges: (charges.data as unknown as { amount: number; kind: string; treatment_slug: string | null; visit: { visit_date: string } }[])
+      .map((c) => ({ date: c.visit.visit_date, amount: Number(c.amount), slug: c.treatment_slug, discount: c.kind === 'discount' })),
   }, periods, treatmentNames)
 
   const owed = dues ? { amount: Math.round(dues.reduce((t, d) => t + d.amount, 0) * 100) / 100, patients: dues.length } : null

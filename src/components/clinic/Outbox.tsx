@@ -95,8 +95,8 @@ export function useSaves(): QueuedSaves {
 function describe(item: QueuedSave): string {
   switch (item.action) {
     case 'addCharge': {
-      const input = item.args[1] as { description: string; amount: number }
-      return `${input.description}: ${formatRupees(input.amount)}`
+      const input = item.args[1] as { description: string; amount: number; discount?: boolean }
+      return `${input.description}: ${input.discount ? '−' : ''}${formatRupees(input.amount)}`
     }
     case 'recordPayment':
       return `Payment of ${formatRupees(Number(item.args[1]))}`

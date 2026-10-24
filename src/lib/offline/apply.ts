@@ -39,8 +39,11 @@ export function applyOutbox(bill: VisitBill, items: QueuedSave[]): ShownBill {
   const addedCharges: ShownCharge[] = mine
     .filter((i) => i.action === 'addCharge' && !serverCharges.has(subjectOf(i)))
     .map((i) => {
-      const input = i.args[1] as { description: string; amount: number; treatmentSlug: string | null }
-      return { id: subjectOf(i), description: input.description, amount: input.amount, kind: input.treatmentSlug ? 'item' : 'extra', pending: true }
+      const input = i.args[1] as { description: string; amount: number; treatmentSlug: string | null; discount?: boolean }
+      // A discount is typed as an amount off, and kept below zero
+      return input.discount
+        ? { id: subjectOf(i), description: input.description, amount: -input.amount, kind: 'discount' as const, pending: true }
+        : { id: subjectOf(i), description: input.description, amount: input.amount, kind: input.treatmentSlug ? ('item' as const) : ('extra' as const), pending: true }
     })
   const addedPayments: ShownPayment[] = mine
     .filter((i) => i.action === 'recordPayment' && !serverPayments.has(subjectOf(i)))

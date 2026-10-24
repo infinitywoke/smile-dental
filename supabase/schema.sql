@@ -190,8 +190,8 @@ create table if not exists public.visit_charges (
   visit_id uuid not null references public.visits (id) on delete cascade,
   patient_id uuid not null references public.patients (id) on delete cascade,
   description text not null default '',         -- may be blank for an unlabelled extra line
-  amount numeric(10,2) not null check (amount >= 0),
-  kind text not null default 'item' check (kind in ('item', 'extra')),
+  amount numeric(10,2) not null,                -- below zero only for a discount (checks below)
+  kind text not null default 'item',
   treatment_slug text,                          -- price-list slug from src/config/site.ts
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -1670,5 +1670,14 @@ as $$
 $$;
 revoke all on function public.shared_photos(text) from public, anon, authenticated;
 grant execute on function public.shared_photos(text) to anon, authenticated;
+
+-- Discounts (discounts-2026-10.sql): a bill line of its own kind whose amount is below zero, so every
+-- total and due takes it off; every other line is zero or more
+alter table public.visit_charges drop constraint if exists visit_charges_kind_check;
+alter table public.visit_charges add constraint visit_charges_kind_check
+  check (kind in ('item', 'extra', 'discount'));
+alter table public.visit_charges drop constraint if exists visit_charges_amount_check;
+alter table public.visit_charges add constraint visit_charges_amount_check
+  check (case when kind = 'discount' then amount < 0 else amount >= 0 end);
 
 notify pgrst, 'reload schema';

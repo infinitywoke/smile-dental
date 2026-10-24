@@ -66,7 +66,8 @@ export type VisitDetail = Visit & {
   recordings?: { id: string; seconds: number | null; created_at: string; url: string | null }[]
 }
 
-export type VisitChargeKind = 'item' | 'extra'
+// 'discount': taken off the bill, its amount below zero (supabase/discounts-2026-10.sql)
+export type VisitChargeKind = 'item' | 'extra' | 'discount'
 
 export type VisitCharge = {
   id: string
