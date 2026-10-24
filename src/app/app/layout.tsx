@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import type { Metadata, Viewport } from 'next'
-import { JetBrains_Mono, Manrope } from 'next/font/google'
+import { Manrope } from 'next/font/google'
+import localFont from 'next/font/local'
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
 import { getStockAlerts } from '@/lib/data/stock'
@@ -16,7 +17,9 @@ import { ErrorReporter } from '@/components/clinic/ErrorReporter'
 import { WhatsAppBusiness } from '@/components/clinic/WhatsAppBusiness'
 
 const body = Manrope({ subsets: ['latin'], variable: '--font-hud-body' })
-const mono = JetBrains_Mono({ subsets: ['latin'], weight: ['500', '700'], variable: '--font-hud-mono' })
+// JetBrains Mono for the readouts, kept in the repo (it is one variable font for every weight): fetched
+// from Google it trips the development server's font loader
+const mono = localFont({ src: './fonts/jetbrains-mono.woff2', weight: '100 800', variable: '--font-hud-mono' })
 
 // The manifest is linked only here, so "Add to Home screen" installs Clinic OS, not the website.
 export const metadata: Metadata = {
