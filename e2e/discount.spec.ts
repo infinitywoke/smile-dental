@@ -28,8 +28,10 @@ test('a discount comes off the bill, the total and the message, and never more t
   await form.getByLabel('Reason (optional)').fill('Senior citizen')
   await form.getByRole('button', { name: 'Take off ₹100' }).click()
   await expect(form).toHaveCount(0)
-  await expect(visible(page.getByText('Discount (Senior citizen)'))).toBeVisible()
-  await expect(visible(page.getByText('−₹100'))).toBeVisible()
+  // The bill's line, and the Undo bar once it has saved ("Discount (Senior citizen): −₹100")
+  await expect(visible(page.getByText('Discount (Senior citizen)', { exact: true }))).toBeVisible()
+  await expect(visible(page.getByText('−₹100', { exact: true }))).toBeVisible()
+  await expect(visible(page.getByRole('status').filter({ hasText: 'Discount (Senior citizen): −₹100' })).getByRole('button', { name: 'Undo' })).toBeVisible()
   await expect(total).toHaveText('₹900')
 
   const { supabase } = await testDb()
