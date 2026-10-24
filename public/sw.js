@@ -21,7 +21,14 @@ const UNLOCK_MS = 10 * 60 * 1000
 // On a weak signal the copy shows after this long; the fresh screen replaces it when it arrives
 const WAIT_MS = 6000
 // After a change is saved on a screen, its copy is made again once the changes stop for this long
-const SETTLE_MS = 3000
+// (fetching the screen whole again while he is still working on it would slow his next taps)
+const SETTLE_MS = 20_000
+// Between the screens of a list kept in one go, so they never fill the connection
+const GAP_MS = 1500
+// Keeping waits until the app itself has fetched nothing for this long (a screen opening, a save), so
+// the doctor's own screens and taps always go first; it gives up waiting after QUIET_GIVE_UP_MS
+const QUIET_MS = 4000
+const QUIET_GIVE_UP_MS = 60_000
 const SAVED_AT = 'x-clinic-saved-at'
 const UNLOCKED_UNTIL = '/__clinic-unlocked-until'
 
@@ -73,10 +80,21 @@ self.addEventListener('notificationclick', (event) => {
 
 const isAppPage = (url) => url.pathname === '/app' || url.pathname.startsWith('/app/')
 
+// When a screen last fetched anything from this site
+let lastActivity = 0
+function quiet() {
+  const until = Date.now() + QUIET_GIVE_UP_MS
+  return new Promise((resolve) => {
+    const check = () => (Date.now() - lastActivity >= QUIET_MS || Date.now() > until ? resolve() : setTimeout(check, 500))
+    check()
+  })
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
+  lastActivity = Date.now()
   // Photos shared to Clinic OS from another app (the phone's share sheet), copies kept or not
   if (request.method === 'POST' && url.pathname === '/app/share') {
     event.respondWith(sharedPhotos(request))
@@ -267,12 +285,16 @@ async function keepFile(cache, href, response) {
 async function keepPages(urls, maxAge) {
   const since = generation
   const cache = await caches.open(PAGES)
+  let first = true
   for (const href of [...new Set(urls)].slice(0, 40)) {
     if (since !== generation) return
     const url = new URL(href, self.location.origin)
     if (url.origin !== self.location.origin || !isAppPage(url)) continue
     const kept = maxAge > 0 ? await cache.match(url.href) : undefined
     if (kept && Date.now() - Number(kept.headers.get(SAVED_AT)) < maxAge) continue
+    if (!first) await new Promise((resolve) => setTimeout(resolve, GAP_MS))
+    first = false
+    await quiet()
     try {
       await fetchAndKeep(url.href)
     } catch {
@@ -315,7 +337,7 @@ function keepLater(href) {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       settling.delete(href)
-      fetchAndKeep(href).catch(() => {}).finally(resolve)
+      quiet().then(() => fetchAndKeep(href)).catch(() => {}).finally(resolve)
     }, SETTLE_MS)
     settling.set(href, () => {
       clearTimeout(timer)

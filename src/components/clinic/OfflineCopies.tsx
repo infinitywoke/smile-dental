@@ -7,12 +7,23 @@ import { clinicWorker, keepCopies, keepsCopies, setUpLock } from '@/lib/offline/
 import { useOnline } from './Outbox'
 import { useCanLock, useLockIsSet } from './OfflineLock'
 
-const FEW_MINUTES = 5 * 60_000
+const QUARTER_HOUR = 15 * 60_000
 const HOUR = 60 * 60_000
+// A screen is kept once it has stayed open this long: keeping it means fetching it whole once more, so
+// it waits until he has finished opening it, and a screen he only passes through isn't fetched twice
+const SETTLE_MS = 10_000
+// Today's visits and patients are kept once Today has been quiet this long, never on a slow connection
+const LIST_SETTLE_MS = 15_000
+const LIST_MAX = 12
 // "Not now" on the lock: asked again after this long
 const LATER = 'clinic-lock-later'
 const LATER_MS = 30 * 24 * HOUR
 const noSubscribe = () => () => {}
+// A slow connection, or the phone saving data: only the screens he opens are kept
+function slowConnection(): boolean {
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+  return !!connection && (connection.saveData === true || /2g$|^3g$/.test(connection.effectiveType ?? ''))
+}
 const askedLately = () => {
   try {
     return Date.now() - Number(localStorage.getItem(LATER) ?? 0) < LATER_MS
@@ -21,17 +32,19 @@ const askedLately = () => {
   }
 }
 
-// On every screen: starts the service worker, and has each screen he opens kept on the phone (at most
-// every few minutes), so it opens again with no signal. A screen loaded as a whole page is kept as it
-// loads, and one with a change saved a few seconds after (public/sw.js). On Today, once: the lock that
-// opens kept screens with this phone's fingerprint or PIN, until it is set up.
+// On every screen: starts the service worker, and has each screen he opens kept on the phone (once it
+// has stayed open a few seconds, at most every quarter of an hour), so it opens again with no signal.
+// A screen loaded as a whole page is kept as it loads, and one with a change saved once the changes
+// stop (public/sw.js). On Today, once: the lock that opens kept screens with this phone's fingerprint
+// or PIN, until it is set up.
 export function OfflineCopies() {
   const pathname = usePathname()
   useEffect(() => {
     void clinicWorker()
   }, [])
   useEffect(() => {
-    void keepCopies([location.pathname + location.search], FEW_MINUTES)
+    const timer = setTimeout(() => void keepCopies([location.pathname + location.search], QUARTER_HOUR), SETTLE_MS)
+    return () => clearTimeout(timer)
   }, [pathname])
 
   const online = useOnline()
@@ -72,11 +85,14 @@ export function OfflineCopies() {
   )
 }
 
-// Today: the day's visits and patients, kept while there is signal, so each opens with none
+// Today: the day's visits and patients (the first dozen), kept while there is signal, so each opens
+// with none. Only once Today has been quiet a while, so the screens he opens come first.
 export function KeepCopies({ urls }: { urls: string[] }) {
   const list = urls.join(' ')
   useEffect(() => {
-    void keepCopies(list.split(' ').filter(Boolean), HOUR)
+    if (slowConnection()) return
+    const timer = setTimeout(() => void keepCopies(list.split(' ').filter(Boolean).slice(0, LIST_MAX), HOUR), LIST_SETTLE_MS)
+    return () => clearTimeout(timer)
   }, [list])
   return null
 }
