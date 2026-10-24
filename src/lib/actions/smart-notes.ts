@@ -8,6 +8,7 @@ import { formatPrice } from '@/lib/pricing'
 import { addDays, isClosedDay } from '@/lib/schedule'
 import { todayInIndia } from '@/lib/dates'
 import { notesText, sortVisitRecording } from '@/lib/smart-notes'
+import { medicineNames } from '@/lib/prescription'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // About 10 minutes at the recorder's quality, well inside what the server accepts
@@ -73,9 +74,14 @@ export async function sortVisitNotes(formData: FormData): Promise<{ error?: stri
     revalidatePath(`/app/visits/${visitId}`)
   }
 
+  // The medicines he has prescribed before (names only), so the notes spell them as he does
+  const { data: past } = await supabase
+    .from('visits').select('notes').or('notes.ilike.%prescription:%,notes.ilike.%rx:%').order('created_at', { ascending: false }).limit(300)
+  const medicines = medicineNames((past ?? []).map((v) => v.notes ?? ''))
+
   let sorted
   try {
-    sorted = await sortVisitRecording(audio)
+    sorted = await sortVisitRecording(audio, medicines)
   } catch (e) {
     return { recordingId, error: `Couldn't sort the notes (${e instanceof Error ? e.message : 'no answer'}). The recording is saved: tap Try again.` }
   }

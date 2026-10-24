@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
-const { checkSorted, notesText, priceListWithIds, smartNotesInstructions } = await import('./smart-notes')
+const { checkAgainstTranscript, checkSorted, notesText, priceListWithIds, smartNotesInstructions } = await import('./smart-notes')
 
 describe('smart notes', () => {
   it('the instructions list price-list items by ID, names only (no prices), and ask for best guesses marked (?)', () => {
@@ -33,8 +33,37 @@ describe('smart notes', () => {
     expect(checkSorted('nonsense').charges).toEqual([])
   })
 
-  it('writes the notes in sections, leaving out empty ones', () => {
-    const text = notesText(checkSorted({ complaint: 'Pain', findings: '', treatment: 'RCT started', prescription: ['Amoxicillin 500 - TDS - 5 days'], advice: '', charges: [] }))
-    expect(text).toBe('Complaint: Pain\nTreatment: RCT started\nPrescription:\n- Amoxicillin 500 - TDS - 5 days')
+  it('writes the notes in headed sections, a point a line, a blank line between, leaving out empty ones', () => {
+    const text = notesText(checkSorted({
+      complaint: 'pain', findings: ['46: deep caries.', '47: food lodgement'], treatment: ['46: RCT started'],
+      prescription: ['Amoxicillin 500 - TDS - 5 days'], advice: ['soft food for a day'], charges: [],
+    }))
+    expect(text).toBe([
+      'Complaint: Pain',
+      'Findings:\n- 46: deep caries\n- 47: food lodgement',
+      'Treatment done:\n- 46: RCT started',
+      'Prescription:\n- Amoxicillin 500 - TDS - 5 days',
+      'Advice:\n- Soft food for a day',
+    ].join('\n\n'))
+    // An older answer with plain text is kept as one point
+    expect(notesText(checkSorted({ findings: 'Caries 46' }))).toBe('Findings:\n- Caries 46')
+  })
+
+  it('tells Gemini to keep only his corrected words and to spell his own medicines his way', () => {
+    const text = smartNotesInstructions(['Augmentin 625', 'Ketorol DT'])
+    expect(text).toContain('keep only\n  the corrected version')
+    expect(text).toContain('TRANSCRIPT')
+    expect(text).toContain('- Augmentin 625\n- Ketorol DT')
+  })
+
+  it('marks a medicine the transcript does not have, and lists it to check', () => {
+    const sorted = checkAgainstTranscript(checkSorted({
+      transcript: 'Amoxicillin five hundred three times a day for five days',
+      prescription: ['Amoxicillin 500 mg - three times a day - 5 days', 'Pantoprazole 40 mg - before breakfast - 5 days'],
+    }))
+    expect(sorted.prescription).toEqual(['Amoxicillin 500 mg - three times a day - 5 days', 'Pantoprazole (?) 40 mg - before breakfast - 5 days'])
+    expect(sorted.unclear).toEqual(['Check "Pantoprazole": it isn\'t clearly in the recording'])
+    // With no transcript there is nothing to check against
+    expect(checkAgainstTranscript(checkSorted({ prescription: ['Pantoprazole 40 mg'] })).prescription).toEqual(['Pantoprazole 40 mg'])
   })
 })

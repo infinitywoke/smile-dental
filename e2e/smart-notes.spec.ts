@@ -37,6 +37,8 @@ test('record, stop: the notes are written out and sorted; the charge and next vi
   await visible(page.getByRole('button', { name: 'Stop' })).click()
 
   await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(/Complaint: Pain lower right back tooth[\s\S]*Prescription:\n- Amoxicillin/, { timeout: 30_000 })
+  // Laid out neatly: a heading per section, a point a line with the tooth first, a blank line between
+  await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(/\n\nFindings:\n- 46: deep caries, tender on percussion\n\nTreatment done:\n- 46: RCT started\n\nPrescription:\n- Amoxicillin 500 mg - three times a day - 5 days\n\nAdvice:\n- Avoid chewing on the right side/)
   const card = visible(page.getByRole('region', { name: 'Charges from your notes' }))
   await expect(card).toContainText('Root Canal Treatment – Standard Treatment (46)')
   await expect(card).toContainText('₹3,500')

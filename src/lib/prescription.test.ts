@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addPrescriptionLine, adviceText, prescriptionLines, quickMedicines, removePrescriptionLine, STARTER_MEDICINES } from './prescription'
+import { addPrescriptionLine, adviceText, medicineNames, prescriptionLines, quickMedicines, removePrescriptionLine, STARTER_MEDICINES } from './prescription'
 
 const notes = [
   'Complaint: Pain lower right',
@@ -35,5 +35,20 @@ describe('prescription in the notes', () => {
     const quick = quickMedicines([notes, 'Prescription:\n- Ibuprofen 400 - SOS'], 4)
     expect(quick.slice(0, 2)).toEqual(['Ibuprofen 400 - SOS', 'Amoxicillin 500 - TDS - 5 days'])
     expect(quick.slice(2)).toEqual(STARTER_MEDICINES.slice(0, 2))
+  })
+
+  it('reads advice written as points under its heading, as recorded notes write it', () => {
+    const recorded = 'Prescription:\n- Amoxicillin 500 mg\n\nAdvice:\n- Soft food for a day\n- Warm salt water rinses.\n\nNext visit: a week'
+    expect(adviceText(recorded)).toBe('Soft food for a day. Warm salt water rinses')
+  })
+
+  it('names the medicines he has prescribed, most used first, then the starter list, each once', () => {
+    const names = medicineNames([
+      'Prescription:\n- Ketorol DT - twice a day - 3 days',
+      'Prescription:\n- Augmentin 625 - twice a day - 5 days\n- ketorol dt - when needed',
+    ])
+    expect(names.slice(0, 2)).toEqual(['Ketorol DT', 'Augmentin 625'])
+    expect(names).toContain('Amoxicillin 500 mg')
+    expect(new Set(names.map((n) => n.toLowerCase())).size).toBe(names.length)
   })
 })

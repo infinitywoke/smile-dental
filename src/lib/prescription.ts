@@ -34,10 +34,35 @@ export function prescriptionLines(notes: string): string[] {
   return [...(section.inline ? [section.inline] : []), ...section.items.map((i) => i.text)]
 }
 
-// "Advice: ..." from the notes, for the bottom of the prescription
+// "Advice: ..." from the notes, for the bottom of the prescription: on its own line, or as points under it
+// ("Advice:" then "- Soft food for a day"), joined into sentences
 export function adviceText(notes: string): string {
-  const line = notes.split('\n').find((l) => /^\s*advice\s*:/i.test(l))
-  return line ? line.replace(/^\s*advice\s*:\s*/i, '').trim() : ''
+  const lines = notes.split('\n')
+  const at = lines.findIndex((l) => /^\s*advice\s*:/i.test(l))
+  if (at < 0) return ''
+  const said = [lines[at].replace(/^\s*advice\s*:\s*/i, '').trim()]
+  for (const line of lines.slice(at + 1)) {
+    if (!ITEM.test(line)) break
+    said.push(line.replace(ITEM, '').trim())
+  }
+  return said.filter(Boolean).map((s) => s.replace(/[.\s]+$/, '')).join('. ')
+}
+
+// The medicines he has prescribed, most used first, then the starter list ("Amoxicillin 500 mg"): the
+// names only, for the smart notes to spell them the way he writes them
+export function medicineNames(pastNotes: string[], limit = 60): string[] {
+  const counts = new Map<string, { name: string; n: number }>()
+  for (const note of pastNotes) {
+    for (const line of prescriptionLines(note)) {
+      const name = line.split(/\s+-\s+/)[0].trim()
+      if (!name) continue
+      const seen = counts.get(name.toLowerCase()) ?? { name, n: 0 }
+      seen.n += 1
+      counts.set(name.toLowerCase(), seen)
+    }
+  }
+  const names = [...[...counts.values()].sort((a, b) => b.n - a.n).map((c) => c.name), ...STARTER_MEDICINES.map((m) => m.split(/\s+-\s+/)[0])]
+  return names.filter((name, i) => names.findIndex((x) => x.toLowerCase() === name.toLowerCase()) === i).slice(0, limit)
 }
 
 const same = (a: string, b: string) => a.trim().toLowerCase().replace(/\s+/g, ' ') === b.trim().toLowerCase().replace(/\s+/g, ' ')
