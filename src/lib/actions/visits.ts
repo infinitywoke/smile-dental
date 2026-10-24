@@ -16,6 +16,7 @@ import { DEFAULT_LENGTH, clinicStartOf, isLength, lengthLabel } from '@/lib/sche
 import { PHOTO_KINDS, otherName, photoCaption, photoKind, photoLabel, type PhotoKind } from '@/lib/visit-status'
 import { siteConfig } from '@/config/site'
 import { adviceText, prescriptionLines } from '@/lib/prescription'
+import { patientAge } from '@/lib/patient-fields'
 import type { SharedItem } from '@/lib/share-link'
 import { cancelledMessage, confirmationMessage, messageLanguage, movedMessage, whatsappLink } from '@/lib/whatsapp'
 
@@ -238,12 +239,16 @@ export async function prepareWhatsapp(visitId: string, photoIds: string[] = []):
   }
 
   // The typed prescription first (the page draws it on the letterhead), then the ticked photos
-  const { data: notesRow, error: notesError } = await supabase.from('visits').select('notes').eq('id', visitId).maybeSingle()
+  const { data: notesRow, error: notesError } = await supabase
+    .from('visits').select('notes, patient:patients!inner (name, birth_year, birth_date)').eq('id', visitId).maybeSingle()
   if (notesError) return { error: 'Could not prepare the message. Please try again.' }
   const notes = notesRow?.notes ?? ''
   const medicines = prescriptionLines(notes)
-  const shown: SharedItem[] = medicines.length > 0 ? [{ kind: 'prescription', label: 'Prescription', medicines, advice: adviceText(notes) }] : []
-  if (shown.length + photoIds.length > MAX_PHOTOS_TO_SEND) return { error: `You can send up to ${MAX_PHOTOS_TO_SEND - shown.length} photos with the prescription.` }
+  // With the patient's name and age, as a prescription carries them
+  const who = notesRow?.patient as unknown as { name: string; birth_year: number | null; birth_date: string | null } | undefined
+  const shown: SharedItem[] = medicines.length > 0
+    ? [{ kind: 'prescription', label: 'Prescription', medicines, advice: adviceText(notes), patient: who?.name, age: who ? patientAge(who) : null }]
+    : []
 
   if (photoIds.length > 0) {
     const { data: photos, error } = await supabase
@@ -263,9 +268,19 @@ export async function prepareWhatsapp(visitId: string, photoIds: string[] = []):
 
   let photoLink: MessageData['photoLink'] = null
   if (shown.length > 0) {
+    // The page shows the bill too, as it stands now (the message carries it as well)
+    const { charges, payments, summary } = fresh
+    const kept: SharedItem[] = summary.total > 0 || summary.paid > 0 || summary.due !== 0
+      ? [...shown, {
+          kind: 'bill', label: 'Bill',
+          lines: charges.map((c) => ({ description: c.description, amount: Number(c.amount) })),
+          total: summary.total, paid: summary.paid, earlier: summary.earlier, due: summary.due,
+          methods: [...new Set(payments.map((p) => (p.method === 'upi' ? 'UPI' : 'Cash')))],
+        }]
+      : shown
     // 24 random bytes: 32 characters that can't be guessed
     const token = randomBytes(24).toString('base64url')
-    const { error: linkError } = await supabase.from('share_links').insert({ visit_id: visitId, token, photos: shown })
+    const { error: linkError } = await supabase.from('share_links').insert({ visit_id: visitId, token, photos: kept })
     if (linkError) return { error: PHOTO_LINK_FAILED }
     photoLink = { url: `${await siteOrigin()}/r/${token}`, labels: shown.map((s) => s.label) }
   }

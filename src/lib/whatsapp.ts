@@ -38,15 +38,16 @@ export function bookingRequestMessage(args: {
     `Phone: ${args.phone}`,
     `Time: ${when(args.startsAt)}`,
     ...(args.reason ? [`Reason: ${args.reason}`] : []),
-    ...(args.voiceNote === 'recorded' ? ['🎤 Voice note: open the request to listen'] : []),
-    ...(args.voiceNote === 'whatsapp' ? ["🎤 I'll send a voice note about my problem next"] : []),
+    ...(args.voiceNote === 'recorded' ? ['Voice note: open the request to listen'] : []),
+    ...(args.voiceNote === 'whatsapp' ? ["I'll send a voice note about my problem next."] : []),
     '',
     `Open in Clinic OS: ${args.link}`,
   ].join('\n')
 }
 
-// ---- Clinic -> patient: every message has the same look (WhatsApp styling: *bold*, _italic_, "- " lists).
-// The patient's first name is the only thing about them in any message.
+// ---- Clinic -> patient: every message has the same plain, professional look, with no emojis (WhatsApp
+// styling only: *bold* for what matters, _italic_ for a note, "- " for lists). The patient's first name
+// is the only thing about them in any message.
 
 // The language of a patient's messages: Kannada once it is set on their record (patients.language),
 // else English. Website requests are answered in English: who sent one isn't known yet.
@@ -89,17 +90,19 @@ export function messageSignOff(language: MessageLanguage = 'en'): string[] {
     : ['', 'Warm regards,', `*${siteConfig.dentist.name}*`, `${siteConfig.name}, Katapadi`]
 }
 
-// "📅 *Thursday, 15 October*" and "🕗 *6:00 PM*"
+// "Date: *Thursday, 15 October*" and "Time: *6:00 PM*"
 export function appointmentLines(startsAt: string, language: MessageLanguage = 'en'): string[] {
   const { date, time } = inIndia(startsAt)
   return language === 'kn'
-    ? [`📅 *${kannadaDate(date)}*`, `🕗 *${kannadaTime(time)}*`]
-    : [`📅 *${formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}*`, `🕗 *${formatBlock(time)}*`]
+    ? [`ದಿನಾಂಕ: *${kannadaDate(date)}*`, `ಸಮಯ: *${kannadaTime(time)}*`]
+    : [`Date: *${formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}*`, `Time: *${formatBlock(time)}*`]
 }
 
-// The clinic in one short line (the full address goes in confirmations). In English in every message:
-// it is what the signboard and Google Maps say.
-export const SHORT_LOCATION = '📍 1st Floor, YM Zohara Building, Shirva Road, Katapadi'
+// The clinic in one short line (the full address goes in confirmations). The address itself is in
+// English in every message: it is what the signboard and Google Maps say.
+const SHORT_ADDRESS = '1st Floor, YM Zohara Building, Shirva Road, Katapadi'
+const addressLabel = (language: MessageLanguage) => (language === 'kn' ? 'ವಿಳಾಸ' : 'Address')
+export const shortLocation = (language: MessageLanguage = 'en') => `${addressLabel(language)}: ${SHORT_ADDRESS}`
 
 export const QUESTIONS_LINE = `For any questions, call or WhatsApp us on ${siteConfig.phone}.`
 
@@ -114,7 +117,7 @@ function appointmentBlock(startsAt: string, language: MessageLanguage): string[]
     '',
     ...appointmentLines(startsAt, language),
     '',
-    `📍 ${siteConfig.address}`,
+    `${addressLabel(language)}: ${siteConfig.address}`,
     `${kn ? 'ದಾರಿ' : 'Directions'}: ${siteConfig.googleReviewsLink}`,
     '',
     arriveEarly(language),
@@ -191,7 +194,7 @@ export function reminderMessage(args: To & { startsAt: string; tomorrow: boolean
       : `A reminder of your appointment ${args.tomorrow ? 'tomorrow' : 'coming up'}:`,
     '',
     ...appointmentLines(args.startsAt, language),
-    SHORT_LOCATION,
+    shortLocation(language),
     '',
     arriveEarly(language),
     kn

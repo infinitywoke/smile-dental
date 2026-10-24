@@ -5,7 +5,6 @@ import { Download, Eye, FileText, Plus, X } from 'lucide-react'
 import { formatDate } from '@/lib/dates'
 import { addPrescriptionLine, adviceText, prescriptionLines, removePrescriptionLine } from '@/lib/prescription'
 import { drawPrescription } from '@/lib/prescription-image'
-import { firstName } from '@/lib/whatsapp'
 import { useUndo } from './UndoBar'
 
 // The typed prescription: its medicines are the "Prescription:" lines of the notes (the smart notes
@@ -16,12 +15,15 @@ export function PrescriptionCard({
   notes,
   edit,
   patientName,
+  age,
   visitDate,
   medicines,
 }: {
   notes: string
   edit: (change: (text: string) => string) => void
   patientName: string
+  // In years, when known: printed beside the name
+  age: number | null
   visitDate: string
   // One-tap medicines: his most used, then a starter list
   medicines: string[]
@@ -35,13 +37,13 @@ export function PrescriptionCard({
   const date = formatDate(visitDate)
 
   // The picture is drawn ahead, for the preview and the download
-  const key = JSON.stringify([lines, advice, patientName, date])
+  const key = JSON.stringify([lines, advice, patientName, age, date])
   const [image, setImage] = useState<{ key: string; blob: Blob } | null>(null)
   useEffect(() => {
     const [medicinesNow, adviceNow] = JSON.parse(key) as [string[], string]
     if (medicinesNow.length === 0) return
     let stale = false
-    drawPrescription({ firstName: firstName(patientName), date, medicines: medicinesNow, advice: adviceNow })
+    drawPrescription({ patient: patientName, age, date, medicines: medicinesNow, advice: adviceNow })
       .then((blob) => {
         if (!stale) setImage({ key, blob })
       })
@@ -49,7 +51,7 @@ export function PrescriptionCard({
     return () => {
       stale = true
     }
-  }, [key, patientName, date])
+  }, [key, patientName, age, date])
   const blob = image?.key === key ? image.blob : null
   const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob])
   useEffect(() => () => {

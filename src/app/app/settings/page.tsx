@@ -9,6 +9,7 @@ import { PracticeTabs } from '@/components/clinic/PracticeTabs'
 import { OfflineLockCard } from '@/components/clinic/OfflineLock'
 import { SignOutButton } from '@/components/clinic/SignOutButton'
 import { ThemeSwitch } from '@/components/clinic/ThemeSwitch'
+import { WhatsAppAppChoice } from '@/components/clinic/WhatsAppAppChoice'
 
 async function SettingsContent() {
   await getDoctor()
@@ -25,6 +26,7 @@ async function SettingsContent() {
         </div>
         <ThemeSwitch initial={theme} />
       </Card>
+      <WhatsAppAppChoice />
       <Link href="/app/notifications" className="flex min-h-14 items-center gap-3 rounded-2xl bg-white px-4 font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200">
         <Bell className="h-5 w-5 text-gray-500" aria-hidden="true" />
         <span className="flex-1">Notifications</span>

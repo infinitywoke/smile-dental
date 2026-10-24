@@ -1,6 +1,7 @@
+import { siteConfig } from '@/config/site'
 import { formatRupees } from '@/lib/pricing'
 import { formatDate } from '@/lib/dates'
-import { appointmentLines, kannadaDate, messageHeader, messageSignOff, questionsLine, SHORT_LOCATION, type MessageLanguage } from '@/lib/whatsapp'
+import { appointmentLines, kannadaDate, messageHeader, messageSignOff, questionsLine, shortLocation, type MessageLanguage } from '@/lib/whatsapp'
 
 // Money is added in paise so 0.1 + 0.2 never shows as 0.30000000000000004
 export function sumAmounts(items: { amount: number }[]): number {
@@ -9,8 +10,12 @@ export function sumAmounts(items: { amount: number }[]): number {
 
 export const MAX_AMOUNT = 1_000_000
 
-// Photo links in one WhatsApp message
-export const MAX_PHOTOS_TO_SEND = 10
+// A bill line's amount: a discount is below zero and reads "−₹500"
+export const signedRupees = (n: number) => (n < 0 ? `−${formatRupees(-n)}` : formatRupees(n))
+
+// Photos in one WhatsApp message's link, which holds 10 things at most (supabase/share-links-2026-10.sql):
+// the typed prescription, the bill and these
+export const MAX_PHOTOS_TO_SEND = 8
 
 // A rupee amount typed by hand: "1,250", "₹ 1250.50". Returns null when it isn't a sensible amount.
 export function parseAmount(input: string): number | null {
@@ -122,6 +127,8 @@ export function visitMessage(args: {
   nextAppointment?: { starts_at: string } | null
   // One short link to the ticked photos, and what they are ("Prescription", "X-ray", a typed name)
   photoLink?: { url: string; labels: string[] } | null
+  // A Google review asked in the same message (once per patient), in the review message's own words
+  review?: boolean
   language?: MessageLanguage
 }): string {
   const { language = 'en' } = args
@@ -138,7 +145,7 @@ export function visitMessage(args: {
     out.push(
       '',
       kn ? '*ಚಿಕಿತ್ಸೆ ಮತ್ತು ಶುಲ್ಕ*' : '*Treatment & charges*',
-      ...lines.map((line) => `- ${line.description || (kn ? 'ಶುಲ್ಕ' : 'Charge')}: ${formatRupees(line.amount)}`),
+      ...lines.map((line) => `- ${line.description || (kn ? 'ಶುಲ್ಕ' : 'Charge')}: ${signedRupees(line.amount)}`),
       kn ? `*ಒಟ್ಟು: ${formatRupees(summary.total)}*` : `*Total: ${formatRupees(summary.total)}*`,
     )
   }
@@ -159,13 +166,19 @@ export function visitMessage(args: {
   }
 
   if (args.nextAppointment?.starts_at) {
-    out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), SHORT_LOCATION)
+    out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), shortLocation(language))
   }
 
   // "*Your prescription* _(the link works for 30 days)_", then the link
   const link = args.photoLink
   if (link && link.labels.length > 0) {
     out.push('', kn ? `*${photosWord(link.labels, 'kn')}* _(ಲಿಂಕ್ 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತದೆ)_` : `*Your ${photosWord(link.labels)}* _(the link works for 30 days)_`, link.url)
+  }
+
+  if (args.review) {
+    out.push('', kn
+      ? 'ಒಂದು ನಿಮಿಷ ಸಮಯವಿದ್ದರೆ, Google ನಲ್ಲಿ ಒಂದು ಚಿಕ್ಕ ವಿಮರ್ಶೆ (review) ಬರೆಯಿರಿ. ಇದರಿಂದ ಈ ಭಾಗದ ಇತರರಿಗೆ ಕ್ಲಿನಿಕ್ ಹುಡುಕಲು ಸಹಾಯವಾಗುತ್ತದೆ:'
+      : 'If you have a minute, a short Google review helps other people in the area find the clinic:', siteConfig.reviewRequestLink || siteConfig.googleReviewsLink)
   }
 
   out.push('', questionsLine(language), ...messageSignOff(language))

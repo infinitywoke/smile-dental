@@ -3,19 +3,20 @@ import type { Metadata } from 'next'
 import { Download } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { photosWord } from '@/lib/billing'
+import { formatRupees } from '@/lib/pricing'
 import { formatDate } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
 import { createPublicClient } from '@/lib/supabase/public'
-import { isSharedPrescription, type SharedItem } from '@/lib/share-link'
+import { isSharedBill, isSharedPrescription, type SharedBill, type SharedItem } from '@/lib/share-link'
 import { firstName, kannadaDate, messageLanguage, questionsLine } from '@/lib/whatsapp'
 import { ScreenLoading } from '@/components/clinic/ui'
 import { SharedPrescription } from '@/components/SharedPrescription'
 
 // The page a visit message's link opens (src/lib/actions/visits.ts makes the link): the typed
-// prescription on the letterhead and the ticked photos, for 30 days, to anyone with the link and to no
-// one else. Kept out of search engines.
+// prescription on the letterhead, the ticked photos and the bill, for 30 days, to anyone with the link
+// and to no one else. Kept out of search engines.
 export const metadata: Metadata = {
-  title: `Your photos · ${siteConfig.name}`,
+  title: `Your visit · ${siteConfig.name}`,
   robots: { index: false, follow: false },
 }
 
@@ -38,6 +39,42 @@ function Clinic() {
 
 function Page({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto w-full max-w-lg flex-1 space-y-5 bg-white px-4 py-6">{children}</main>
+}
+
+// The bill as it stood when the message went, in the words of the visit message
+function Bill({ bill, kn }: { bill: SharedBill; kn: boolean }) {
+  const t = kn
+    ? { title: 'ಬಿಲ್', charges: 'ಚಿಕಿತ್ಸೆ ಮತ್ತು ಶುಲ್ಕ', charge: 'ಶುಲ್ಕ', total: 'ಒಟ್ಟು', paid: 'ಪಾವತಿಸಿದ್ದು', cash: 'ನಗದು', earlierDue: 'ಇತರ ಭೇಟಿಗಳ ಬಾಕಿ', earlierAdvance: 'ಇತರ ಭೇಟಿಗಳ ಮುಂಗಡ', due: 'ಬಾಕಿ ಮೊತ್ತ', advance: 'ನಮ್ಮಲ್ಲಿರುವ ಮುಂಗಡ', full: 'ಪೂರ್ತಿ ಪಾವತಿಯಾಗಿದೆ' }
+    : { title: 'Bill', charges: 'Treatment & charges', charge: 'Charge', total: 'Total', paid: 'Paid', cash: 'Cash', earlierDue: 'Due from other visits', earlierAdvance: 'Advance from other visits', due: 'Balance due', advance: 'Advance with us', full: 'Paid in full' }
+  const amount = (n: number) => (n < 0 ? `−${formatRupees(-n)}` : formatRupees(n))
+  const methods = bill.methods.map((m) => (m === 'Cash' ? t.cash : m)).join(' + ')
+  const row = 'flex items-baseline justify-between gap-3 py-1.5'
+  return (
+    <section aria-label={t.title} lang={kn ? 'kn' : 'en'} className="space-y-2 rounded-xl p-4 ring-1 ring-gray-200">
+      <h2 className="font-semibold text-gray-900">{t.title}</h2>
+      {bill.lines.length > 0 && (
+        <div className="divide-y divide-gray-100 text-base">
+          <p className="pb-1 text-sm font-medium text-gray-500">{t.charges}</p>
+          {bill.lines.map((line, i) => (
+            <p key={i} className={row}>
+              <span className="min-w-0 text-gray-800">{line.description || t.charge}</span>
+              <span className="shrink-0 text-gray-900 tabular-nums">{amount(line.amount)}</span>
+            </p>
+          ))}
+          <p className={`${row} font-semibold text-gray-900`}><span>{t.total}</span><span className="tabular-nums">{amount(bill.total)}</span></p>
+        </div>
+      )}
+      <div className="space-y-0.5 border-t border-gray-200 pt-2 text-base">
+        {bill.paid > 0 && <p className={row}><span className="text-gray-700">{t.paid}{methods ? ` (${methods})` : ''}</span><span className="tabular-nums">{amount(bill.paid)}</span></p>}
+        {bill.earlier > 0 && <p className={row}><span className="text-gray-700">{t.earlierDue}</span><span className="tabular-nums">{amount(bill.earlier)}</span></p>}
+        {bill.earlier < 0 && <p className={row}><span className="text-gray-700">{t.earlierAdvance}</span><span className="tabular-nums">{amount(-bill.earlier)}</span></p>}
+        <p className={`${row} font-bold text-gray-900`}>
+          <span>{bill.due > 0 ? t.due : bill.due < 0 ? t.advance : t.full}</span>
+          {bill.due !== 0 && <span className="tabular-nums">{amount(Math.abs(bill.due))}</span>}
+        </p>
+      </div>
+    </section>
+  )
 }
 
 // "Prescription-12-Oct-2026.jpg": what it is and the visit's date, in letters and numbers only
@@ -65,7 +102,9 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
   const kn = language === 'kn'
   const date = kn ? kannadaDate(shared.visit_date, true) : formatDate(shared.visit_date)
   const until = inIndia(shared.expires_at).date
-  const labels = shared.photos.map((p) => p.label)
+  const bill = shared.photos.find(isSharedBill)
+  const shown = shared.photos.filter((item) => !isSharedBill(item)) as Exclude<SharedItem, SharedBill>[]
+  const labels = shown.map((p) => p.label)
   const save = kn ? 'ಉಳಿಸಿ' : 'Save'
   // Two X-rays read "X-ray 1", "X-ray 2"
   const numbered = labels.map((label, i) => (labels.filter((l) => l === label).length > 1 ? `${label} ${labels.slice(0, i + 1).filter((l) => l === label).length}` : label))
@@ -77,12 +116,12 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">{kn ? photosWord(labels, 'kn') : `Your ${photosWord(labels)}`}</h1>
         <p className="text-sm text-gray-600">{date}</p>
       </div>
-      {shared.photos.map((item, i) => (
+      {shown.map((item, i) => (
         <figure key={i} className="space-y-2">
           <figcaption className="font-semibold text-gray-900">{numbered[i]}</figcaption>
           {isSharedPrescription(item) ? (
             <SharedPrescription
-              sheet={{ firstName: firstName(shared.first_name), date: formatDate(shared.visit_date), medicines: item.medicines, advice: item.advice }}
+              sheet={{ patient: item.patient ?? firstName(shared.first_name), age: item.age ?? null, date: formatDate(shared.visit_date), medicines: item.medicines, advice: item.advice }}
               alt={numbered[i]} fileName={fileName(numbered[i], formatDate(shared.visit_date), 'jpg')} saveLabel={save} />
           ) : (
             <>
@@ -98,6 +137,7 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
           )}
         </figure>
       ))}
+      {bill && <Bill bill={bill} kn={kn} />}
       <p lang={kn ? 'kn' : 'en'} className="text-sm text-gray-600">
         {kn ? `ಈ ಲಿಂಕ್ ${kannadaDate(until, true)} ರವರೆಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ.` : `This link works until ${formatDate(until)}.`} {questionsLine(language)}
       </p>

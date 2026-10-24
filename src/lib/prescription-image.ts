@@ -1,7 +1,7 @@
 import { siteConfig } from '@/config/site'
 
-// The typed prescription on the clinic's letterhead, drawn on the phone as a JPEG to share on WhatsApp.
-// Only the patient's first name is on it (like every message to the patient).
+// The typed prescription on the clinic's letterhead, drawn as a JPEG: in the visit's preview and on the
+// page its WhatsApp link opens. It carries the patient's name and age, as a prescription does.
 
 const W = 1080
 const MIN_H = 1528 // A-paper shape
@@ -12,7 +12,9 @@ const GREY = '#4b5563'
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif'
 
 export type PrescriptionSheet = {
-  firstName: string
+  // The patient's full name, and age in years when known
+  patient: string
+  age?: number | null
   date: string // "15 Oct 2026"
   medicines: string[]
   advice: string
@@ -105,10 +107,15 @@ export async function drawPrescription(sheet: PrescriptionSheet): Promise<Blob> 
   let y = HEADER_H + 80
   ctx.fillStyle = INK
   ctx.font = `600 34px ${FONT}`
-  ctx.fillText(`Patient: ${sheet.firstName}`, PAD, y)
+  const dateText = `Date: ${sheet.date}`
   ctx.textAlign = 'right'
-  ctx.fillText(`Date: ${sheet.date}`, W - PAD, y)
+  ctx.fillText(dateText, W - PAD, y)
   ctx.textAlign = 'left'
+  // A long name is cut short with an ellipsis rather than running into the date
+  const room = textWidth - ctx.measureText(dateText).width - 40
+  let who = `Patient: ${sheet.patient}${sheet.age != null ? `, ${sheet.age} yrs` : ''}`
+  while (ctx.measureText(who).width > room && who.length > 12) who = `${who.slice(0, -2).trimEnd()}…`
+  ctx.fillText(who, PAD, y)
   y += 34
   ctx.fillStyle = '#e5e7eb'
   ctx.fillRect(PAD, y, textWidth, 3)

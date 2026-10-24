@@ -59,7 +59,7 @@ test('Today: one tap confirms a website request and prepares the patient message
   expect(text).not.toContain(requestName)
   expect(text).not.toContain('Diabetes')
   expect(text).toContain('is *confirmed*')
-  expect(text).toContain(`🕗 *${formatBlock('15:00')}*`)
+  expect(text).toContain(`Time: *${formatBlock('15:00')}*`)
   expect(text).toContain('_Please arrive 5 minutes early._')
   expect(text).toContain('Warm regards,')
 
@@ -121,7 +121,7 @@ test('cancels the coming visit from the patient page, offers to tell them, then 
   expect(text).toContain(`Dear ${runId},`)
   expect(text).not.toContain(patientName)
   expect(text).toContain('has been *cancelled*:')
-  expect(text).toContain(`🕗 *${formatBlock(COMING_AT)}*`)
+  expect(text).toContain(`Time: *${formatBlock(COMING_AT)}*`)
   expect(text).toContain('Warm regards,')
 
   await visible(page.getByRole('link', { name: `Back to ${patientName}` })).click()
@@ -183,7 +183,7 @@ test('Move: the current time is marked; a new time sends "has been moved to"', a
   expect(text).toContain(`Dear ${runId},`)
   expect(text).toContain('has been moved to:')
   expect(text).not.toContain('confirmed')
-  expect(text).toContain(`🕗 *${formatBlock('14:30')}*`)
+  expect(text).toContain(`Time: *${formatBlock('14:30')}*`)
   expect(text).toContain('_Please arrive 5 minutes early._')
 })
 
@@ -253,7 +253,7 @@ test('Confirm, then Confirm again on an old card (another tab): the WhatsApp con
     expect(again.url).toContain(`wa.me/91${requestPhone}`)
     const text = whatsappText(again.url)
     expect(text).toContain('is *confirmed*')
-    expect(text).toContain(`🕗 *${formatBlock('11:30')}*`)
+    expect(text).toContain(`Time: *${formatBlock('11:30')}*`)
     expect(await patientsWithPhone(requestPhone)).toHaveLength(1)
   } finally {
     await other.close()

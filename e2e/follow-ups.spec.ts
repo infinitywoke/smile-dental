@@ -134,3 +134,26 @@ test('Google review request: one tap after the bill is sent, then the date shows
   await expect(visible(page.getByText(/Google review asked on/))).toBeVisible()
   await expect(page.getByRole('link', { name: 'Ask for a Google review' })).toHaveCount(0)
 })
+
+test('or in the visit message itself, ticked unless unticked: one message, and the patient is never asked twice', async () => {
+  const patientId = await createPatient(`${runId} Review Inline`, newPhone('5'))
+  const visitId = await createVisit(patientId, today, 300, 300)
+  const { supabase } = await testDb()
+  const asked = async () => (await supabase.from('patients').select('review_asked_at').eq('id', patientId).single()).data!.review_asked_at
+
+  await page.goto(`/app/visits/${visitId}`)
+  const tick = visible(page.getByRole('checkbox', { name: 'Ask for a Google review in the message' }))
+  await expect(tick).toBeChecked()
+  const wa = await captureWhatsapp(page)
+  await visible(page.getByRole('link', { name: 'Send on WhatsApp' })).click()
+  const openButton = visible(page.getByRole('link', { name: 'Open WhatsApp' }))
+  await Promise.race([page.waitForURL(/wa\.me\//, { timeout: 30_000 }), openButton.waitFor({ timeout: 30_000 }).then(() => openButton.click())])
+  await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
+  const text = whatsappText(wa.url)
+  expect(text).toContain('*Paid in full.* Thank you!\n\nIf you have a minute, a short Google review helps other people in the area find the clinic:\nhttps://')
+  await expect.poll(asked).not.toBeNull()
+
+  await page.goto(`/app/visits/${visitId}`)
+  await expect(visible(page.getByText(/Google review asked on/))).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: 'Ask for a Google review in the message' })).toHaveCount(0)
+})

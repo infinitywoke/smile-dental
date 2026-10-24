@@ -203,7 +203,7 @@ export function VisitFlow({
         </details>
       )}
 
-      <PrescriptionCard notes={notesText} edit={editNotes} patientName={visit.patient.name} visitDate={visit.visit_date} medicines={medicines} />
+      <PrescriptionCard notes={notesText} edit={editNotes} patientName={visit.patient.name} age={age} visitDate={visit.visit_date} medicines={medicines} />
 
       <div className="space-y-2">
         <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} nameOf={nameOf} onKind={markKind} onUploads={setUploads}

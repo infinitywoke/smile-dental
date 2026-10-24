@@ -3,7 +3,8 @@
 import { useEffect } from 'react'
 import { openWhatsApp, whatsappHref } from '@/lib/whatsapp-business'
 
-// Every wa.me link tapped in Clinic OS opens WhatsApp Business on Android (see whatsapp-business.ts)
+// Every wa.me link tapped in Clinic OS opens the WhatsApp chosen on this phone, Business unless set
+// otherwise (see whatsapp-business.ts)
 export function WhatsAppBusiness() {
   useEffect(() => {
     const onClick = (event: MouseEvent) => {

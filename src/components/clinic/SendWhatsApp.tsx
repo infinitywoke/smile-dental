@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore, type Ref } from 'react'
 import Link from 'next/link'
 import { AlertCircle, Check, Loader2, MessageCircle } from 'lucide-react'
 import type { VisitDetail, VisitPhoto } from '@/lib/data/types'
@@ -10,7 +10,8 @@ import type { ShownBill } from '@/lib/offline/apply'
 import { isNetworkError, readOutbox } from '@/lib/offline/outbox'
 import { messageLanguage, whatsappLink } from '@/lib/whatsapp'
 import type { UploadCounts } from './PhotoGallery'
-import { openWhatsApp } from '@/lib/whatsapp-business'
+import { markSent } from '@/lib/mark-sent'
+import { onAndroidPhone, openWhatsApp, preferredWhatsAppApp, setPreferredWhatsAppApp, subscribeWhatsAppApp, type WhatsAppApp } from '@/lib/whatsapp-business'
 import { useSaves } from './Outbox'
 import { ReviewRequest } from './ReviewRequest'
 
@@ -27,6 +28,7 @@ const RECORD_WAIT_MS = 3000
 const RECORD_WAIT_AFTER_PREPARE_MS = 1500
 
 const photos = (n: number) => (n === 1 ? '1 photo' : `${n} photos`)
+const noSubscribe = () => () => {}
 
 type Sending =
   | { state: 'idle' }
@@ -91,6 +93,13 @@ export function SendWhatsApp({
   // Sent, but a charge or payment changed since (the database sets this): the patient's message is out of date
   const resend = sent && !!visit.resend_needed
   const phone = visit.patient.phone
+  // A Google review asked in the same message, once per patient (ticked unless he unticks it)
+  const reviewDue = !visit.patient.review_asked_at
+  const [askReview, setAskReview] = useState(true)
+  const reviewInMessage = useRef(false)
+  // Which WhatsApp opens, on Android (Settings, or the switch under Send)
+  const android = useSyncExternalStore(noSubscribe, onAndroidPhone, () => false)
+  const app = useSyncExternalStore(subscribeWhatsAppApp, preferredWhatsAppApp, () => 'business' as WhatsAppApp)
 
   // Back from WhatsApp: the next Send builds a fresh message (he may change something first)
   const ready = sending.state === 'ready'
@@ -109,12 +118,13 @@ export function SendWhatsApp({
       ? `${photos(uploads.uploading)} still uploading…`
       : uploads.failed > 0
         ? `${photos(uploads.failed)} failed to upload and ${uploads.failed === 1 ? 'is' : 'are'} being tried again. Remove ${uploads.failed === 1 ? 'it' : 'them'} to send without.`
-        : tickedPhotos.length + (prescription ? 1 : 0) > MAX_PHOTOS_TO_SEND
-          ? prescription ? `You can send up to ${MAX_PHOTOS_TO_SEND - 1} photos with the prescription.` : `You can send up to ${MAX_PHOTOS_TO_SEND} photos at a time.`
+        : tickedPhotos.length > MAX_PHOTOS_TO_SEND
+          ? `You can send up to ${MAX_PHOTOS_TO_SEND} photos at a time.`
           : null
 
-  const linkWith = (data: Omit<MessageData, 'photoLink'>, photoLink: MessageData['photoLink']) =>
-    whatsappLink(
+  const linkWith = (data: Omit<MessageData, 'photoLink'>, photoLink: MessageData['photoLink']) => {
+    reviewInMessage.current = reviewDue && askReview
+    return whatsappLink(
       phone!,
       visitMessage({
         patientName: visit.patient.name,
@@ -124,9 +134,11 @@ export function SendWhatsApp({
         summary: data.summary,
         nextAppointment: data.nextAppointment,
         photoLink,
+        review: reviewInMessage.current,
         language: messageLanguage(visit.patient.language),
       }),
     )
+  }
 
   // The message made here, from the bill and next visit on show. The link needs the server, so with a
   // prescription or photos ticked it can't be made this way (null).
@@ -152,6 +164,8 @@ export function SendWhatsApp({
     setSentNow(true)
     onSent?.()
     onOpen?.()
+    // The review went with it: the patient isn't asked again
+    if (reviewInMessage.current) void markSent('review', visit.patient.id)
     openWhatsApp(link)
   }
 
@@ -252,6 +266,14 @@ export function SendWhatsApp({
         </p>
       )}
 
+      {phone && reviewDue && !sent && sending.state !== 'ready' && (
+        <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl bg-white px-3 ring-1 ring-gray-200">
+          <input type="checkbox" checked={askReview} onChange={(e) => setAskReview(e.target.checked)}
+            className="h-6 w-6 shrink-0 rounded border-gray-300 text-blue-600" />
+          <span className="text-base text-gray-900">Ask for a Google review in the message</span>
+        </label>
+      )}
+
       {!phone ? (
         <p className="rounded-2xl bg-amber-50 p-4 text-base text-amber-900 ring-1 ring-amber-200">
           No WhatsApp number for this patient.{' '}
@@ -275,6 +297,17 @@ export function SendWhatsApp({
           {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <MessageCircle className="h-6 w-6" />}
           {busy ? 'Preparing…' : sending.state === 'waiting' ? 'Try again' : 'Send on WhatsApp'}
         </a>
+      )}
+
+      {/* On Android: which WhatsApp it opens, and one tap to use the other (remembered on this phone) */}
+      {phone && android && (
+        <p className="text-center text-sm text-gray-600">
+          Opens {app === 'business' ? 'WhatsApp Business' : 'WhatsApp'} ·{' '}
+          <button type="button" onClick={() => setPreferredWhatsAppApp(app === 'business' ? 'whatsapp' : 'business')}
+            className="min-h-11 font-semibold text-blue-700 underline">
+            Use {app === 'business' ? 'WhatsApp' : 'WhatsApp Business'}
+          </button>
+        </p>
       )}
     </section>
   )

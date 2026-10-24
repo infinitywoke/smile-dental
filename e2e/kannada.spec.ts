@@ -55,7 +55,7 @@ test('a patient set to Kannada on New patient gets their messages in Kannada; Ed
   const text = whatsappText((await visible(page.getByRole('link', { name: /on WhatsApp$/ })).getAttribute('href'))!)
   expect(text).toContain(`ನಮಸ್ಕಾರ ${runId} ಅವರೇ,`)
   expect(text).toContain('*ರದ್ದಾಗಿದೆ*')
-  expect(text).toContain(`🕗 *${kannadaTime(booked!.time)}*`)
+  expect(text).toContain(`ಸಮಯ: *${kannadaTime(booked!.time)}*`)
   expect(text).not.toContain('Dear')
 
   // The patient page says so; Edit sets English again

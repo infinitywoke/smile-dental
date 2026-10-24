@@ -190,7 +190,8 @@ test('Send tapped straight after booking the next visit: one message with the bi
   expect(text).not.toContain('Penicillin')
   expect(text).toContain(`*Treatment & charges*\n- ${scaling}: ₹600\n- ${otherCharge}: ₹600\n*Total: ₹1,200*`)
   expect(text).toContain('*Payment*\nPaid: ₹1,000 (Cash)\n*Balance due: ₹200*')
-  expect(text).toMatch(/\*Next appointment\*\n📅 \*\w+day, \d{1,2} \w+\*\n🕗 \*\d{1,2}:\d{2} (AM|PM)\*\n📍 /)
+  expect(text).toMatch(/\*Next appointment\*\nDate: \*\w+day, \d{1,2} \w+\*\nTime: \*\d{1,2}:\d{2} (AM|PM)\*\nAddress: /)
+  expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)
   expect(text).toContain('Warm regards,\n*Dr. Rahil Yusuf*\nSmile Dental Clinic, Katapadi')
   // The prescription: one short link in the text, no storage address, no second step
   expect(text).toMatch(/\*Your prescription\* _\(the link works for 30 days\)_\nhttps?:\/\/[^\s/]+\/r\/[A-Za-z0-9_-]{32}\n/)
@@ -222,9 +223,15 @@ test('the link shows the prescription to anyone with it, signed out, for 30 days
   await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), { timeout: 20_000 }).toBe(true)
   await expect(stranger.getByRole('link', { name: 'Save' })).toHaveAttribute('href', /&download=Prescription-\d{1,2}-\w{3}-\d{4}\.(jpg|png|webp)$/)
   await expect(stranger.getByText(/works until/)).toBeVisible()
-  // Nothing else about the patient
+  // The bill as it stood when it was sent, and nothing else about the patient
+  const bill = stranger.getByRole('region', { name: 'Bill' })
+  await expect(bill).toContainText('Total')
+  await expect(bill).toContainText('₹1,200')
+  await expect(bill).toContainText('Paid (Cash)')
+  await expect(bill).toContainText('Balance due')
+  await expect(bill).toContainText('₹200')
   await expect(stranger.getByText(patientName)).toHaveCount(0)
-  await expect(stranger.getByText(/Penicillin|Balance|₹/)).toHaveCount(0)
+  await expect(stranger.getByText(/Penicillin/)).toHaveCount(0)
 
   // One letter off: nothing
   await stranger.goto(`/r/${token.slice(0, -1)}${token.endsWith('A') ? 'B' : 'A'}`)
@@ -450,7 +457,7 @@ test('Send leaves a later booking today booked; deleting the sent visit empties 
 
   const whatsapp = await captureWhatsapp(page)
   await sendOnWhatsapp()
-  expect(whatsappText(whatsapp.url)).toContain(`🕗 *${formatBlock(later!.time)}*`)
+  expect(whatsappText(whatsapp.url)).toContain(`Time: *${formatBlock(later!.time)}*`)
   // The booking she came for is done; the later one is still to come
   expect(await statusOf(first!.id)).toBe('done')
   expect(await statusOf(later!.id)).toBe('booked')

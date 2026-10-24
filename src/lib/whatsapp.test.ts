@@ -20,9 +20,9 @@ describe('messages to the patient', () => {
     expect(text.startsWith(HEADER)).toBe(true)
     expect(text.endsWith(SIGN_OFF)).toBe(true)
     expect(text).toContain('is *confirmed*')
-    expect(text).toContain('📅 *Thursday, 15 October*')
-    expect(text).toContain('🕗 *6:00 PM*')
-    expect(text).toContain('📍 1st Floor, YM Zohara Building')
+    expect(text).toContain('Date: *Thursday, 15 October*')
+    expect(text).toContain('Time: *6:00 PM*')
+    expect(text).toContain('Address: 1st Floor, YM Zohara Building')
     expect(text).toContain('Directions: https://maps.app.goo.gl/')
     expect(text).toContain('_Please arrive 5 minutes early._')
     expect(text).not.toContain('Shetty')
@@ -34,7 +34,7 @@ describe('messages to the patient', () => {
     expect(text.startsWith(HEADER)).toBe(true)
     expect(text.endsWith(SIGN_OFF)).toBe(true)
     expect(text).toContain('running about 15 minutes late today')
-    expect(text).toContain('🕗 *6:00 PM*')
+    expect(text).toContain('Time: *6:00 PM*')
     expect(text).toContain('come about 15 minutes after your time')
     expect(text).not.toContain('Shetty')
     expect(text).not.toMatch(FORBIDDEN)
@@ -45,8 +45,8 @@ describe('messages to the patient', () => {
     expect(text.startsWith(HEADER)).toBe(true)
     expect(text.endsWith(SIGN_OFF)).toBe(true)
     expect(text).toContain('has been moved to:')
-    expect(text).toContain('📅 *Thursday, 15 October*')
-    expect(text).toContain('🕗 *6:00 PM*')
+    expect(text).toContain('Date: *Thursday, 15 October*')
+    expect(text).toContain('Time: *6:00 PM*')
     expect(text).toContain('_Please arrive 5 minutes early._')
     expect(text).not.toContain('confirmed')
     expect(text).not.toContain('Shetty')
@@ -58,8 +58,8 @@ describe('messages to the patient', () => {
     expect(text.startsWith(HEADER)).toBe(true)
     expect(text.endsWith(SIGN_OFF)).toBe(true)
     expect(text).toContain('has been *cancelled*:')
-    expect(text).toContain('📅 *Thursday, 15 October*')
-    expect(text).toContain('🕗 *6:00 PM*')
+    expect(text).toContain('Date: *Thursday, 15 October*')
+    expect(text).toContain('Time: *6:00 PM*')
     expect(text).toContain('To book a new time, call or WhatsApp us on')
     // Not a booking: no address block, no "arrive early"
     expect(text).not.toContain('arrive 5 minutes early')
@@ -109,7 +109,7 @@ describe('messages in Kannada', () => {
   // English words left in a Kannada message, apart from names, WhatsApp, Google, UPI, the address and links
   const englishLeft = (text: string) =>
     text.split('\n')
-      .filter((line) => !line.startsWith('📍') && !line.startsWith('- ') && !/https?:\/\//.test(line))
+      .filter((line) => !line.startsWith('ವಿಳಾಸ:') && !line.startsWith('- ') && !/https?:\/\//.test(line))
       .join('\n')
       .replace(/Smile Dental Clinic|Dr\. Rahil Yusuf|BDS|Prakash|WhatsApp|Google|\(review\)|UPI/g, '')
       .match(/[A-Za-z]{2,}/g) ?? []
@@ -148,9 +148,9 @@ describe('messages in Kannada', () => {
     expect(text.startsWith(KN_HEADER)).toBe(true)
     expect(text.endsWith(KN_SIGN_OFF)).toBe(true)
     expect(text).toContain('*ಖಚಿತವಾಗಿದೆ*')
-    expect(text).toContain('📅 *ಗುರುವಾರ, 15 ಅಕ್ಟೋಬರ್*')
-    expect(text).toContain('🕗 *ಸಂಜೆ 6:00*')
-    expect(text).toContain('📍 1st Floor, YM Zohara Building')
+    expect(text).toContain('ದಿನಾಂಕ: *ಗುರುವಾರ, 15 ಅಕ್ಟೋಬರ್*')
+    expect(text).toContain('ಸಮಯ: *ಸಂಜೆ 6:00*')
+    expect(text).toContain('ವಿಳಾಸ: 1st Floor, YM Zohara Building')
     expect(text).not.toContain('Shetty')
   })
 
@@ -185,6 +185,14 @@ describe('messages in Kannada', () => {
       expect(text).not.toContain('Shetty')
       expect(text).not.toMatch(FORBIDDEN)
     }
+    // Plain and professional: no emojis in any message, in either language
+    for (const text of messages) expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)
+    for (const text of [
+      confirmationMessage({ name, startsAt: starts }), movedMessage({ name, startsAt: starts }), cancelledMessage({ name, startsAt: starts }),
+      declineMessage({ name }), reminderMessage({ name, startsAt: starts, tomorrow: true }), missedMessage({ name, startsAt: starts }),
+      runningLateMessage({ name, startsAt: starts, minutes: 15 }), recallMessage({ name, lastVisit: '2026-04-11' }), reviewMessage({ name }),
+      visitMessage({ patientName: name, visitDate: '2026-10-11', nextAppointment: { starts_at: starts }, photoLink: { url: 'https://x/r/code', labels: ['Prescription'] } }),
+    ]) expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)
     expect(messages[10]).toContain('- ಶುಲ್ಕ: ₹200')
     expect(messages[10]).toContain('ಪಾವತಿಸಿದ್ದು: ₹1,500 (UPI + ನಗದು)')
     expect(messages[10]).toContain('ಇತರ ಭೇಟಿಗಳ ಬಾಕಿ: ₹300')
