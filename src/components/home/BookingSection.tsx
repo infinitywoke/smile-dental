@@ -2,6 +2,8 @@ import { connection } from 'next/server'
 import { MessageCircle, Phone } from 'lucide-react'
 import { getBookingPause, getOpenSlots } from '@/lib/actions/booking'
 import { reasonFromLink } from '@/lib/booking-reasons'
+import { getTreatments } from '@/lib/data/price-list'
+import { homeServicesFor } from '@/lib/price-list'
 import { todayInIndia } from '@/lib/dates'
 import { confirmationPromise } from '@/lib/schedule'
 import { BookingCard } from './BookingCard'
@@ -13,9 +15,9 @@ import { PHONE_SHOWN, TEL, WHATSAPP } from './site-links'
 export async function Booking({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   await connection()
   const reason = searchParams ? reasonFromLink((await searchParams).reason) : null
-  const [slots, pause] = await Promise.all([getOpenSlots(), getBookingPause()])
+  const [slots, pause, list] = await Promise.all([getOpenSlots(), getBookingPause(), getTreatments()])
   if (pause.until) return <BookingPaused />
-  return <BookingCard slots={slots} today={todayInIndia()} promise={confirmationPromise(new Date())} initialReason={reason} />
+  return <BookingCard slots={slots} today={todayInIndia()} promise={confirmationPromise(new Date())} initialReason={reason} services={homeServicesFor(list)} />
 }
 
 function BookingPaused() {

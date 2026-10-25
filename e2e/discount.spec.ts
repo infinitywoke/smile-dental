@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
 import { inIndia } from '../src/lib/schedule'
-import { captureWhatsapp, cleanRun, createPatient, createVisit, newPhone, newRunId, signIn, testDb, visible, whatsappText } from './helpers'
+import { billOnLink, captureWhatsapp, cleanRun, createPatient, createVisit, newPhone, newRunId, signIn, testDb, visible, whatsappText } from './helpers'
 
 // A discount off a visit's bill: a share or an amount, with a reason; a line of its own below zero that
 // the total, the message and the money all take off; never more than the bill; removed like a charge
@@ -50,15 +50,17 @@ test('a discount comes off the bill, the total and the message, and never more t
   await expect(visible(page.getByRole('group', { name: 'Discount' })).getByRole('button', { name: 'Add discount' })).toBeDisabled()
   await visible(page.getByRole('group', { name: 'Discount' })).getByRole('button', { name: 'Cancel' }).click()
 
-  // The message lists it and totals after it
+  // The bill on the message's link lists it and totals after it (the message itself has no money)
   const whatsapp = await captureWhatsapp(page)
   await visible(page.getByRole('link', { name: 'Send on WhatsApp' })).click()
   const openButton = visible(page.getByRole('link', { name: 'Open WhatsApp' }))
   await Promise.race([page.waitForURL(/wa\.me\//, { timeout: 30_000 }), openButton.waitFor({ timeout: 30_000 }).then(() => openButton.click())])
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain('- Check-up: ₹1,000\n- Discount (Senior citizen): −₹100\n*Total: ₹900*')
-  expect(text).toContain('*Balance due: ₹900*')
+  expect(text).not.toContain('₹')
+  const bill = await billOnLink(page, text)
+  expect(bill).toContain('Check-up ₹1,000 Discount (Senior citizen) −₹100 Total ₹900')
+  expect(bill).toContain('Balance due ₹900')
 
   // Removed like a charge: the bill is whole again
   await page.goto(`/app/visits/${visitId}`)

@@ -15,6 +15,7 @@ import { DEFAULT_LENGTH, formatTimeOf, formatWhen } from '@/lib/schedule'
 import { otherName, photoCaption, photoKind, photoLabel, type PhotoKind } from '@/lib/visit-status'
 import { isBirthday, patientAge } from '@/lib/patient-fields'
 import type { UsualCharge } from '@/lib/usual-charges'
+import type { PriceListOption } from '@/lib/pricing'
 import { ChairReadout } from './VisitHud'
 import { BillSection, type Save } from './BillTools'
 import { NextVisit } from './NextVisit'
@@ -38,6 +39,7 @@ export function VisitFlow({
   bill: serverBill,
   medicines,
   usual,
+  priceList,
   focus,
 }: {
   doctorId: string
@@ -47,6 +49,8 @@ export function VisitFlow({
   medicines: string[]
   // The price-list items he bills most, one tap each on the bill
   usual: UsualCharge[]
+  // The clinic's price list (src/lib/data/price-list.ts), for Add charge
+  priceList: PriceListOption[]
   // "payment": opened from a Collect link, so scroll to the payment card
   focus: 'payment' | null
 }) {
@@ -218,7 +222,7 @@ export function VisitFlow({
 
       {/* One card for the money: the bill's lines and total, then what was paid and what is still due */}
       <div id="visit-bill" className="scroll-mt-4">
-        <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} usual={usual} save={save}
+        <BillSection visitId={visit.id} charges={bill.charges} total={bill.summary.total} usual={usual} priceList={priceList} save={save}
           fromNotes={noteCharges && (
             <NoteCharges key={noteCharges.round} visitId={visit.id} charges={noteCharges.charges} notOnList={noteCharges.notOnList}
               onDismiss={() => setNoteCharges(null)} />

@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { getDoctor } from '@/lib/auth'
 import { getFixedCosts } from '@/lib/data/costs'
+import { getTreatments } from '@/lib/data/price-list'
 import { getStock, getTreatmentMaterials } from '@/lib/data/stock'
 import { todayInIndia } from '@/lib/dates'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
@@ -9,7 +10,7 @@ import { StockImport } from '@/components/clinic/StockImport'
 // Loading the filled-in "Stock and costs" spreadsheet once, after seeing what it adds
 async function ImportContent() {
   await getDoctor()
-  const [stock, costs, materials] = await Promise.all([getStock(), getFixedCosts(), getTreatmentMaterials()])
+  const [stock, costs, materials, priceList] = await Promise.all([getStock(), getFixedCosts(), getTreatmentMaterials(), getTreatments()])
   const nameOf = new Map(stock.levels.map((l) => [l.item_id, l.name]))
   return (
     <div className="space-y-4">
@@ -28,6 +29,7 @@ async function ImportContent() {
             bills: costs.bills.filter((b) => !b.ends_on).map((b) => b.name),
             materials: materials.filter((m) => nameOf.has(m.item_id))
               .map((m) => ({ description: m.charge_description, item: nameOf.get(m.item_id)!, qty: m.qty })),
+            priceList,
           }}
         />
       ) : (

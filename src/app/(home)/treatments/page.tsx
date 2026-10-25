@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { ChevronRight } from 'lucide-react'
-import { homeServices, treatments } from '@/config/site'
+import { getTreatments } from '@/lib/data/price-list'
+import { treatmentGroups } from '@/lib/price-list'
 import { priceForPatients } from '@/lib/pricing'
 import { priceListJsonLd } from '@/lib/structured-data'
 import { JsonLd } from '@/components/home/JsonLd'
@@ -13,16 +14,14 @@ export const metadata: Metadata = {
     "Every treatment at Smile Dental Clinic in Katapadi, Udupi, with the clinic's own prices: check-ups, cleaning, fillings, root canals, crowns, braces, tooth removal and dentures.",
 }
 
-// The whole price list, under the same headings as the homepage (a test checks nothing is left out)
-const groups = homeServices.map((service) => ({
-  ...service,
-  items: treatments.filter((t) => service.slugs.includes(t.slug)),
-}))
-
-export default function TreatmentsPage() {
+// The whole price list, under the same headings as the homepage, and any treatment no heading names yet
+// under Other treatments (a test checks nothing is left out)
+export default async function TreatmentsPage() {
+  const list = await getTreatments()
+  const groups = treatmentGroups(list)
   return (
     <>
-      <JsonLd data={priceListJsonLd()} />
+      <JsonLd data={priceListJsonLd(list)} />
       <PageHead eyebrow="Treatments and prices" title="Every treatment, with the price."
         lead="The clinic's own price list. Some prices depend on the material or on how much work a tooth needs: Dr. Rahil examines first, and explains the options and the cost before any treatment." />
 
@@ -32,7 +31,7 @@ export default function TreatmentsPage() {
             <article key={group.id} id={group.id} className="h-price-card">
               <div className="h-price-head">
                 <h2 className="h-serif h-h3">{group.name}</h2>
-                <strong>{group.price}</strong>
+                {group.price && <strong>{group.price}</strong>}
               </div>
               <p className="h-small">{group.line}</p>
               {group.items.map((t) => (
@@ -47,7 +46,7 @@ export default function TreatmentsPage() {
                   ))}
                 </div>
               ))}
-              <Link href={`/book?reason=${group.id}`} className="h-btn small" aria-label={`Book ${group.name}`}>Book</Link>
+              <Link href={`/book?reason=${group.id === 'other' ? 'unsure' : group.id}`} className="h-btn small" aria-label={`Book ${group.name}`}>Book</Link>
             </article>
           ))}
         </div>

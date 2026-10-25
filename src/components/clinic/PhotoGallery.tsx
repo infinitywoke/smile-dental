@@ -9,6 +9,7 @@ import { resizeImage } from '@/lib/resize-image'
 import { PHOTO_BUCKET, PHOTO_KINDS, type PhotoKind } from '@/lib/visit-status'
 import { forgetPhoto, keepPhoto, keptPhotos } from '@/lib/offline/photo-store'
 import { useBackToClose } from './FullScreen'
+import { MonitorPhoto } from './MonitorPhoto'
 
 // A photo that failed to upload is tried again this often (and as soon as the phone is back online)
 const RETRY_MS = 10_000
@@ -133,6 +134,11 @@ export function PhotoGallery({
   const addFiles = (input: HTMLInputElement) => {
     const files = Array.from(input.files ?? [])
     input.value = ''
+    addPhotos(files)
+  }
+
+  // Taken, picked or pulled from the chair monitor: shown at once, kept on the phone, uploaded
+  const addPhotos = (files: File[]) => {
     const added = files.map((file) => ({ key: crypto.randomUUID(), file, preview: URL.createObjectURL(file), failed: false }))
     setUploading((list) => [...list, ...added])
     // A copy stays on the phone until it has uploaded (no signal, a closed tab)
@@ -250,7 +256,7 @@ export function PhotoGallery({
       <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target)} />
       <input ref={galleryInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addFiles(e.target)} />
       {/* One slim row until there are photos: most visits have none */}
-      <div className={`flex items-center gap-2 ${empty ? 'min-h-14 rounded-2xl bg-white py-1.5 pr-1.5 pl-4 ring-1 ring-gray-200' : 'justify-end'}`}>
+      <div className={`flex flex-wrap items-center gap-2 ${empty ? 'min-h-14 rounded-2xl bg-white py-1.5 pr-1.5 pl-4 ring-1 ring-gray-200' : 'justify-end'}`}>
         {empty && (
           <span className="flex flex-1 items-center gap-3 text-base font-semibold text-gray-900">
             <Camera className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />Photos
@@ -264,6 +270,7 @@ export function PhotoGallery({
           className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white px-3 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50">
           <Images className="h-4 w-4" aria-hidden="true" /> Gallery
         </button>
+        <MonitorPhoto visitId={visitId} onPhoto={(file) => addPhotos([file])} />
       </div>
 
       {viewer.open && viewing && <PhotoViewer key={viewing.id} photo={viewing} url={urlOf(viewing)} onClose={viewer.close} />}

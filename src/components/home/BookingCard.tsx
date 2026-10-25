@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeft, CalendarCheck, CalendarDays, MessageCircle, Mic, Phone, Zap } from 'lucide-react'
-import { bookingReasons, homeServices } from '@/config/site'
+import { bookingReasons, type HomeService } from '@/config/site'
 import { attachVoiceNote, submitBookingRequest } from '@/lib/actions/booking'
 import { checkOtherDate, dayLabel, daysWithSlots, otherTimeMessage, partOfDay, preferredTimeOptions, slotsOn } from '@/lib/booking-days'
 import { addDays, formatBlock, formatDay, formatTimeOf, inIndia } from '@/lib/schedule'
@@ -25,13 +25,13 @@ type Props = {
   promise: string
   // A reason id already chosen by the link that opened the page ("Book" on a treatment page)
   initialReason?: string | null
+  // The homepage's rows with today's prices (src/lib/price-list.ts homeServicesFor)
+  services: HomeService[]
 }
 
 type Step = 1 | 2 | 3 | 4
 const TITLES: Record<Step, string> = { 1: 'What do you need?', 2: 'Pick a day', 3: 'Pick a free time', 4: 'Your details' }
 const PARTS = ['Morning', 'Afternoon', 'Evening'] as const
-const CHECKUP_PRICE = homeServices.find((s) => s.id === 'checkup')?.price ?? ''
-
 // The step on show grows or shrinks smoothly to its new height
 function SmoothHeight({ children }: { children: React.ReactNode }) {
   const inner = useRef<HTMLDivElement>(null)
@@ -53,7 +53,7 @@ function SmoothHeight({ children }: { children: React.ReactNode }) {
 // The booking card, one step at a time: what you need, a day, a free time, then a name and a WhatsApp
 // number. Each answer moves on to the next step; the answers so far sit above it, each with Change.
 // The request is saved for the clinic; WhatsApp then opens with it written, ready to send.
-export function BookingCard({ slots, today, promise, initialReason = null }: Props) {
+export function BookingCard({ slots, today, promise, initialReason = null, services }: Props) {
   const router = useRouter()
   const days = useMemo(() => daysWithSlots(slots, today), [slots, today])
   // What the visit is for (a reason id), and a note such as which tooth, from the tooth chart
@@ -139,12 +139,13 @@ export function BookingCard({ slots, today, promise, initialReason = null }: Pro
   const earliest = slots.length > 0 ? [...slots].sort()[0] : null
   const when = (iso: string) => `${dayLabel(inIndia(iso).date, today)}, ${formatTimeOf(iso)}`
   // A line that fits the reason: its price, or for pain the earliest time
-  const service = homeServices.find((s) => s.id === choice.reason)
+  const service = services.find((s) => s.id === choice.reason)
+  const checkupPrice = services.find((s) => s.id === 'checkup')?.price
   const hint = choice.reason === 'toothache'
     ? earliest ? { text: `In pain? The earliest free time is ${when(earliest)}.`, offer: true } : { text: 'In pain? Call the clinic for the soonest time.', offer: false }
     : choice.reason === 'unsure'
-      ? { text: `No problem: Dr. Rahil examines first and explains the options. Consultation ${CHECKUP_PRICE}.`, offer: false }
-      : service ? { text: `${service.name} · ${service.price}`, offer: false } : null
+      ? { text: `No problem: Dr. Rahil examines first and explains the options. Consultation${checkupPrice ? ` ${checkupPrice}` : ''}.`, offer: false }
+      : service ? { text: service.price ? `${service.name} · ${service.price}` : service.name, offer: false } : null
 
   const reasonLabel = bookingReasons.find((r) => r.id === choice.reason)?.label ?? null
   const reasonText = reasonLabel ? `${reasonLabel}${choice.note ? ` (${choice.note})` : ''}`.slice(0, 200) : ''

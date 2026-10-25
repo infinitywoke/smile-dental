@@ -1,11 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { AlertCircle, Loader2, Plus, Search } from 'lucide-react'
 import { useUndo } from './UndoBar'
 import { useSaves } from './Outbox'
 import { parseAmount } from '@/lib/billing'
-import { chargeName as nameOf, formatPrice, formatRupees, priceListOptions, type PriceListOption } from '@/lib/pricing'
+import { chargeName as nameOf, formatPrice, formatRupees, type PriceListOption } from '@/lib/pricing'
 import type { SaveId } from './BillTools'
 import { FullScreen } from './FullScreen'
 
@@ -19,16 +19,18 @@ const keyOf = (o: PriceListOption) => `${o.slug}|${o.detail}`
 // asks for the agreed amount; "Other charge" asks what for and how much.
 export function PriceListSheet({
   visitId,
+  options,
   saveId,
   onAdded,
   onClose,
 }: {
   visitId: string
+  // The clinic's price list (src/lib/data/price-list.ts)
+  options: PriceListOption[]
   saveId: SaveId
   onAdded: () => void
   onClose: () => void
 }) {
-  const options = useMemo(() => priceListOptions(), [])
   const offerUndo = useUndo()
   const saves = useSaves()
   const [query, setQuery] = useState('')

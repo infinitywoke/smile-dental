@@ -53,15 +53,14 @@ test('Today: one tap confirms a website request and prepares the patient message
 
   expect(whatsapp.url).toContain(`wa.me/91${requestPhone}`)
   const text = whatsappText(whatsapp.url)
-  expect(text.startsWith('*Smile Dental Clinic*\n_Dr. Rahil Yusuf, BDS_')).toBe(true)
-  // First name only: never the rest of the name or anything else from the request
-  expect(text).toContain(`Dear ${runId},`)
+  // Friendly, first name only: never the rest of the name or anything else from the request
+  expect(text.startsWith(`Hi ${runId},\n\n`)).toBe(true)
   expect(text).not.toContain(requestName)
   expect(text).not.toContain('Diabetes')
   expect(text).toContain('is *confirmed*')
   expect(text).toContain(`Time: *${formatBlock('15:00')}*`)
-  expect(text).toContain('_Please arrive 5 minutes early._')
-  expect(text).toContain('Warm regards,')
+  expect(text).toContain('_Please come 5 minutes early if you can._')
+  expect(text).toContain('See you soon,')
 
   // It is now an appointment on that day's sheet
   await page.goto(`/app?d=${day}`)
@@ -117,12 +116,11 @@ test('cancels the coming visit from the patient page, offers to tell them, then 
   const tell = visible(page.getByRole('link', { name: `Tell ${runId} on WhatsApp` }))
   await expect(tell).toBeVisible()
   const text = whatsappText((await tell.getAttribute('href')) ?? '')
-  expect(text.startsWith('*Smile Dental Clinic*\n_Dr. Rahil Yusuf, BDS_')).toBe(true)
-  expect(text).toContain(`Dear ${runId},`)
+  expect(text.startsWith(`Hi ${runId},\n\n`)).toBe(true)
   expect(text).not.toContain(patientName)
-  expect(text).toContain('has been *cancelled*:')
+  expect(text).toContain('is *cancelled*:')
   expect(text).toContain(`Time: *${formatBlock(COMING_AT)}*`)
-  expect(text).toContain('Warm regards,')
+  expect(text).toContain('Take care,')
 
   await visible(page.getByRole('link', { name: `Back to ${patientName}` })).click()
   await expect(page).toHaveURL(new RegExp(`/app/patients/${patientId}$`))
@@ -158,7 +156,7 @@ test('booking page is never blank: a closed day says so, with a big Next day but
   await expect(visible(page.getByRole('link', { name: /^\d{1,2}:\d{2} (AM|PM)/ })).first()).toBeVisible()
 })
 
-test('Move: the current time is marked; a new time sends "has been moved to"', async () => {
+test('Move: the current time is marked; a new time sends the moved message', async () => {
   const moverName = `${runId} Mover`
   const moverId = await createPatient(moverName, newPhone())
   const day = openDay(5)
@@ -180,11 +178,11 @@ test('Move: the current time is marked; a new time sends "has been moved to"', a
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
 
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain(`Dear ${runId},`)
-  expect(text).toContain('has been moved to:')
+  expect(text).toContain(`Hi ${runId},`)
+  expect(text).toContain("has moved. Here's the new time:")
   expect(text).not.toContain('confirmed')
   expect(text).toContain(`Time: *${formatBlock('14:30')}*`)
-  expect(text).toContain('_Please arrive 5 minutes early._')
+  expect(text).toContain('_Please come 5 minutes early if you can._')
 })
 
 test('phone booking: type part of the phone, tap the patient row, Book, WhatsApp button', async () => {

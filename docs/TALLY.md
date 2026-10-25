@@ -29,6 +29,65 @@ So a Clinic OS file as saved today would be refused: `Bank of Baroda` and `Shin`
 3. **Credit each patient's own ledger** (waiting for the owner): name + age + place from the patient's record, and a ledger created in the same file for a patient Tally doesn't have yet. Needs: the group his patient ledgers sit under (Sundry Debtors, or an income group), and whether to match his existing ledger names (a list exported from Tally) so old patients don't get a second ledger.
 4. **Before relying on it:** import one day into a backup company and compare its Day Book with this one.
 
+## His company, from the full exports and settings (25 Oct 2026)
+
+The owner saved `docs/tally/Master.xml` (List of Accounts, 4 MB) and `docs/tally/DayBook.xml` (Day Book, 18–24 Oct 2026). Both are UTF-16 LE, in Tally's own import envelope (`<ENVELOPE>` → `IMPORTDATA` → `TALLYMESSAGE`, one master or voucher each). The folder is git-ignored because it holds patient data. The owner also sent screenshots of the company settings.
+
+**Company:** Tally.ERP 9 Release 1 (TallyGold, multi-user); company `SMILE DENTAL0`, Katapady, Udupi; books from 1 Apr 2025, current period 1 Apr 2026 – 31 Mar 2027. It is set to Accounts with Inventory, with an Income/Expense statement instead of P&L. Bill-wise details are on, including for non-trading accounts, and so are interest calculation, payroll and zero-valued entries. Cost centres, multi-currency and every tax (VAT, service tax, excise, TDS, TCS, FBT) are off; there is no GST and no PAN.
+
+**What the List of Accounts holds:**
+- **865 ledgers:**
+    - **846 under Direct Incomes:** one per patient, named name + age + place. The spacing and case vary (invented examples: `Asha40Katapadi`, `Asha 40 Katapadi`, `Asha 40 Udupi/Family`). The same person can have two ledgers because the age in the name changed (`Asha40…` and `Asha42…`).
+    - **Money in:** `Cash` (Cash-in-hand) and `Savings A/C` (Bank Accounts). There is no `Bank of Baroda` or `Shin` ledger.
+    - **Costs, all under Indirect Expenses:** rent, electricity, clinic expenses, a dental lab, and a second lab under its own group `FPD LAB CHARGES`. The `Doctors Commission` group holds 7 visiting specialists (endodontists, oral surgeon, orthodontist, pedodontist, implants). `Salaries` holds 1 employee ledger, and there is an `Assistants` cost centre. Ask Rahil whether these are past or current.
+    - **Others:** `BDS Education Loan`, `Random Expenditures`, `Profit & Loss A/c`, and `CashIncomes` (under Capital Account; looks unused).
+- **Groups:** Tally's 28 plus 7 of his own. One of them, `Patient Details`, sits under Capital Account but holds **no ledgers**; ignore it.
+- **No stock items:** only 8 empty stock groups (Endo, Prostho, …) and the default godown, so stock stays in Clinic OS.
+- **Voucher types:** Tally's 20 defaults. Receipt is numbered automatically and restarts every year on 1 April.
+
+**What the Day Book holds:** 31 vouchers over 18–24 Oct 2026, every one a **Receipt**, numbered in sequence from 826. Each has exactly two lines:
+- **Credit:** the patient's ledger, +amount, ISDEEMEDPOSITIVE No.
+- **Debit:** `Cash` (17 receipts) or `Savings A/C` (14), −amount, ISDEEMEDPOSITIVE Yes, ISPARTYLEDGER Yes; this is also `PARTYLEDGERNAME`.
+
+The vouchers have no bill allocations, cost centres or inventory lines, and the narration is his clinical note. One receipt has **no amount at all** (zero-valued entries are on): he records a visit with no payment as a receipt too.
+
+**What this means for Send to Tally:**
+1. **Credit the patient's own ledger under Direct Incomes.** This answers the open question: income is booked straight to the patient ledger, with no Sundry Debtors and no separate fee ledger. The single "income ledger" setting goes.
+2. **Match old patients to their existing ledgers.** Matching takes a one-time upload of his List of Accounts on the Tally screen. Only Direct Incomes ledger names are kept, and each is matched to a Clinic OS patient on name + place with spacing, case and age ignored, because the age changes. Rahil confirms the doubtful matches, and the result is saved per patient (`patients.tally_ledger`, a database change that needs the owner's OK).
+3. **New patients get a ledger in the same file:** a `<LEDGER NAME="…" ACTION="Create">` under Direct Incomes, written before the vouchers and named the way he names them (name age place).
+4. **Keep:** `Cash` / `Savings A/C`, PARTYLEDGERNAME and the sign convention (already as his). Tally numbers the vouchers, so the file sends no voucher number. The narration lists the visit's treatments.
+5. **To test in the backup company:**
+    - whether ERP 9 Release 1 takes our UTF-8 file (his exports are UTF-16);
+    - whether a receipt with no bill allocation is accepted on a bill-wise ledger;
+    - whether a `REMOTEID` set to the payment's id stops a second import from making duplicates.
+6. **Answered (owner, 25 Oct):** yes, he wants the zero-amount receipts; yes, the employee and the visiting specialists are current.
+
+**Built 25 Oct** (`supabase/tally-patient-ledgers-2026-10.sql`, applied live; `src/lib/tally-ledgers.ts`):
+- **Each payment credits the patient's own ledger** (`patients.tally_ledger`).
+    - A patient without one gets a name the first time a file needs it, for example `Asha Rao 40 Katapadi`: the place is the address up to the first comma, in plain letters, with " 2" added if another patient has the name.
+    - The name is saved, so every later file uses the same ledger.
+    - Until his List of Accounts shows it (`tally_ledger_listed`), each file creates it first: a LEDGER under Direct Incomes, bill-wise, with no ACTION (so Tally creates it if missing).
+- **Matching** (Send to Tally → Patient ledgers → "Match from your List of Accounts"):
+    - The phone or PC reads the export (UTF-16 or UTF-8). Only the Direct Incomes ledger names go to the server.
+    - A ledger Clinic OS named that his list now has is marked at once.
+    - For the rest, a sure match (one ledger fits name, age within −1 to +3 years, and place) is preselected. The others show up to 5 options, or "None of these".
+    - One ledger can't go to two patients.
+    - On his real list: 846 patient ledgers read; 13 share a name and place with another ledger (age duplicates), so they are always questions.
+- **Narration:** "Name - treatments - Cash/UPI/nothing paid - visit date - notes". The visit's notes are put on one line ("; " between lines), on its first receipt on the visit's own day only, at most 1,000 characters.
+- **Download month** is the file to bring a whole month into Tally. With "each payment" it holds every payment received and every visit with nothing paid in the month, plus the new ledgers. Receipts already imported are refused by REMOTEID; receipts he typed by hand can't be recognised, so he stops typing the ones Clinic OS sends.
+- **Visits with nothing paid** (charges or notes, no payment) are receipts with no amounts, dated the visit's day, narration "Name - treatments - nothing paid - visit date". This applies only to "each payment".
+- **Each receipt has `REMOTEID="clinic-os-payment-<id>"`** (or `clinic-os-visit-<id>`), so a second import of the same file is refused instead of doubled.
+- **The income ledger** is asked for only with "one per day"; it keeps the old behaviour and creates no ledgers.
+- **Delete patient** with "keep the money" clears the ledger name (it holds name, age and place).
+
+**Still to do:** import one real day into a backup copy of `SMILE DENTAL0` and compare it with his Day Book. Check that:
+- the new ledgers are created by Import of Data → Vouchers (if not, offer them as a separate Masters file);
+- a no-amount receipt is accepted;
+- a second import is refused per receipt.
+
+**Built in (25 Oct):** `siteConfig.tally` holds his company `SMILE DENTAL0`, `Cash`, `Savings A/C` and the patient group Direct Incomes. The screen needs no setup, and every file names the company (`SVCURRENTCOMPANY`), so Tally imports only into `SMILE DENTAL0`: a test in a backup copy must keep that name. The live saved settings were corrected (`Savings A/C`; no income ledger). None of his 5 Clinic OS patients was a sure match; 3 wait for him to confirm on the Patient ledgers screen (upload `Master.xml` there).
+    - Costs are not sent to Tally: he said on 19 Oct that expenses and lab bills stay in Tally. For the lab-fee question, his books treat a lab fee as an expense when it is paid.
+
 ## The original proposal (12 Oct)
 
 *12 Oct 2026. Owner: "Rahil uses Tally to keep a record of his accounts… see what features we can integrate to make our app much smarter and intelligent while keeping it simple." Written from what TallyPrime offers; check the details with Dr. Rahil before building.*

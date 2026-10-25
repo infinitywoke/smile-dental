@@ -1,4 +1,4 @@
-import { treatments } from '@/config/site'
+import { treatments, type Treatment } from '@/config/site'
 
 // A price-list cost string ("3,500/-", "45,000/- to 65,000/-", ...) parsed into numbers.
 // Amounts are whole-number rupees. Anything we can't read confidently is 'unknown', never a guess.
@@ -72,9 +72,10 @@ export function parsePrice(cost: string): Price {
   return { kind: 'unknown', text }
 }
 
-// Every priced line of the shared price list, flattened for pickers
-export function priceListOptions(): PriceListOption[] {
-  return treatments.flatMap((t) =>
+// Every priced line of the price list (the clinic's, from src/lib/data/price-list.ts; the list in the app
+// when none is given), flattened for pickers
+export function priceListOptions(list: Treatment[] = treatments): PriceListOption[] {
+  return list.flatMap((t) =>
     (t.pricing ?? []).map((p) => ({
       slug: t.slug,
       treatment: t.name,

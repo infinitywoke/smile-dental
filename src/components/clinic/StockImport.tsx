@@ -16,12 +16,13 @@ const MAX_FILE = 5_000_000
 const kindLabel = Object.fromEntries(STOCK_KINDS.map((k) => [k.value, k.label]))
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-// "24 items, 4 regular bills and what 12 treatments use"
-function adds(items: number, bills: number, treatments: number): string {
+// "24 items, 4 regular bills, what 12 treatments use and the price list"
+function adds(items: number, bills: number, treatments: number, prices = false): string {
   const parts = [
     items > 0 && count(items, 'item'),
     bills > 0 && count(bills, 'regular bill'),
     treatments > 0 && `what ${count(treatments, 'treatment')} ${treatments === 1 ? 'uses' : 'use'}`,
+    prices && 'the price list',
   ].filter((p): p is string => Boolean(p))
   return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] ?? ''
 }
@@ -71,13 +72,13 @@ export function StockImport({ existing, today }: { existing: ImportExisting; tod
       if (!result.ok) return setError(result.error)
       navigator.vibrate?.(10)
       setFile(null)
-      setLoaded(adds(result.items, result.bills, result.treatments) || 'nothing new: it was all in Clinic OS already')
+      setLoaded(adds(result.items, result.bills, result.treatments, result.prices !== null) || 'nothing new: it was all in Clinic OS already')
     })
   }
 
   const byTreatment = new Map<string, ImportMaterial[]>()
   for (const m of plan?.materials ?? []) byTreatment.set(m.description, [...(byTreatment.get(m.description) ?? []), m])
-  const summary = plan ? adds(plan.items.length, plan.bills.length, byTreatment.size) : ''
+  const summary = plan ? adds(plan.items.length, plan.bills.length, byTreatment.size, !!plan.priceList) : ''
 
   return (
     <div className="space-y-5">
@@ -93,7 +94,7 @@ export function StockImport({ existing, today }: { existing: ImportExisting; tod
         <div role="status" className="space-y-3 rounded-2xl bg-green-50 p-4 ring-1 ring-green-200">
           <p className="text-base font-semibold text-green-900">Loaded {loaded}.</p>
           <div className="space-y-2">
-            {[{ href: '/app/stock', label: 'See the stock list' }, { href: '/app/costs/regular', label: 'Regular bills' }, { href: '/app/stock/materials', label: 'What each treatment uses' }].map((l) => (
+            {[{ href: '/app/stock', label: 'See the stock list' }, { href: '/app/costs/regular', label: 'Regular bills' }, { href: '/app/stock/materials', label: 'What each treatment uses' }, { href: '/treatments', label: 'The price list on the website' }].map((l) => (
               <Link key={l.href} href={l.href} className="flex min-h-12 items-center gap-3 rounded-xl bg-white px-4 text-base font-semibold text-gray-900 ring-1 ring-green-200 hover:bg-gray-50">
                 <span className="min-w-0 flex-1">{l.label}</span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
@@ -107,7 +108,7 @@ export function StockImport({ existing, today }: { existing: ImportExisting; tod
 
       {file && plan && !plan.found && (
         <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800 ring-1 ring-red-200">
-          “{file.name}” isn’t the Stock and costs spreadsheet: it has no Supplies, Regular bills or Materials per treatment sheet.
+          “{file.name}” isn’t the Stock and costs spreadsheet: it has no Supplies, Regular bills, Materials per treatment or Treatments sheet.
         </p>
       )}
 
@@ -176,6 +177,32 @@ export function StockImport({ existing, today }: { existing: ImportExisting; tod
                 {byTreatment.size > 0 && 'Adding one of these to a visit takes its items off stock by itself. '}
                 {plan.existingMaterials > 0 && `${count(plan.existingMaterials, 'item')} already set for ${plan.existingMaterials === 1 ? 'its treatment is' : 'their treatments are'} left as they are.`}
               </p>
+            </Section>
+          )}
+
+          {plan.priceList && (
+            <Section title="Treatments and prices">
+              <p className="text-sm text-gray-600">
+                The sheet becomes the price list: for bills in Clinic OS, and the prices on the website. {count(plan.priceList.rows.length, 'option')} in all.
+              </p>
+              {[
+                { label: 'New', names: plan.priceList.added.map((n) => [n, '']) },
+                { label: 'Price changes', names: plan.priceList.changed.map((c) => [c.name, `${c.from} → ${c.to}`]) },
+                { label: 'Coming off the list', names: plan.priceList.removed.map((n) => [n, '']) },
+              ].filter((g) => g.names.length > 0).map((g) => (
+                <ul key={g.label} aria-label={g.label} className={listClass}>
+                  <li className="bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">{g.label} ({g.names.length})</li>
+                  {g.names.map(([name, change]) => (
+                    <li key={name} className="px-4 py-3">
+                      <span className="block text-base font-semibold text-gray-900">{name}</span>
+                      {change && <span className="mt-0.5 block text-sm text-gray-500">{change}</span>}
+                    </li>
+                  ))}
+                </ul>
+              ))}
+              {plan.priceList.added.length + plan.priceList.changed.length + plan.priceList.removed.length === 0 && (
+                <p className="text-sm text-gray-600">The same prices; only the order or the words change.</p>
+              )}
             </Section>
           )}
 

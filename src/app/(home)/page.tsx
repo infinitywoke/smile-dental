@@ -3,7 +3,9 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Check } from 'lucide-react'
-import { homeServices, siteConfig } from '@/config/site'
+import { siteConfig } from '@/config/site'
+import { getTreatments } from '@/lib/data/price-list'
+import { homeServicesFor, toothAreasFor } from '@/lib/price-list'
 import { clinicJsonLd, faqJsonLd } from '@/lib/structured-data'
 import { BookLink } from '@/components/home/BookLink'
 import { Booking, BookingLoading, HowBooking } from '@/components/home/BookingSection'
@@ -19,11 +21,13 @@ export const metadata: Metadata = {
   description: siteConfig.description,
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Every price on the page comes from the clinic's price list
+  const list = await getTreatments()
   return (
     <>
       {/* What search engines and AI assistants read: the clinic, its hours, place and prices, and the questions below */}
-      <JsonLd data={clinicJsonLd()} />
+      <JsonLd data={clinicJsonLd(list)} />
       <JsonLd data={faqJsonLd(questions)} />
 
       <section className="h-tide h-hero-section">
@@ -79,7 +83,7 @@ export default function HomePage() {
             </p>
           </div>
           <div className="h-menu" data-reveal>
-            {homeServices.map((service) => (
+            {homeServicesFor(list).map((service) => (
               <div key={service.id} className="h-menu-row">
                 <div className="h-leader-row big">
                   <h3>{service.name}</h3>
@@ -99,7 +103,7 @@ export default function HomePage() {
 
       <section id="not-sure" className="h-section mist">
         <div data-reveal>
-          <ToothChart />
+          <ToothChart areas={toothAreasFor(list)} />
         </div>
       </section>
 

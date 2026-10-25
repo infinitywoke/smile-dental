@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
+import { treatments } from '../src/config/site'
 import { chargeName, priceListOptions } from '../src/lib/pricing'
 import { makeXlsx } from '../src/lib/xlsx-write'
 import { newRunId, signIn, testDb, visible } from './helpers'
@@ -51,6 +52,8 @@ test.afterAll(async () => {
   const { supabase } = await testDb()
   await supabase.from('stock_items').delete().like('name', `${runId}%`)
   await supabase.from('fixed_costs').delete().like('name', `${runId}%`)
+  // The test account's own price list (the clinic's, which the website shows, is never touched)
+  await supabase.from('price_list').delete().not('id', 'is', null)
   await page.close()
 })
 
@@ -104,4 +107,36 @@ test('what was loaded is on the stock list, in Regular bills and on the item', a
 
   await page.goto('/app/costs/regular')
   await expect(visible(page.getByRole('list', { name: 'Regular bills' }))).toContainText(bill)
+})
+
+// The Treatments sheet: the clinic's price list, with a new treatment and a price changed
+const whitening = `${runId} Whitening`
+const priceSheet = Buffer.from(makeXlsx({
+  Treatments: [
+    ['Every treatment and price.'],
+    ['Treatment', 'Option', 'Price (₹)', 'About (a line for the website)'],
+    ...treatments.flatMap((t) => (t.pricing ?? []).map((p, i) => [i === 0 ? t.name : null, p.detail, p.detail === 'Standard Consultation' ? 250 : p.cost, i === 0 ? t.shortDescription : null])),
+    [whitening, 'In clinic', '5,000/-', 'Brighter teeth in one sitting.'],
+  ],
+}))
+
+test('the Treatments sheet shows the price list it brings, then replaces it', async () => {
+  await page.goto('/app/stock/import')
+  await pickFile('Stock-and-costs.xlsx', priceSheet)
+  const prices = visible(page.getByRole('region', { name: 'Treatments and prices' }))
+  await expect(prices.getByRole('list', { name: 'New' })).toContainText(`${whitening} – In clinic`)
+  await expect(prices.getByRole('list', { name: 'Price changes' })).toContainText('Consultation – Standard Consultation200/- → 250/-')
+  await expect(prices.getByRole('list', { name: 'Coming off the list' })).toHaveCount(0)
+  await expect(page.getByText('Adds the price list.')).toBeVisible()
+  await visible(page.getByRole('button', { name: 'Load into Clinic OS' })).click()
+  await expect(visible(page.getByRole('status')).filter({ hasText: 'Loaded' })).toContainText('Loaded the price list.')
+
+  // The test account's list is replaced whole; the clinic's (the website's) is not the test account's to change
+  const { supabase } = await testDb()
+  const { data } = await supabase.from('price_list').select('slug, treatment, detail, cost').order('line_no')
+  expect(data).toHaveLength(priceListOptions().length + 1)
+  expect(data!.find((r) => r.detail === 'Standard Consultation')!.cost).toBe('250/-')
+  expect(data!.at(-1)).toMatchObject({ treatment: whitening, detail: 'In clinic', cost: '5,000/-' })
+  await page.goto('/treatments')
+  await expect(page.getByText(whitening)).toHaveCount(0)
 })

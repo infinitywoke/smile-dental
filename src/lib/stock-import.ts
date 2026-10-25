@@ -1,16 +1,18 @@
 import { MAX_AMOUNT } from '@/lib/billing'
 import { COST_CATEGORIES, type CostCategory } from '@/lib/costs'
 import { formatDate } from '@/lib/dates'
-import { chargeName, priceListOptions } from '@/lib/pricing'
+import type { Treatment } from '@/config/site'
+import { rowsFrom, slugFor, treatmentsFrom, type PriceRow } from '@/lib/price-list'
+import { chargeName, parsePrice, priceListOptions } from '@/lib/pricing'
 import { STOCK_KINDS, type StockKind } from '@/lib/stock'
 import { excelDate, type Sheets } from '@/lib/xlsx'
 
 // Loading Dr. Rahil's "Stock and costs" spreadsheet (for-dr-rahil/Stock-and-costs-to-fill.xlsx) once: what
-// it adds to stock, regular bills and the materials each treatment uses, and every row it can't take, in
-// words. The phone shows this before anything is saved, and the server works it out again from the same
+// it adds to stock, regular bills and the materials each treatment uses, the clinic's price list (its
+// Treatments sheet), and every row it can't take, in words. The phone shows this before anything is saved, and the server works it out again from the same
 // rows before saving. What is already in Clinic OS is left as it is, so loading the file twice adds nothing.
 
-export const SHEETS = { supplies: 'Supplies', bills: 'Regular bills', labFees: 'Lab fees', materials: 'Materials per treatment' } as const
+export const SHEETS = { supplies: 'Supplies', bills: 'Regular bills', labFees: 'Lab fees', materials: 'Materials per treatment', treatments: 'Treatments' } as const
 
 export type ImportItem = {
   row: number
@@ -32,6 +34,15 @@ export type ImportMaterial = { row: number; slug: string; description: string; i
 
 export type ImportNote = { sheet: string; row: number | null; text: string }
 
+// The Treatments sheet: the whole new price list (it replaces the clinic's), and how it differs
+export type ImportPriceList = {
+  rows: PriceRow[]
+  // "Fillings – 3M Z350 Composite", as a bill names them
+  added: string[]
+  removed: string[]
+  changed: { name: string; from: string; to: string }[]
+}
+
 export type ImportPlan = {
   // At least one of the sheets was there
   found: boolean
@@ -46,6 +57,8 @@ export type ImportPlan = {
   existingMaterials: number
   // Clinic OS has no lab fee list yet, so these rows are counted, not loaded
   labFees: number
+  // The Treatments sheet when it changes the price list, else null
+  priceList: ImportPriceList | null
   notes: ImportNote[]
 }
 
@@ -54,6 +67,8 @@ export type ImportExisting = {
   items: { name: string; unit: string }[]
   bills: string[]
   materials: { description: string; item: string; qty: number }[]
+  // The clinic's price list now (src/lib/data/price-list.ts)
+  priceList: Treatment[]
 }
 
 const MAX_QTY = 999_999_999
@@ -285,11 +300,14 @@ export function planStockImport(sheets: Sheets, existing: ImportExisting, today:
   const labRows = table(sheets, SHEETS.labFees, { work: ['work'], lab: ['lab'], fee: ['fee'] }, ['work'], notes)
   const labFees = (labRows ?? []).filter((r) => r.cell('work')).length
 
-  // Materials per treatment ------------------------------------------------------------------------------
+  // Treatments: the price list -----------------------------------------------------------------------------
+  const priceList = planPriceList(sheets, existing, notes)
+
+  // Materials per treatment (matched to the new price list when the sheet changes it) ---------------------
   const materials: ImportMaterial[] = []
   const seen = new Set<string>()
   let existingMaterials = 0
-  const options = priceListOptions()
+  const options = priceListOptions(priceList ? treatmentsFrom(priceList.rows) : existing.priceList)
   const optionKey = (text: string) => norm(text).replace(/\s*[–—-]\s*/g, ' - ')
   const byName = new Map<string, { name: string; unit: string }>([...known.values(), ...items].map((i) => [norm(i.name), { name: i.name, unit: i.unit }]))
   const materialRows = table(sheets, SHEETS.materials, { treatment: ['treatment'], item: ['item'], qty: ['how much'] }, ['treatment', 'item', 'qty'], notes)
@@ -332,7 +350,93 @@ export function planStockImport(sheets: Sheets, existing: ImportExisting, today:
   }
 
   return {
-    found: [supplies, billRows, labRows, materialRows].some((t) => t !== null),
-    items, existingItems, bills, existingBills, materials, existingMaterials, labFees, notes,
+    found: [supplies, billRows, labRows, materialRows].some((t) => t !== null) || priceList !== undefined,
+    items, existingItems, bills, existingBills, materials, existingMaterials, labFees, priceList: priceList ?? null, notes,
   }
+}
+
+// The Treatments sheet: one row per priced option (Treatment, Option, Price, and About, a line for the
+// website); a row without a treatment adds an option to the one above. It replaces the whole price list,
+// for Clinic OS and the website. undefined: no Treatments sheet; null: nothing to change (or nothing on
+// it Clinic OS could take, so the list stays as it is).
+const indian = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 })
+function planPriceList(sheets: Sheets, existing: ImportExisting, notes: ImportNote[]): ImportPriceList | null | undefined {
+  const note = (row: number | null, text: string) => notes.push({ sheet: SHEETS.treatments, row, text })
+  const rowsOnSheet = table(sheets, SHEETS.treatments, { treatment: ['treatment'], option: ['option', 'detail'], price: ['price', 'cost'], about: ['about', 'description'] }, ['treatment', 'price'], notes)
+  if (rowsOnSheet === null) return undefined
+
+  // A treatment keeps its address on the website; a new one gets one from its name
+  const slugs = new Map(existing.priceList.map((t) => [norm(t.name), t.slug]))
+  const taken = new Set(slugs.values())
+  const slugOf = (name: string) => {
+    const known = slugs.get(norm(name))
+    if (known) return known
+    let slug = slugFor(name)
+    for (let n = 2; taken.has(slug); n++) slug = `${slugFor(name).slice(0, 76)}-${n}`
+    taken.add(slug)
+    slugs.set(norm(name), slug)
+    return slug
+  }
+
+  const rows: PriceRow[] = []
+  const described = new Set<string>()
+  let current: { name: string; about: string } | null = null
+  for (const { row, cell } of rowsOnSheet) {
+    if (cell('treatment')) current = { name: clean(cell('treatment')), about: clean(cell('about')) }
+    if (!cell('price') && !cell('option')) continue
+    if (!current) {
+      note(row, 'No treatment for this row, so it was skipped.')
+      continue
+    }
+    const option = clean(cell('option'))
+    const label = option ? `${current.name} – ${option}` : current.name
+    if (current.name.length > 100 || option.length > 120) {
+      note(row, `“${label.slice(0, 40)}…” is too long (a treatment 100 letters at most, an option 120), so it was skipped.`)
+      continue
+    }
+    // A plain number is written the way the price list writes prices: 3500 -> "3,500/-"
+    const typed = clean(cell('price'))
+    const number = /^[\d,.\s₹]+(\/-)?$/.test(typed) ? readNumber(typed) : null
+    const cost = number !== null ? `${indian.format(number)}/-` : typed
+    if (!cost) {
+      note(row, `${label} has no price, so it was skipped.`)
+      continue
+    }
+    if (cost.length > 80 || parsePrice(cost).kind === 'unknown') {
+      note(row, `“${typed}” isn't a price Clinic OS can read (write it like 3,500/- or 45,000/- to 65,000/-), so ${label} was skipped.`)
+      continue
+    }
+    if (rows.some((r) => norm(r.treatment) === norm(current!.name) && norm(r.detail) === norm(option))) {
+      note(row, `${label} is listed twice; the first one is used.`)
+      continue
+    }
+    const slug = slugOf(current.name)
+    rows.push({ slug, treatment: current.name, description: described.has(slug) ? '' : current.about.slice(0, 300), detail: option, cost })
+    described.add(slug)
+  }
+  if (rows.length === 0) {
+    note(null, 'Nothing on it could be loaded, so the price list stays as it is.')
+    return null
+  }
+
+  const nameOf = (r: Pick<PriceRow, 'treatment' | 'detail'>) => (r.detail ? `${r.treatment} – ${r.detail}` : r.treatment)
+  const before = rowsFrom(existing.priceList)
+  const costBefore = new Map(before.map((r) => [norm(nameOf(r)), r]))
+  const costAfter = new Map(rows.map((r) => [norm(nameOf(r)), r]))
+  const added = rows.filter((r) => !costBefore.has(norm(nameOf(r)))).map(nameOf)
+  const removed = before.filter((r) => !costAfter.has(norm(nameOf(r)))).map(nameOf)
+  const changed = rows.flatMap((r) => {
+    const old = costBefore.get(norm(nameOf(r)))
+    return old && JSON.stringify(parsePrice(old.cost)) !== JSON.stringify(parsePrice(r.cost)) ? [{ name: nameOf(r), from: old.cost, to: r.cost }] : []
+  })
+  // The same list (its order and words too): nothing to load
+  const same = (a: PriceRow, b: PriceRow) => a.treatment === b.treatment && a.detail === b.detail && a.cost === b.cost && a.description === b.description
+  if (rows.length === before.length && rows.every((r, i) => same(r, before[i]))) return null
+
+  // What treatments use stays set, but an option gone from the list is no longer billed, so it is never used
+  const gone = new Set(removed.map(norm))
+  for (const description of new Set(existing.materials.map((m) => m.description))) {
+    if (gone.has(norm(description))) note(null, `${description} comes off the price list: what it uses stays set in Clinic OS, but it won't be used.`)
+  }
+  return { rows, added, removed, changed }
 }

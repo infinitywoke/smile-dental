@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { toothAreas } from '@/config/site'
+import type { toothAreas } from '@/config/site'
 import { bookFor } from './book-events'
 
 type AreaId = keyof typeof toothAreas
@@ -26,10 +26,10 @@ function toothName(id: string): string {
 }
 
 // "Not sure what you need?": tap a tooth or an area, see what it usually needs and costs, book a check-up
-export function ToothChart() {
+export function ToothChart({ areas }: { areas: typeof toothAreas }) {
   const [tooth, setTooth] = useState<string | null>('46')
   const [region, setRegion] = useState<AreaId>('back')
-  const area = toothAreas[region]
+  const area = areas[region]
   const where = tooth ? `Tooth ${tooth}, ${toothName(tooth)}` : area.label
 
   const tile = (q: number, n: number, jaw: 'up' | 'down') => {
@@ -93,10 +93,10 @@ export function ToothChart() {
           <div className="h-jaw bottom"><span>Right</span><span>Lower jaw</span><span>Left</span></div>
         </div>
         <div role="group" aria-label="Or choose an area" className="h-areas">
-          {(Object.keys(toothAreas) as AreaId[]).map((id) => (
+          {(Object.keys(areas) as AreaId[]).map((id) => (
             <button key={id} type="button" className={`h-area${id === region ? ' on' : ''}`} aria-pressed={id === region}
               onClick={() => { setRegion(id); setTooth(null) }}>
-              {toothAreas[id].label}
+              {areas[id].label}
             </button>
           ))}
         </div>

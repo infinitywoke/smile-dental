@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
+import { siteConfig } from "./src/config/site";
 
 // The browser's own guards on every page, the website's and Clinic OS's: nothing loads from other sites
-// but Supabase (the data, photos and recordings) and the Google map in the website's footer; no other
+// but Supabase (the data, photos and recordings), the chair monitor's photos and the Google map in the website's footer; no other
 // site may show these pages inside its own (clickjacking); the camera and microphone are for this site
 // only. Next's pages carry inline scripts that differ page by page, and a per-request key for them
 // (a nonce) would stop pages being built ahead, so scripts from this site may be inline; scripts from
@@ -16,7 +17,8 @@ const contentSecurityPolicy = [
   `img-src 'self' data: blob: ${supabase}`,
   `media-src 'self' blob: ${supabase}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${supabase} ${supabase.replace(/^https:/, 'wss:')}${dev ? ' ws:' : ''}`,
+  // …and the chair monitor on its own Wi-Fi, for the photos its QR codes point to
+  `connect-src 'self' ${supabase} ${supabase.replace(/^https:/, 'wss:')} ${siteConfig.chairMonitor.address}${dev ? ' ws:' : ''}`,
   'frame-src https://www.google.com',
   "frame-ancestors 'none'",
   "object-src 'none'",

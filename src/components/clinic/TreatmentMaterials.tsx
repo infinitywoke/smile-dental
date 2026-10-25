@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { ChevronRight, Search, X } from 'lucide-react'
 import { removeTreatmentMaterial, setTreatmentMaterial } from '@/lib/actions/stock'
-import { chargeName, formatPrice, formatRupees, priceListOptions, type PriceListOption } from '@/lib/pricing'
+import { chargeName, formatPrice, formatRupees, type PriceListOption } from '@/lib/pricing'
 import { materialsCost, pluralUnit, qtyWithUnit, type StockLevel, type TreatmentMaterial } from '@/lib/stock'
 import { FullScreen, useBackToClose } from './FullScreen'
 
@@ -15,8 +15,8 @@ const matches = (text: string, query: string) => query.trim().toLowerCase().spli
 
 // What each price-list treatment uses from stock. Adding that treatment to a visit takes these off
 // stock (the database does it); removing it from the visit puts them back.
-export function TreatmentMaterials({ levels, materials }: { levels: StockLevel[]; materials: TreatmentMaterial[] }) {
-  const options = useMemo(() => priceListOptions(), [])
+// options: the clinic's price list (src/lib/data/price-list.ts)
+export function TreatmentMaterials({ levels, materials, options }: { levels: StockLevel[]; materials: TreatmentMaterial[]; options: PriceListOption[] }) {
   const [query, setQuery] = useState('')
   const [openKey, setOpenKey] = useState<string | null>(null)
   const { open, show, close } = useBackToClose()

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
 import {
-  blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, newPhone, newRunId, showMonth, signIn, testDb, visible, whatsappText,
+  billOnLink, blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, newPhone, newRunId, showMonth, signIn, testDb, visible, whatsappText,
 } from './helpers'
 import { inIndia } from '../src/lib/schedule'
 
@@ -186,7 +186,8 @@ test('the Visit: a usual charge is one tap with Undo, the next visit can be mont
   ])
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
   expect(whatsapp.url).toContain(`wa.me/91${phone}`)
-  expect(whatsappText(whatsapp.url)).toContain(`*Total: ${price}*`)
+  // The money is on the message's link, not in the message
+  expect(await billOnLink(page, whatsappText(whatsapp.url))).toContain(`Total ${price}`)
 
   // Paid and sent: nothing left for the bar
   await page.goto(visitUrl)

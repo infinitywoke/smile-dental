@@ -1,11 +1,31 @@
 'use client'
 
-import { useEffect, useImperativeHandle, useState, type Ref } from 'react'
-import { AlertCircle, Check, CloudOff } from 'lucide-react'
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
+import { AlertCircle, Check, CloudOff, Pencil } from 'lucide-react'
 import { saveVisitNotes } from '@/lib/actions/visits'
 import type { NoteSuggestions } from '@/lib/actions/smart-notes'
+import { noteBlocks } from '@/lib/note-format'
 import { RecordNotes } from './RecordNotes'
 import { useUndo } from './UndoBar'
+
+// The notes as a document: bold headings and labels, lists with bullets, a gap between sections.
+// A tap anywhere on them opens the box to edit.
+function FormattedNotes({ text, onTap }: { text: string; onTap: () => void }) {
+  return (
+    <div role="group" aria-label="Notes" onClick={onTap} className="cursor-text space-y-1 text-base leading-relaxed text-gray-900">
+      {noteBlocks(text).map((block, i) =>
+        block.kind === 'gap' ? <div key={i} className="h-2" aria-hidden="true" />
+        : block.kind === 'heading' ? <p key={i} className="font-bold">{block.text}</p>
+        : block.kind === 'list' ? (
+          <ul key={i} className="list-disc space-y-0.5 pl-6 marker:text-gray-400">
+            {block.items.map((item, j) => <li key={j}>{item}</li>)}
+          </ul>
+        )
+        : <p key={i}>{block.label && <strong>{block.label}:</strong>}{block.label ? ' ' : ''}{block.text}</p>,
+      )}
+    </div>
+  )
+}
 
 // What the visit page asks of the notes: save anything typed, now (before another button acts), and
 // change the text from elsewhere on the page (the prescription card adds and removes medicines)
@@ -162,6 +182,9 @@ export function VisitNotes({
   onText?: (text: string) => void
 }) {
   const [notes, setNotes] = useState(initialNotes)
+  // Notes with text read like a document (bold headings, lists) until he taps to edit them
+  const [editing, setEditing] = useState(!initialNotes.trim())
+  const box = useRef<HTMLTextAreaElement>(null)
   const [state, setState] = useState<SaveState>('idle')
   const [saver] = useState(() => createNotesSaver(visitId, initialNotes, listed, setState))
   const offerUndo = useUndo()
@@ -174,6 +197,17 @@ export function VisitNotes({
   }
 
   useImperativeHandle(handle, () => ({ flush: () => saver.flush(), edit: (fn) => change(fn(saver.latest())) }))
+
+  // Into the box, with the caret at the end
+  const edit = () => {
+    setEditing(true)
+    requestAnimationFrame(() => {
+      const el = box.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(el.value.length, el.value.length)
+    })
+  }
 
   // Bring back notes that never reached the server
   useEffect(() => {
@@ -204,13 +238,17 @@ export function VisitNotes({
 
   return (
     <section className="space-y-2">
-      <label htmlFor="notes" className="hud-heading block">Notes</label>
+      {editing || !notes.trim()
+        ? <label htmlFor="notes" className="hud-heading block">Notes</label>
+        : <h2 className="hud-heading block">Notes</h2>}
       <RecordNotes visitId={visitId} onSorted={(result) => {
         // Added below anything already typed; he can edit it like any note
         const current = saver.latest()
         if (result.notes) {
           const added = current.trim() ? `\n\n${result.notes}` : result.notes
           change(`${current.replace(/\s+$/, '')}${added}`)
+          // Shown formatted at once, unless he is typing in the box
+          if (document.activeElement !== box.current) setEditing(false)
           // Undo takes out only what the recording wrote, keeping anything typed since
           offerUndo('Notes added from the recording', async () => {
             const now = saver.latest()
@@ -222,10 +260,20 @@ export function VisitNotes({
         }
         onSuggestions?.(result)
       }} />
-      {/* Grows with the notes (no scrolling inside the box); 8 rows where the browser can't */}
-      <textarea id="notes" rows={8} value={notes} onChange={(e) => change(e.target.value)}
-        placeholder="Complaint, findings, treatment done, plan, medicines…"
-        className="block min-h-36 w-full field-sizing-content rounded-xl border-0 px-4 py-3 text-base leading-relaxed text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
+      {editing || !notes.trim() ? (
+        /* Grows with the notes (no scrolling inside the box); 8 rows where the browser can't */
+        <textarea id="notes" ref={box} rows={8} value={notes} onChange={(e) => change(e.target.value)}
+          onBlur={() => { if (notes.trim()) setEditing(false) }}
+          placeholder="Complaint, findings, treatment done, plan, medicines…"
+          className="block min-h-36 w-full field-sizing-content rounded-xl border-0 px-4 py-3 text-base leading-relaxed text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
+      ) : (
+        <div className="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-inset ring-gray-300">
+          <FormattedNotes text={notes} onTap={() => edit()} />
+          <button type="button" onClick={() => edit()} className="mt-2 inline-flex min-h-12 items-center gap-2 font-semibold text-blue-700">
+            <Pencil className="h-4 w-4" aria-hidden="true" /> Edit notes
+          </button>
+        </div>
+      )}
       <p className="min-h-5 text-sm" aria-live="polite">
         {state === 'saving' && <span className="text-gray-500">Saving…</span>}
         {state === 'saved' && (

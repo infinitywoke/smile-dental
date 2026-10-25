@@ -24,7 +24,7 @@ export const siteConfig = {
   directionsLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED] the clinic on Google Maps, as sent in confirmations
   // [PLACEHOLDER] The "write a review" link from Google Business Profile (Ask for reviews). Until it is
   // filled in, review requests use the Maps link above (the patient then taps Reviews, Write a review).
-  reviewRequestLink: "",
+  reviewRequestLink: "https://g.page/r/CUdtAiciUfvKEBM/review", // [VERIFIED] owner, 25 Oct 2026: Google Business Profile "Ask for reviews" link
   googlePhotosLink: "https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6", // [VERIFIED]
   
   // --- Payments (Clinic OS shows a UPI QR for this payee) ---
@@ -33,12 +33,22 @@ export const siteConfig = {
     payeeName: "Smile Dental Clinic", // [VERIFIED]
   },
 
+  // --- The chair's intraoral camera monitor (photos come into a visit through the share sheet) ---
+  chairMonitor: {
+    name: "Intellicam", // [VERIFIED] owner's photo of the monitor, 25 Oct 2026
+    wifi: "Q5Y422EW500-294", // [VERIFIED] the name on the monitor's label (its own Wi-Fi)
+    password: "12345678", // [VERIFIED] the monitor's Wi-Fi password, on the same label
+    address: "http://192.168.1.1", // [VERIFIED] where its QR codes point (owner: http://192.168.1.1/store/00017.jpg); the app may fetch from it
+  },
+
   // --- Tally (Send to Tally fills these in; the dentist can change them on the screen) ---
   tally: {
-    version: "Tally.ERP 9", // [VERIFIED] owner, 19 Oct 2026
-    cashLedger: "Cash", // [VERIFIED]
-    bankLedger: "Savings A/C", // [VERIFIED] where UPI payments arrive: the ledger his Day Book uses (owner, 24 Oct 2026)
-    incomeLedger: "", // [PLACEHOLDER] the ledger under his Direct Incomes group that fees are credited to
+    version: "Tally.ERP 9", // [VERIFIED] owner, 19 Oct 2026; Release 1 (company settings screenshot, 25 Oct 2026)
+    company: "SMILE DENTAL0", // [VERIFIED] the company name in his Tally (List of Accounts and Day Book exports, 25 Oct 2026); files go only to it
+    cashLedger: "Cash", // [VERIFIED] under Cash-in-hand (List of Accounts)
+    bankLedger: "Savings A/C", // [VERIFIED] under Bank Accounts: where UPI payments arrive, as in his Day Book
+    patientGroup: "Direct Incomes", // [VERIFIED] the group his 846 patient ledgers sit under (List of Accounts)
+    incomeLedger: "", // only for "one entry per day"; he files each payment to the patient's own ledger
   },
 
   operatingHours: [
@@ -55,8 +65,8 @@ export const siteConfig = {
     name: "Dr. Rahil Yusuf", // [VERIFIED]
     qualifications: "BDS, November 2020 - Yenapoya Deemed to be University", // [VERIFIED]
     experience: "5 Years across India & Middle East", // [VERIFIED]
-    registration: "", // [PLACEHOLDER] Dental Council registration number: printed on typed prescriptions once filled in
-    signature: "", // [PLACEHOLDER] his signature, a transparent PNG in public/images: drawn on typed prescriptions once added
+    registration: "51950-A", // [VERIFIED] owner, 25 Oct 2026: printed on typed prescriptions
+    signature: "/images/signature.png", // [VERIFIED] his signature (owner's photo, 25 Oct 2026), made transparent: drawn on typed prescriptions
     bio: "Dr Rahil Yusuf is a caring and approachable dental professional who believes that every patient deserves to feel comfortable, heard, and confident about their dental care. He takes the time to understand each patient’s needs and explains treatment options in a simple and reassuring way. At Smile Dental Clinic, Katapady, Udupi, his goal is to make every dental visit a positive experience while helping patients achieve healthy, natural-looking smiles that they can be proud of. Your comfort, trust, and smile are always at the heart of our care.", // [VERIFIED]
     portraitPhoto: "/images/dr-rahil-front.jpg", // [VERIFIED]
     actionPhoto: "/images/clinical-procedure.jpg" // [VERIFIED]
@@ -213,7 +223,8 @@ export const treatments: Treatment[] = [
 ]
 
 // --- The website (D): the homepage's treatments, the booking card's reasons and the tooth chart ---
-// Every price shown here is checked against the price list above by src/lib/home-content.test.ts.
+// Prices are templates filled from the clinic's price list (src/lib/price-list.ts fillPrices): "{fillings|3M Ketac Molar GIC}"
+// is that option's price, so the website follows the list when the stock spreadsheet changes it.
 export type HomeService = {
   id: string
   name: string
@@ -224,14 +235,14 @@ export type HomeService = {
 }
 
 export const homeServices: HomeService[] = [
-  { id: 'checkup', name: 'Check-up and consultation', line: 'An examination by Dr. Rahil; an X-ray, if needed, is ₹350.', price: '₹200', slugs: ['consultation', 'x-ray'] },
-  { id: 'cleaning', name: 'Teeth cleaning', line: 'Scaling and polishing to remove tartar and stains.', price: '₹400 – ₹800', slugs: ['scaling-teeth-cleaning'] },
-  { id: 'filling', name: 'Fillings', line: 'Tooth-coloured fillings for cavities and small chips.', price: 'from ₹700', slugs: ['fillings'] },
-  { id: 'rootcanal', name: 'Root canal treatment', line: 'Saves a badly decayed or infected tooth.', price: '₹3,500', slugs: ['root-canal-treatment', 'post-and-core-build-up'] },
-  { id: 'crown', name: 'Crowns and bridges', line: 'Ceramic or zirconia crowns, and bridges for gaps.', price: 'from ₹3,499', slugs: ['crowns-bridges-ceramic', 'crowns-bridges-zirconia'] },
-  { id: 'braces', name: 'Braces and aligners', line: 'Metal or ceramic braces, or clear aligners.', price: 'from ₹25,000', slugs: ['orthodontics'] },
-  { id: 'removal', name: 'Tooth removal', line: 'Including wisdom teeth, after an X-ray.', price: 'from ₹500', slugs: ['tooth-extraction'] },
-  { id: 'dentures', name: 'Dentures', line: 'Partial or complete, to replace missing teeth.', price: 'from ₹1,200', slugs: ['removable-partial-dentures', 'complete-dentures'] },
+  { id: 'checkup', name: 'Check-up and consultation', line: 'An examination by Dr. Rahil; an X-ray, if needed, is {x-ray}.', price: '{consultation}', slugs: ['consultation', 'x-ray'] },
+  { id: 'cleaning', name: 'Teeth cleaning', line: 'Scaling and polishing to remove tartar and stains.', price: '{scaling-teeth-cleaning|Mild case} – {scaling-teeth-cleaning|Severe case}', slugs: ['scaling-teeth-cleaning'] },
+  { id: 'filling', name: 'Fillings', line: 'Tooth-coloured fillings for cavities and small chips.', price: 'from {fillings|3M Ketac Molar GIC}', slugs: ['fillings'] },
+  { id: 'rootcanal', name: 'Root canal treatment', line: 'Saves a badly decayed or infected tooth.', price: '{root-canal-treatment}', slugs: ['root-canal-treatment', 'post-and-core-build-up'] },
+  { id: 'crown', name: 'Crowns and bridges', line: 'Ceramic or zirconia crowns, and bridges for gaps.', price: 'from {crowns-bridges-ceramic|Vita Ceramic}', slugs: ['crowns-bridges-ceramic', 'crowns-bridges-zirconia'] },
+  { id: 'braces', name: 'Braces and aligners', line: 'Metal or ceramic braces, or clear aligners.', price: 'from {orthodontics|Basic Metal braces}', slugs: ['orthodontics'] },
+  { id: 'removal', name: 'Tooth removal', line: 'Including wisdom teeth, after an X-ray.', price: 'from {tooth-extraction|Mobile Tooth Extraction}', slugs: ['tooth-extraction'] },
+  { id: 'dentures', name: 'Dentures', line: 'Partial or complete, to replace missing teeth.', price: 'from {removable-partial-dentures|AcryRock Single tooth}', slugs: ['removable-partial-dentures', 'complete-dentures'] },
 ]
 
 // "What do you need?" on the booking card. A treatment's Book link picks the one with its id.
@@ -264,31 +275,31 @@ export const toothAreas: Record<'front' | 'back' | 'wisdom' | 'gums' | 'missing'
   front: {
     label: 'Front teeth', title: 'A chipped, gapped or crooked front tooth',
     body: 'A tooth-coloured filling or a crown repairs a chip. Braces or aligners straighten crowded or gapped teeth.',
-    items: [['Tooth-coloured filling', 'from ₹800'], ['Ceramic crown', 'from ₹3,499'], ['Metal braces', 'from ₹25,000'], ['Clear aligners', '₹45,000 – ₹65,000']],
+    items: [['Tooth-coloured filling', 'from {fillings|Wizdent Master Design Composite}'], ['Ceramic crown', 'from {crowns-bridges-ceramic|Vita Ceramic}'], ['Metal braces', 'from {orthodontics|Basic Metal braces}'], ['Clear aligners', '{orthodontics|Illusion aligners (based on no. of trays)} – {orthodontics|Illusion aligners (based on no. of trays):max}']],
     reason: 'checkup', cta: 'Book a check-up for this', slugs: ['fillings', 'crowns-bridges-ceramic', 'orthodontics'],
   },
   back: {
     label: 'Back teeth', title: 'Pain in a back tooth',
     body: 'Usually a cavity. It may need a filling; if the nerve is affected, a root canal and then a crown.',
-    items: [['Check-up', '₹200'], ['Filling', 'from ₹700'], ['Root canal treatment', '₹3,500'], ['Ceramic crown', 'from ₹3,499']],
+    items: [['Check-up', '{consultation}'], ['Filling', 'from {fillings|3M Ketac Molar GIC}'], ['Root canal treatment', '{root-canal-treatment}'], ['Ceramic crown', 'from {crowns-bridges-ceramic|Vita Ceramic}']],
     reason: 'toothache', cta: 'Book a check-up for this', slugs: ['consultation', 'fillings', 'root-canal-treatment', 'crowns-bridges-ceramic'],
   },
   wisdom: {
     label: 'Wisdom teeth', title: 'A painful wisdom tooth',
     body: 'An X-ray first shows how the tooth sits. Then removal, if it needs to come out.',
-    items: [['X-ray', '₹350'], ['Wisdom tooth removal', '₹800'], ['Difficult removal', '₹1,200']],
+    items: [['X-ray', '{x-ray}'], ['Wisdom tooth removal', '{tooth-extraction|Wisdom Tooth/3rd Molar}'], ['Difficult removal', '{tooth-extraction|Difficult wisdom tooth}']],
     reason: 'toothache', cta: 'Book a check-up for this', slugs: ['x-ray', 'tooth-extraction'],
   },
   gums: {
     label: 'Gums', title: 'Bleeding gums or tartar',
     body: 'Usually fixed with scaling and polishing. The price depends on how much build-up there is.',
-    items: [['Cleaning, mild', '₹400'], ['Cleaning, moderate', '₹600'], ['Cleaning, severe', '₹800'], ['Polishing', '₹300']],
+    items: [['Cleaning, mild', '{scaling-teeth-cleaning|Mild case}'], ['Cleaning, moderate', '{scaling-teeth-cleaning|Moderate case}'], ['Cleaning, severe', '{scaling-teeth-cleaning|Severe case}'], ['Polishing', '{scaling-teeth-cleaning|Polishing (Henry Schein)}']],
     reason: 'cleaning', cta: 'Book a cleaning', slugs: ['scaling-teeth-cleaning'],
   },
   missing: {
     label: 'Missing tooth', title: 'A missing tooth',
     body: 'A removable partial denture, a fixed bridge, or complete dentures, chosen with you after a check-up.',
-    items: [['Partial denture, one tooth', '₹1,200'], ['Each extra tooth', '+ ₹400'], ['Ceramic bridge', 'from ₹3,499 a tooth'], ['Complete dentures', 'from ₹7,000']],
+    items: [['Partial denture, one tooth', '{removable-partial-dentures|AcryRock Single tooth}'], ['Each extra tooth', '+ {removable-partial-dentures|AcryRock additional tooth:per}'], ['Ceramic bridge', 'from {crowns-bridges-ceramic|Vita Ceramic} a tooth'], ['Complete dentures', 'from {complete-dentures|Complete Denture Basic quality}']],
     reason: 'dentures', cta: 'Book a check-up for this', slugs: ['removable-partial-dentures', 'crowns-bridges-ceramic', 'complete-dentures'],
   },
 }

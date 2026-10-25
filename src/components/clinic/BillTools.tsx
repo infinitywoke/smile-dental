@@ -6,6 +6,7 @@ import type { ShownCharge } from '@/lib/offline/apply'
 import { signedRupees } from '@/lib/billing'
 import { formatRupees } from '@/lib/pricing'
 import type { UsualCharge } from '@/lib/usual-charges'
+import type { PriceListOption } from '@/lib/pricing'
 import { useBackToClose } from './FullScreen'
 import { PriceListSheet } from './PriceListSheet'
 import { useUndo } from './UndoBar'
@@ -43,6 +44,7 @@ export function BillSection({
   charges,
   total,
   usual,
+  priceList,
   save,
   fromNotes,
   children,
@@ -53,6 +55,8 @@ export function BillSection({
   total: number
   // The price-list items he bills most (src/lib/usual-charges.ts)
   usual: UsualCharge[]
+  // The clinic's price list, for Add charge
+  priceList: PriceListOption[]
   save: Save
   // Charges a recording suggested (src/components/clinic/NoteSuggestions.tsx), until added or dismissed
   fromNotes?: React.ReactNode
@@ -149,7 +153,7 @@ export function BillSection({
         )}
       </div>
       {discounting && total > 0 && <DiscountForm visitId={visitId} total={total} onDone={() => setDiscounting(false)} />}
-      {sheet.open && <PriceListSheet visitId={visitId} saveId={saveId} onAdded={sheet.close} onClose={sheet.close} />}
+      {sheet.open && <PriceListSheet visitId={visitId} options={priceList} saveId={saveId} onAdded={sheet.close} onClose={sheet.close} />}
     </section>
   )
 }

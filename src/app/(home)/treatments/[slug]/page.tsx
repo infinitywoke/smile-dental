@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { homeServices, treatments } from '@/config/site'
+import { getTreatments } from '@/lib/data/price-list'
+import { treatmentGroups } from '@/lib/price-list'
 import { priceForPatients } from '@/lib/pricing'
 import { treatmentJsonLd } from '@/lib/structured-data'
 import { clinicWhatsappLink } from '@/lib/whatsapp'
@@ -12,28 +13,33 @@ type Props = {
   params: Promise<{ slug: string }>
 }
 
-const find = (slug: string) => treatments.find((t) => t.slug === slug)
+const find = async (slug: string) => (await getTreatments()).find((t) => t.slug === slug)
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const treatment = find((await params).slug)
+  const treatment = await find((await params).slug)
   if (!treatment) return {}
-  return { title: `${treatment.name} · Smile Dental Clinic, Katapadi`, description: treatment.shortDescription }
+  return { title: `${treatment.name} · Smile Dental Clinic, Katapadi`, description: treatment.shortDescription || `${treatment.name} at Smile Dental Clinic, Katapadi, with its prices.` }
 }
 
-export function generateStaticParams() {
-  return treatments.map((t) => ({ slug: t.slug }))
+// Every treatment on the price list is built ahead; one the stock spreadsheet adds later is built the
+// first time it is asked for
+export async function generateStaticParams() {
+  return (await getTreatments()).map((t) => ({ slug: t.slug }))
 }
 
-// All treatment slugs are prerendered. Awaiting params outside <Suspense> keeps unknown slugs returning
-// a real 404 instead of a streamed not-found page.
+// Awaiting params outside <Suspense> keeps unknown slugs returning a real 404 instead of a streamed
+// not-found page.
 export const instant = false
 
 // One treatment from the price list: what it is, every price, and a way to book it or ask about it
 export default async function TreatmentPage({ params }: Props) {
-  const treatment = find((await params).slug)
+  const { slug } = await params
+  const list = await getTreatments()
+  const treatment = list.find((t) => t.slug === slug)
   if (!treatment) notFound()
-  const group = homeServices.find((s) => s.slugs.includes(treatment.slug))
-  const related = treatments.filter((t) => t.slug !== treatment.slug && group?.slugs.includes(t.slug))
+  const group = treatmentGroups(list).find((g) => g.items.some((t) => t.slug === treatment.slug))
+  const related = (group?.items ?? []).filter((t) => t.slug !== treatment.slug)
+  const reason = !group || group.id === 'other' ? 'unsure' : group.id
 
   return (
     <>
@@ -60,7 +66,7 @@ export default async function TreatmentPage({ params }: Props) {
           <div className="h-col h-side-card" style={{ flex: '1 1 300px' }}>
             <h2 className="h-serif h-h3">Book a visit</h2>
             <p className="h-small">Pick a free time from Dr. Rahil&apos;s calendar. The clinic confirms your time on WhatsApp.</p>
-            <Link href={`/book?reason=${group?.id ?? 'unsure'}`} className="h-btn amber wide">Book appointment</Link>
+            <Link href={`/book?reason=${reason}`} className="h-btn amber wide">Book appointment</Link>
             <a href={clinicWhatsappLink(`Hello, I have a question about ${treatment.name}.`)} target="_blank" rel="noopener noreferrer"
               className="h-linkbtn">Ask about it on WhatsApp</a>
           </div>

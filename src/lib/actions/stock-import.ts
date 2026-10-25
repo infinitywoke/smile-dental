@@ -1,9 +1,10 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import { z } from 'zod'
 import { getDoctor } from '@/lib/auth'
 import { todayInIndia } from '@/lib/dates'
+import { getTreatments, PRICE_LIST_TAG } from '@/lib/data/price-list'
 import { planStockImport } from '@/lib/stock-import'
 import { createClient } from '@/lib/supabase/server'
 
@@ -16,19 +17,22 @@ const PARTLY = 'Only part of it was loaded. Tap Load again to finish: what is al
 const Sheets = z.record(z.string().max(100), z.array(z.array(z.string().max(1000)).max(30)).max(2000))
   .refine((sheets) => Object.keys(sheets).length <= 20)
 
-export type LoadResult = { ok: true; items: number; bills: number; treatments: number } | { ok: false; error: string }
+// prices: the price list's options when the Treatments sheet replaced it, else null
+export type LoadResult = { ok: true; items: number; bills: number; treatments: number; prices: number | null } | { ok: false; error: string }
 
 // Loads the "Stock and costs" spreadsheet: new stock items with their starting counts, regular bills, and
-// what each treatment uses. Items and bills already in Clinic OS are left as they are.
+// what each treatment uses, and the price list (the Treatments sheet replaces it, for the website too).
+// Items and bills already in Clinic OS are left as they are.
 export async function loadStockSpreadsheet(input: unknown): Promise<LoadResult> {
   const doctor = await getDoctor()
   const parsed = Sheets.safeParse(input)
   if (!parsed.success) return failed('This file couldn’t be read. Please pick it again.')
   const supabase = await createClient()
-  const [items, bills, materials] = await Promise.all([
+  const [items, bills, materials, priceList] = await Promise.all([
     supabase.from('stock_items').select('id, name, unit').eq('archived', false),
     supabase.from('fixed_costs').select('name').is('ends_on', null),
     supabase.from('treatment_materials').select('charge_description, item_id, qty'),
+    getTreatments(),
   ])
   if (items.error || bills.error || materials.error) return failed(TRY_AGAIN)
   const nameOf = new Map(items.data.map((i) => [i.id as string, i.name as string]))
@@ -36,8 +40,17 @@ export async function loadStockSpreadsheet(input: unknown): Promise<LoadResult> 
     items: items.data,
     bills: bills.data.map((b) => b.name),
     materials: materials.data.filter((m) => nameOf.has(m.item_id)).map((m) => ({ description: m.charge_description, item: nameOf.get(m.item_id)!, qty: Number(m.qty) })),
+    priceList,
   }, todayInIndia())
   if (!plan.found) return failed('This isn’t the Stock and costs spreadsheet.')
+
+  // The price list first, whole or not at all (the materials below are matched to it); the website and
+  // Clinic OS read it again at once
+  if (plan.priceList) {
+    const { error } = await supabase.rpc('replace_price_list', { p_items: plan.priceList.rows })
+    if (error) return failed(TRY_AGAIN)
+    updateTag(PRICE_LIST_TAG)
+  }
 
   // New items, then what is on the shelf now (both or neither)
   const ids = new Map(items.data.map((i) => [i.name, i.id as string]))
@@ -83,5 +96,5 @@ export async function loadStockSpreadsheet(input: unknown): Promise<LoadResult> 
   }
 
   revalidatePath('/app', 'layout')
-  return { ok: true, items: plan.items.length, bills: plan.bills.length, treatments: new Set(uses.map((m) => m.description)).size }
+  return { ok: true, items: plan.items.length, bills: plan.bills.length, treatments: new Set(uses.map((m) => m.description)).size, prices: plan.priceList?.rows.length ?? null }
 }

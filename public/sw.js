@@ -31,12 +31,16 @@ const QUIET_MS = 4000
 const QUIET_GIVE_UP_MS = 60_000
 const SAVED_AT = 'x-clinic-saved-at'
 const UNLOCKED_UNTIL = '/__clinic-unlocked-until'
+// The visit waiting for a photo from the chair monitor (src/lib/offline/monitor-photo.ts), and for how long
+const MONITOR = 'clinic-monitor-v1'
+const MONITOR_VISIT = '/__clinic-monitor-visit'
+const MONITOR_WAIT_MS = 30 * 60 * 1000
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil((async () => {
   // Copies an older version of this worker made go, and so do copies older than a day
   for (const name of await caches.keys()) {
-    if (name.startsWith('clinic-') && ![PAGES, FILES, LOCK].includes(name)) await caches.delete(name)
+    if (name.startsWith('clinic-') && ![PAGES, FILES, LOCK, MONITOR].includes(name)) await caches.delete(name)
   }
   await pruneCopies()
   await self.clients.claim()
@@ -156,12 +160,25 @@ async function openPage(event) {
   }
 }
 
+// The visit that asked for a photo from the chair monitor in the last half hour, if any
+async function monitorVisit() {
+  try {
+    const kept = await (await caches.open(MONITOR)).match(MONITOR_VISIT)
+    if (!kept) return ''
+    const { visitId, at } = await kept.json()
+    return typeof visitId === 'string' && /^[0-9a-f-]{36}$/i.test(visitId) && Date.now() - at < MONITOR_WAIT_MS ? visitId : ''
+  } catch {
+    return ''
+  }
+}
+
 // Photos shared from the gallery or WhatsApp: kept on the phone like a photo taken with no signal, not
 // yet given to a visit (src/lib/offline/photo-store.ts); /app/share asks which visit they are for, and
-// the visit uploads them
+// the visit uploads them. A photo from the chair monitor goes straight to the visit waiting for it.
 async function sharedPhotos(request) {
   const form = await request.formData()
   const files = form.getAll('photos').filter((file) => typeof file === 'object' && file.type.startsWith('image/'))
+  const visitId = files.length > 0 ? await monitorVisit() : ''
   if (files.length > 0) {
     const db = await new Promise((resolve, reject) => {
       const open = indexedDB.open('clinic-offline', 1)
@@ -172,14 +189,14 @@ async function sharedPhotos(request) {
     await new Promise((resolve, reject) => {
       const tx = db.transaction('photos', 'readwrite')
       for (const file of files) {
-        tx.objectStore('photos').put({ key: crypto.randomUUID(), visitId: '', blob: file, name: file.name || 'photo.jpg', type: file.type, at: Date.now() })
+        tx.objectStore('photos').put({ key: crypto.randomUUID(), visitId, blob: file, name: file.name || 'photo.jpg', type: file.type, at: Date.now() })
       }
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
     db.close()
   }
-  return Response.redirect('/app/share', 303)
+  return Response.redirect(visitId ? `/app/visits/${visitId}` : '/app/share', 303)
 }
 
 // A sign-in redirect or an error page is never kept

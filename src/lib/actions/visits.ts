@@ -198,8 +198,8 @@ export type MessageData = {
   payments: VisitBill['payments']
   summary: VisitBill['summary']
   nextAppointment: { starts_at: string } | null
-  // One short link to a page with the typed prescription and the ticked photos, for 30 days, and what
-  // it holds ("Prescription", "X-ray", a typed name); null when there is neither
+  // One short link to a page with the typed prescription, the ticked photos and the bill, for 30 days,
+  // and what it holds ("Prescription", "X-ray", a typed name, "Bill"); null when there is none of these
   photoLink: { url: string; labels: string[] } | null
 }
 
@@ -213,9 +213,9 @@ const PHOTO_LINK_FAILED = 'Could not prepare the photo link. Please try again.'
 
 // The doctor tapped Send on WhatsApp. Reads the bill and the next appointment fresh (server actions
 // run one after another, so a booking, charge or payment tapped just before is already saved) and
-// makes the short link for the typed prescription (the notes' "Prescription:" lines, read fresh too)
-// and the ticked photos (only now, and only photos of this visit): 30-day file links for the photos,
-// kept with a new 32-character code (share_links) that the page /r/<code> looks up.
+// makes the short link for the typed prescription (the notes' "Prescription:" lines, read fresh too),
+// the ticked photos (only now, and only photos of this visit) and the bill: 30-day file links for the
+// photos, kept with a new 32-character code (share_links) that the page /r/<code> looks up.
 // Nothing else is recorded here: markWhatsappSent records the send once WhatsApp is actually opened.
 export async function prepareWhatsapp(visitId: string, photoIds: string[] = []): Promise<Result & { message?: MessageData }> {
   await getDoctor()
@@ -266,23 +266,23 @@ export async function prepareWhatsapp(visitId: string, photoIds: string[] = []):
     }
   }
 
+  // The bill, as it stands now, is on the page only: the message carries no money
+  const { charges, payments, summary } = fresh
+  const kept: SharedItem[] = summary.total > 0 || summary.paid > 0 || summary.due !== 0
+    ? [...shown, {
+        kind: 'bill', label: 'Bill',
+        lines: charges.map((c) => ({ description: c.description, amount: Number(c.amount) })),
+        total: summary.total, paid: summary.paid, earlier: summary.earlier, due: summary.due,
+        methods: [...new Set(payments.map((p) => (p.method === 'upi' ? 'UPI' : 'Cash')))],
+      }]
+    : shown
   let photoLink: MessageData['photoLink'] = null
-  if (shown.length > 0) {
-    // The page shows the bill too, as it stands now (the message carries it as well)
-    const { charges, payments, summary } = fresh
-    const kept: SharedItem[] = summary.total > 0 || summary.paid > 0 || summary.due !== 0
-      ? [...shown, {
-          kind: 'bill', label: 'Bill',
-          lines: charges.map((c) => ({ description: c.description, amount: Number(c.amount) })),
-          total: summary.total, paid: summary.paid, earlier: summary.earlier, due: summary.due,
-          methods: [...new Set(payments.map((p) => (p.method === 'upi' ? 'UPI' : 'Cash')))],
-        }]
-      : shown
+  if (kept.length > 0) {
     // 24 random bytes: 32 characters that can't be guessed
     const token = randomBytes(24).toString('base64url')
     const { error: linkError } = await supabase.from('share_links').insert({ visit_id: visitId, token, photos: kept })
     if (linkError) return { error: PHOTO_LINK_FAILED }
-    photoLink = { url: `${await siteOrigin()}/r/${token}`, labels: shown.map((s) => s.label) }
+    photoLink = { url: `${await siteOrigin()}/r/${token}`, labels: kept.map((s) => s.label) }
   }
 
   return { message: { ...fresh, photoLink } }

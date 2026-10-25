@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
-import { cleanRun, createPatient, createVisit, newPhone, newRunId, openDay, signIn, testDb, visible } from './helpers'
+import { cleanRun, createPatient, createVisit, newPhone, newRunId, notesBox, openDay, signIn, testDb, visible } from './helpers'
 
 // Record notes: the visit's recording goes to Gemini (a pretend answer in tests: GEMINI_FAKE), the
 // sorted notes are added to the notes box, and the charges (in the Bill) and the next visit (in Next
@@ -36,9 +36,17 @@ test('record, stop: the notes are written out and sorted; the charge and next vi
   await page.waitForTimeout(2200)
   await visible(page.getByRole('button', { name: 'Stop' })).click()
 
-  await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(/Complaint: Pain lower right back tooth[\s\S]*Prescription:\n- Amoxicillin/, { timeout: 30_000 })
-  // Laid out neatly: a heading per section, a point a line with the tooth first, a blank line between
-  await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(/\n\nFindings:\n- 46: deep caries, tender on percussion\n\nTreatment done:\n- 46: RCT started\n\nPrescription:\n- Amoxicillin 500 mg - three times a day - 5 days\n\nAdvice:\n- Avoid chewing on the right side/)
+  // Shown like a document at once: the headings and the complaint's label in bold, the points as a list
+  const shown = visible(page.getByRole('group', { name: 'Notes' }))
+  await expect(shown.locator('strong', { hasText: 'Complaint:' })).toBeVisible({ timeout: 30_000 })
+  for (const heading of ['Findings', 'Treatment done', 'Prescription', 'Advice']) {
+    await expect(shown.locator('p.font-bold', { hasText: new RegExp(`^${heading}$`) })).toBeVisible()
+  }
+  await expect(shown.getByRole('listitem').filter({ hasText: '46: RCT started' })).toBeVisible()
+  // Kept as plain text: a heading per section, a point a line with the tooth first, a blank line between
+  const box = await notesBox(page)
+  await expect(box).toHaveValue(/Complaint: Pain lower right back tooth[\s\S]*Prescription:\n- Amoxicillin/)
+  await expect(box).toHaveValue(/\n\nFindings:\n- 46: deep caries, tender on percussion\n\nTreatment done:\n- 46: RCT started\n\nPrescription:\n- Amoxicillin 500 mg - three times a day - 5 days\n\nAdvice:\n- Avoid chewing on the right side/)
   const card = visible(page.getByRole('region', { name: 'Charges from your notes' }))
   await expect(card).toContainText('Root Canal Treatment – Standard Treatment (46)')
   await expect(card).toContainText('₹3,500')
@@ -74,15 +82,16 @@ test('record, stop: the notes are written out and sorted; the charge and next vi
 })
 
 test('Undo takes back only what a recording wrote into the notes', async () => {
-  const notesBox = visible(page.getByLabel('Notes', { exact: true }))
-  const before = await notesBox.inputValue()
+  const before = await (await notesBox(page)).inputValue()
   await visible(page.getByRole('button', { name: 'Record notes' })).click()
   await page.waitForTimeout(2200)
   await visible(page.getByRole('button', { name: 'Stop' })).click()
-  await expect(notesBox).toHaveValue(/Complaint: Pain lower right back tooth[\s\S]*Complaint: Pain lower right back tooth/, { timeout: 30_000 })
+  const undo = visible(page.getByRole('status').filter({ hasText: 'Notes added from the recording' })).getByRole('button', { name: 'Undo' })
+  await expect(undo).toBeVisible({ timeout: 30_000 })
+  await expect(await notesBox(page)).toHaveValue(/Complaint: Pain lower right back tooth[\s\S]*Complaint: Pain lower right back tooth/)
 
-  await visible(page.getByRole('status').filter({ hasText: 'Notes added from the recording' })).getByRole('button', { name: 'Undo' }).click()
-  await expect(notesBox).toHaveValue(before)
+  await undo.click()
+  await expect(await notesBox(page)).toHaveValue(before)
   const { supabase } = await testDb()
   await expect.poll(async () => (await supabase.from('visits').select('notes').eq('id', visitId).single()).data?.notes, { timeout: 15_000 }).toBe(before)
 })

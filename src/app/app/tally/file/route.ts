@@ -1,7 +1,7 @@
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { getTallyPayments, getTallySettings, indiaStart, monthWindow } from '@/lib/data/tally'
+import { defaultTallySettings, getTallyItems, getTallySettings, indiaStart, monthWindow, withLedgers } from '@/lib/data/tally'
 import { tallyTotals, tallyXml } from '@/lib/tally'
 import { inIndia } from '@/lib/schedule'
 
@@ -9,15 +9,15 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/
 const MONTH = /^\d{4}-\d{2}$/
 const fail = (error: string, status = 400) => Response.json({ error }, { status })
 
-// The Tally import file. batch "new": payments recorded since the last file (the first file can start
-// on a chosen day), then remembered as sent; "again": the last file once more; "month": every payment
-// received in a month (for the accountant), which changes nothing.
+// The Tally import file. batch "new": payments and visits recorded since the last file (the first file
+// can start on a chosen day), then remembered as sent; "again": the last file once more; "month": every
+// payment received and visit in a month (for the accountant), which changes nothing in what counts as new.
 export async function POST(request: Request) {
   const doctor = await getDoctor()
   const form = await request.formData()
   const batch = String(form.get('batch') ?? '')
-  const settings = await getTallySettings()
-  if (!settings) return fail('First type your Tally ledger names.')
+  const saved = await getTallySettings()
+  const settings = saved ?? defaultTallySettings
 
   let window
   let label: string
@@ -39,20 +39,32 @@ export async function POST(request: Request) {
     return fail('Something went wrong.')
   }
 
-  const payments = await getTallyPayments(window)
-  if (payments.length === 0) return fail(batch === 'new' ? 'No new payments since the last file.' : 'No payments in that period.', 409)
+  const perDay = settings.entries === 'day'
+  if (perDay && !settings.income_ledger) return fail('One entry per day needs your income ledger: tap Change and type it.')
+  // One per day holds only money; one per payment also has the visits with nothing paid
+  const items = (await getTallyItems(window)).filter((i) => !perDay || i.amount > 0)
+  if (items.length === 0) return fail(batch === 'new' ? 'Nothing new since the last file.' : 'Nothing in that period.', 409)
+  const payments = perDay ? items : await withLedgers(items)
 
   if (batch === 'new' && window.by === 'recorded') {
     const supabase = await createClient()
+    // Upserted: with nothing saved yet, his known ledgers are saved along with what this file covered
     const { error } = await supabase
       .from('tally_settings')
-      .update({ sent_from: window.after, sent_until: window.upTo })
-      .eq('owner_id', doctor.id)
+      .upsert({
+        owner_id: doctor.id,
+        cash_ledger: settings.cash_ledger,
+        bank_ledger: settings.bank_ledger,
+        income_ledger: settings.income_ledger,
+        entries: settings.entries,
+        sent_from: window.after,
+        sent_until: window.upTo,
+      }, { onConflict: 'owner_id' })
     if (error) return fail("Couldn't save which payments were sent. Please try again.", 500)
   }
 
   const totals = tallyTotals(payments)
-  const xml = tallyXml(payments, { cash: settings.cash_ledger, bank: settings.bank_ledger, income: settings.income_ledger }, settings.entries, siteConfig.name)
+  const xml = tallyXml(payments, { cash: settings.cash_ledger, bank: settings.bank_ledger, income: settings.income_ledger }, settings.entries, siteConfig.name, siteConfig.tally.company)
   return new Response(xml, {
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
@@ -62,6 +74,7 @@ export async function POST(request: Request) {
       'X-Tally-Count': String(totals.count),
       'X-Tally-Cash': String(totals.cash),
       'X-Tally-Upi': String(totals.upi),
+      'X-Tally-Unpaid': String(totals.unpaid),
     },
   })
 }

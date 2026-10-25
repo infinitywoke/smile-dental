@@ -34,14 +34,12 @@ function samples(language: MessageLanguage, day: string, earlier: string) {
     { title: 'Reminder, the day before', text: reminderMessage({ name, startsAt, tomorrow: true, language }) },
     { title: 'Running late', text: runningLateMessage({ name, startsAt, minutes: 15, language }) },
     { title: "Didn't come", text: missedMessage({ name, startsAt: blockInstant(earlier, '10:00'), language }) },
-    { title: 'After the visit: the bill and the next visit', text: visitMessage({
+    { title: 'After the visit: the link to the prescription, photos and bill, and the next visit', text: visitMessage({
       patientName: name,
       visitDate: earlier,
-      lines: [{ description: 'Consultation', amount: 200 }, { description: 'Scaling / Teeth Cleaning / Prophylaxis', amount: 1000 }],
-      payments: [{ amount: 1000, method: 'upi' }],
-      summary: { total: 1200, paid: 1000, balance: 200, earlier: 0, due: 200 },
+      today: earlier,
       nextAppointment: { starts_at: startsAt },
-      photoLink: { url: `${siteConfig.url}/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345`, labels: ['Prescription'] },
+      photoLink: { url: `${siteConfig.url}/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345`, labels: ['Prescription', 'X-ray', 'Bill'] },
       language,
     }) },
     { title: 'Google review', text: reviewMessage({ name, language }) },

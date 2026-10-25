@@ -107,6 +107,9 @@ export async function deletePatient(patientId: string, mode: DeleteMode, passwor
           gender: null,
           birth_year: null,
           birth_date: null,
+          // name + age + place: a later Tally file names the deleted patient's own ledger instead
+          tally_ledger: null,
+          tally_ledger_listed: false,
         })
         .eq('id', patientId),
     ]

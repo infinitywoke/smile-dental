@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { treatments } from '@/config/site'
 import { chargeName, priceListOptions } from './pricing'
 import { nextDueDate, planStockImport, readDate, readNumber, readUnit, sheetsToSend, type ImportExisting } from './stock-import'
 
 const TODAY = '2026-10-22'
-const none: ImportExisting = { items: [], bills: [], materials: [] }
+const none: ImportExisting = { items: [], bills: [], materials: [], priceList: treatments }
 const options = priceListOptions()
 const filling = options.find((o) => chargeName(o) === 'Fillings – 3M Z350 Composite')!
 const rct = options.find((o) => /root canal/i.test(o.treatment))!
@@ -160,6 +161,7 @@ describe('loading again', () => {
       items: [{ name: 'Composite A2', unit: 'capsule' }, { name: 'Gloves', unit: 'pair' }],
       bills: [],
       materials: [{ description: chargeName(filling), item: 'Composite A2', qty: 1 }, { description: chargeName(filling), item: 'Gloves', qty: 1 }],
+      priceList: treatments,
     }, TODAY)
     expect(plan.existingMaterials).toBe(1)
     expect(plan.materials.map((m) => [m.item, m.qty])).toEqual([['Gloves', 2]])
@@ -226,5 +228,67 @@ describe('reading cells', () => {
     expect(readUnit('ml')).toBe('ml')
     expect(readUnit('pcs')).toBe('pcs')
     expect(readUnit('glass')).toBe('glass')
+  })
+})
+
+// The Treatments sheet: the whole price list, which replaces the clinic's (for the website too)
+const TREATMENT_HEADINGS = ['Treatment', 'Option', 'Price (₹)', 'About (a line for the website)']
+const priceSheet = (...rows: string[][]) => ({ Treatments: [['Every treatment and price.'], TREATMENT_HEADINGS, ['Example: Teeth whitening', 'In clinic', '5,000/-', ''], ...rows] })
+// The list as it is now, as the sheet holds it: a treatment's name and About on its first row only
+const listNow = () => treatments.flatMap((t) => (t.pricing ?? []).map((p, i) => [i === 0 ? t.name : '', p.detail, p.cost, i === 0 ? t.shortDescription : '']))
+
+describe('the Treatments sheet', () => {
+  it('as it is now changes nothing', () => {
+    const plan = planStockImport(priceSheet(...listNow()), none, TODAY)
+    expect(plan.found).toBe(true)
+    expect(plan.priceList).toBeNull()
+    expect(plan.notes).toEqual([])
+  })
+
+  it('adds, removes and reprices: new treatments get an address of their own, the rest keep theirs', () => {
+    const rows = listNow()
+      .filter((r) => r[1] !== 'Suture/Stitch')
+      .map((r) => (r[1] === 'Mild case' ? [r[0], r[1], '450', r[3]] : r))
+    const plan = planStockImport(priceSheet(...rows, ['Teeth Whitening', 'In clinic', '5000', 'Brighter teeth in one sitting.'], ['', 'Home kit', '3,000/-', '']), none, TODAY)
+    expect(plan.priceList!.added).toEqual(['Teeth Whitening – In clinic', 'Teeth Whitening – Home kit'])
+    expect(plan.priceList!.removed).toEqual(['Tooth Extraction – Suture/Stitch'])
+    expect(plan.priceList!.changed).toEqual([{ name: 'Scaling / Teeth Cleaning / Prophylaxis – Mild case', from: '400/-', to: '450/-' }])
+    const whitening = plan.priceList!.rows.filter((r) => r.treatment === 'Teeth Whitening')
+    expect(whitening).toEqual([
+      { slug: 'teeth-whitening', treatment: 'Teeth Whitening', description: 'Brighter teeth in one sitting.', detail: 'In clinic', cost: '5,000/-' },
+      { slug: 'teeth-whitening', treatment: 'Teeth Whitening', description: '', detail: 'Home kit', cost: '3,000/-' },
+    ])
+    expect(plan.priceList!.rows.find((r) => r.detail === 'Mild case')!.slug).toBe('scaling-teeth-cleaning')
+  })
+
+  it("says what it can't take, and loads the rest", () => {
+    const plan = planStockImport(priceSheet(
+      ['', 'Orphan', '100/-', ''],
+      ['Consultation', 'Standard Consultation', 'ask at the clinic', ''],
+      ['X-Ray', 'Standard X-Ray', '350/-', ''],
+      ['', 'Standard X-Ray', '400/-', ''],
+      ['Gum care', 'Deep cleaning', '', ''],
+    ), none, TODAY)
+    expect(texts(plan)).toEqual([
+      'Treatments 4: No treatment for this row, so it was skipped.',
+      "Treatments 5: “ask at the clinic” isn't a price Clinic OS can read (write it like 3,500/- or 45,000/- to 65,000/-), so Consultation – Standard Consultation was skipped.",
+      'Treatments 7: X-Ray – Standard X-Ray is listed twice; the first one is used.',
+      'Treatments 8: Gum care – Deep cleaning has no price, so it was skipped.',
+    ])
+    expect(plan.priceList!.rows).toEqual([{ slug: 'x-ray', treatment: 'X-Ray', description: '', detail: 'Standard X-Ray', cost: '350/-' }])
+  })
+
+  it('with nothing it can take, keeps the price list as it is', () => {
+    const plan = planStockImport(priceSheet(['Consultation', 'Standard', 'free', '']), none, TODAY)
+    expect(plan.priceList).toBeNull()
+    expect(texts(plan).at(-1)).toBe('Treatments: Nothing on it could be loaded, so the price list stays as it is.')
+  })
+
+  it('matches Materials per treatment to the new list, and says when a treatment with materials comes off it', () => {
+    const rows = listNow().filter((r) => r[1] !== '3M Z350 Composite')
+    const sheets = { ...priceSheet(...rows, ['Teeth Whitening', 'In clinic', '5,000/-', '']), ...supplies(['Gel', 'Consumable', 'tube', '3', '', '', '']), ...materials(['Teeth Whitening – In clinic', 'Gel', '1']) }
+    const plan = planStockImport(sheets, { ...none, materials: [{ description: chargeName(filling), item: 'Composite A2', qty: 1 }] }, TODAY)
+    expect(plan.materials.map((m) => [m.slug, m.description, m.item])).toEqual([['teeth-whitening', 'Teeth Whitening – In clinic', 'Gel']])
+    expect(texts(plan)).toContain("Treatments: Fillings – 3M Z350 Composite comes off the price list: what it uses stays set in Clinic OS, but it won't be used.")
   })
 })

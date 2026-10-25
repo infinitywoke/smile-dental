@@ -134,12 +134,16 @@ create table if not exists public.patients (
   heard_from text,            -- how they heard about the clinic
   recalled_at timestamptz,    -- the 6-month check-up reminder was sent (or skipped)
   review_asked_at timestamptz, -- the Google review request was sent on WhatsApp
+  tally_ledger text check (char_length(tally_ledger) between 1 and 100), -- the patient's ledger in Tally
+  tally_ledger_listed boolean not null default false, -- seen in his List of Accounts (else each file creates it)
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 alter table public.patients add column if not exists recalled_at timestamptz;
 alter table public.patients add column if not exists review_asked_at timestamptz;
+alter table public.patients add column if not exists tally_ledger text check (char_length(tally_ledger) between 1 and 100);
+alter table public.patients add column if not exists tally_ledger_listed boolean not null default false;
 
 create index if not exists patients_owner_phone_idx on public.patients (owner_id, phone);
 create index if not exists patients_owner_name_idx on public.patients (owner_id, lower(name));
@@ -1061,12 +1065,13 @@ create table if not exists public.tally_settings (
   owner_id uuid primary key default auth.uid() references auth.users (id) on delete cascade,
   cash_ledger text not null check (char_length(cash_ledger) between 1 and 100),
   bank_ledger text not null check (char_length(bank_ledger) between 1 and 100),
-  income_ledger text not null check (char_length(income_ledger) between 1 and 100),
+  income_ledger text check (char_length(income_ledger) between 1 and 100), -- only for one entry per day
   entries text not null default 'payment' check (entries in ('payment', 'day')),
   sent_from timestamptz,  -- the last "new payments" file: payments recorded after this…
   sent_until timestamptz, -- …up to this moment
   updated_at timestamptz not null default now()
 );
+alter table public.tally_settings alter column income_ledger drop not null;
 
 alter table public.tally_settings enable row level security;
 
@@ -1681,3 +1686,71 @@ alter table public.visit_charges add constraint visit_charges_amount_check
   check (case when kind = 'discount' then amount < 0 else amount >= 0 end);
 
 notify pgrst, 'reload schema';
+
+-- The clinic's price list (25 Oct 2026 supabase/price-list-2026-10.sql): one row per priced option; the website
+-- reads it with public_price_list(), the stock spreadsheet's Treatments sheet replaces it with replace_price_list().
+
+create table if not exists public.price_list (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  line_no integer not null check (line_no between 1 and 500),
+  slug text not null check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(slug) <= 80),
+  treatment text not null check (char_length(treatment) between 1 and 100),
+  description text not null default '' check (char_length(description) <= 300),
+  detail text not null default '' check (char_length(detail) <= 120),
+  cost text not null check (char_length(cost) between 1 and 80),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, treatment, detail)
+);
+
+alter table public.price_list enable row level security;
+
+drop policy if exists "Owner full access" on public.price_list;
+create policy "Owner full access" on public.price_list
+  for all to authenticated
+  using (owner_id = (select auth.uid()))
+  with check (owner_id = (select auth.uid()));
+
+revoke all on public.price_list from anon;
+grant select, insert, update, delete on public.price_list to authenticated;
+
+-- The clinic's list, for the website and Clinic OS alike: anyone may read it
+create or replace function public.public_price_list()
+returns table (line_no integer, slug text, treatment text, description text, detail text, cost text)
+language sql stable security definer set search_path = ''
+as $$
+  select p.line_no, p.slug, p.treatment, p.description, p.detail, p.cost
+  from public.price_list p
+  join public.app_config c on c.id and p.owner_id = c.clinic_owner_id
+  order by p.line_no
+$$;
+
+revoke all on function public.public_price_list() from public;
+grant execute on function public.public_price_list() to anon, authenticated;
+
+-- Loading the sheet: the doctor's whole list replaced at once, or not at all
+create or replace function public.replace_price_list(p_items jsonb)
+returns integer
+language plpgsql security invoker set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Not signed in';
+  end if;
+  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) not between 1 and 500 then
+    raise exception 'A price list has 1 to 500 lines';
+  end if;
+  delete from public.price_list where owner_id = (select auth.uid());
+  insert into public.price_list (owner_id, line_no, slug, treatment, description, detail, cost)
+  select (select auth.uid()), i.ord::integer, i.item->>'slug', i.item->>'treatment',
+         coalesce(i.item->>'description', ''), coalesce(i.item->>'detail', ''), i.item->>'cost'
+  from jsonb_array_elements(p_items) with ordinality as i(item, ord);
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.replace_price_list(jsonb) from public, anon;
+grant execute on function public.replace_price_list(jsonb) to authenticated;

@@ -66,7 +66,7 @@ test('quick and typed medicines go into the notes; Send puts the prescription in
   await Promise.race([page.waitForURL(/wa\.me\//, { timeout: 30_000 }), openButton.waitFor({ timeout: 30_000 }).then(() => openButton.click())])
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
   const text = whatsappText(whatsapp.url)
-  const link = text.match(/\*Your prescription\* _\(the link works for 30 days\)_\n(https?:\/\/\S+\/r\/[A-Za-z0-9_-]{32})\n/)?.[1]
+  const link = text.match(/Your prescription(?: and bill)? (?:is|are) here _\(the link works for 30 days\)_:\n(https?:\/\/\S+\/r\/[A-Za-z0-9_-]{32})\n/)?.[1]
   expect(link).toBeTruthy()
   expect(text).not.toContain('Vitamin C')
 
@@ -74,7 +74,7 @@ test('quick and typed medicines go into the notes; Send puts the prescription in
   const elsewhere = await browser.newContext()
   const stranger = await elsewhere.newPage()
   await stranger.goto(new URL(link!).pathname)
-  await expect(stranger.getByRole('heading', { name: 'Your prescription' })).toBeVisible()
+  await expect(stranger.getByRole('heading', { name: /^Your prescription/ })).toBeVisible()
   const sheet = stranger.getByRole('img', { name: 'Prescription' })
   await expect.poll(() => sheet.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth === 1080), { timeout: 20_000 }).toBe(true)
   await expect(stranger.getByRole('link', { name: 'Save' })).toHaveAttribute('download', /^Prescription-\d{1,2}-[A-Za-z]{3}-\d{4}\.jpg$/)
@@ -86,4 +86,5 @@ test('the prescription can still be downloaded, to print', async () => {
   const download = page.waitForEvent('download')
   await visible(page.getByRole('link', { name: 'Download prescription' })).click()
   expect((await download).suggestedFilename()).toMatch(/^Prescription-.*\.jpg$/)
+  if (process.env.E2E_SHOTS) await (await download).saveAs(`${process.env.E2E_SHOTS}/prescription-sheet.jpg`)
 })

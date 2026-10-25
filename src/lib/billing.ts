@@ -1,6 +1,6 @@
 import { siteConfig } from '@/config/site'
 import { formatRupees } from '@/lib/pricing'
-import { formatDate } from '@/lib/dates'
+import { formatDate, todayInIndia } from '@/lib/dates'
 import { appointmentLines, kannadaDate, messageHeader, messageSignOff, questionsLine, shortLocation, type MessageLanguage } from '@/lib/whatsapp'
 
 // Money is added in paise so 0.1 + 0.2 never shows as 0.30000000000000004
@@ -114,65 +114,58 @@ export function photosWord(labels: string[], language: MessageLanguage = 'en'): 
   return all('Prescription') ? (one ? 'prescription' : 'prescriptions') : all('X-ray') ? (one ? 'X-ray' : 'X-rays') : one ? 'photo' : 'photos'
 }
 
-// The one WhatsApp message after a visit, laid out for a phone: a header, the treatment and charges,
-// what was paid and what is still due, the next appointment, and one short link to the ticked photos
-// (a page that shows them for 30 days). Sections with nothing in them are left out. First name only;
-// nothing else about the patient.
+// What a visit's link holds, for the message and its page: "prescription, X-rays and bill". A
+// prescription (typed, or a photo of one) is named once; the other photos as photosWord says them.
+// In Kannada with the words patients use: ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್, ಫೋಟೋ(ಗಳು), ಬಿಲ್.
+export function linkWord(labels: string[], language: MessageLanguage = 'en'): string {
+  const kn = language === 'kn'
+  const photos = labels.filter((l) => l !== 'Prescription' && l !== 'Bill')
+  const parts = [
+    labels.includes('Prescription') && (kn ? 'ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್' : 'prescription'),
+    photos.length > 0 && (kn ? (photos.length === 1 ? 'ಫೋಟೋ' : 'ಫೋಟೋಗಳು') : photosWord(photos)),
+    labels.includes('Bill') && (kn ? 'ಬಿಲ್' : 'bill'),
+  ].filter((p): p is string => !!p)
+  const and = kn ? ' ಮತ್ತು ' : ' and '
+  return parts.length <= 1 ? (parts[0] ?? '') : `${parts.slice(0, -1).join(', ')}${and}${parts[parts.length - 1]}`
+}
+
+// The one WhatsApp message after a visit, friendly and short, for a phone: "Hi Asha," and thanks, one
+// short link to the prescription, photos and bill (a page that shows them for 30 days: no money in the
+// message itself), the next appointment, and the review once. First name only; nothing else about the
+// patient.
 export function visitMessage(args: {
   patientName: string
   visitDate: string
-  lines?: { description: string; amount: number }[]
-  payments?: { amount: number; method: 'upi' | 'cash' }[]
-  summary?: BillSummary | null
   nextAppointment?: { starts_at: string } | null
-  // One short link to the ticked photos, and what they are ("Prescription", "X-ray", a typed name)
+  // One short link to the visit's page, and what it holds ("Prescription", "X-ray", a typed name, "Bill")
   photoLink?: { url: string; labels: string[] } | null
   // A Google review asked in the same message (once per patient), in the review message's own words
   review?: boolean
   language?: MessageLanguage
+  today?: string
 }): string {
-  const { language = 'en' } = args
+  const { language = 'en', today = todayInIndia() } = args
   const kn = language === 'kn'
+  const onTheDay = args.visitDate === today
   const out = [
     ...messageHeader(args.patientName, language),
-    kn ? `${kannadaDate(args.visitDate, true)} ರಂದು ನಮ್ಮಲ್ಲಿಗೆ ಬಂದಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for visiting us on ${formatDate(args.visitDate)}.`,
+    kn
+      ? `${onTheDay ? 'ಇಂದು' : `${kannadaDate(args.visitDate, true)} ರಂದು`} ನಮ್ಮಲ್ಲಿಗೆ ಬಂದಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.`
+      : `Thank you for coming in ${onTheDay ? 'today' : `on ${formatDate(args.visitDate)}`}. It was good to see you.`,
   ]
-  const lines = args.lines ?? []
-  const payments = args.payments ?? []
-  const summary = args.summary
 
-  if (summary && lines.length > 0) {
-    out.push(
-      '',
-      kn ? '*ಚಿಕಿತ್ಸೆ ಮತ್ತು ಶುಲ್ಕ*' : '*Treatment & charges*',
-      ...lines.map((line) => `- ${line.description || (kn ? 'ಶುಲ್ಕ' : 'Charge')}: ${signedRupees(line.amount)}`),
-      kn ? `*ಒಟ್ಟು: ${formatRupees(summary.total)}*` : `*Total: ${formatRupees(summary.total)}*`,
-    )
-  }
-
-  // This visit's payments, the other visits in one line, then one bold line: what the patient owes
-  // (all visits together) or has in advance. Nothing charged, paid or owed: no Payment section.
-  if (summary && (summary.total > 0 || summary.paid > 0 || summary.due !== 0)) {
-    out.push('', kn ? '*ಪಾವತಿ*' : '*Payment*')
-    if (summary.paid > 0) {
-      const methods = [...new Set(payments.map((p) => (p.method === 'upi' ? 'UPI' : kn ? 'ನಗದು' : 'Cash')))].join(' + ')
-      out.push(`${kn ? 'ಪಾವತಿಸಿದ್ದು' : 'Paid'}: ${formatRupees(summary.paid)}${methods ? ` (${methods})` : ''}`)
-    }
-    if (summary.earlier > 0) out.push(`${kn ? 'ಇತರ ಭೇಟಿಗಳ ಬಾಕಿ' : 'Due from other visits'}: ${formatRupees(summary.earlier)}`)
-    else if (summary.earlier < 0) out.push(`${kn ? 'ಇತರ ಭೇಟಿಗಳ ಮುಂಗಡ' : 'Advance from other visits'}: ${formatRupees(-summary.earlier)}`)
-    if (summary.due > 0) out.push(`*${kn ? 'ಬಾಕಿ ಮೊತ್ತ' : 'Balance due'}: ${formatRupees(summary.due)}*`)
-    else if (summary.due < 0) out.push(`*${kn ? 'ನಮ್ಮಲ್ಲಿರುವ ಮುಂಗಡ' : 'Advance with us'}: ${formatRupees(-summary.due)}*`)
-    else out.push(kn ? '*ಪೂರ್ತಿ ಪಾವತಿಯಾಗಿದೆ.* ಧನ್ಯವಾದಗಳು!' : '*Paid in full.* Thank you!')
+  // "Your prescription, X-ray and bill are here (the link works for 30 days):", then the link
+  const link = args.photoLink
+  if (link && link.labels.length > 0) {
+    const word = linkWord(link.labels, language)
+    const many = word.includes(kn ? ' ಮತ್ತು ' : ' and ') || /s$/.test(word)
+    out.push('', kn
+      ? `ನಿಮ್ಮ ${word} ಈ ಲಿಂಕ್‌ನಲ್ಲಿ ನೋಡಿ _(ಲಿಂಕ್ 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತದೆ)_:`
+      : `Your ${word} ${many ? 'are' : 'is'} here _(the link works for 30 days)_:`, link.url)
   }
 
   if (args.nextAppointment?.starts_at) {
-    out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), shortLocation(language))
-  }
-
-  // "*Your prescription* _(the link works for 30 days)_", then the link
-  const link = args.photoLink
-  if (link && link.labels.length > 0) {
-    out.push('', kn ? `*${photosWord(link.labels, 'kn')}* _(ಲಿಂಕ್ 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತದೆ)_` : `*Your ${photosWord(link.labels)}* _(the link works for 30 days)_`, link.url)
+    out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Your next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), shortLocation(language))
   }
 
   if (args.review) {

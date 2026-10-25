@@ -1,9 +1,11 @@
 import { homeServices, siteConfig, treatments, type Treatment } from '@/config/site'
+import { treatmentGroups } from '@/lib/price-list'
 import { OPEN_SESSIONS } from '@/lib/clinic-hours'
 import { formatRupees, parsePrice, priceForPatients } from '@/lib/pricing'
 
 // What search engines and AI assistants read (schema.org JSON-LD): the clinic, its hours and place, its
-// questions, and every price from the clinic's own price list, the same list the pages show
+// questions, and every price from the clinic's own price list, the same list the pages show (src/lib/data/price-list.ts;
+// the list in the app when none is given)
 
 const CLINIC_ID = `${siteConfig.url}/#clinic`
 
@@ -17,8 +19,8 @@ const address = {
 }
 
 // The lowest and highest amounts on the price list: "₹200–₹1,25,000"
-export function priceRange(): string {
-  const amounts = treatments.flatMap((t) => (t.pricing ?? []).flatMap(({ cost }) => {
+export function priceRange(list: Treatment[] = treatments): string {
+  const amounts = list.flatMap((t) => (t.pricing ?? []).flatMap(({ cost }) => {
     const price = parsePrice(cost)
     if (price.kind === 'fixed') return [price.amount]
     if (price.kind === 'range') return [price.min, price.max]
@@ -48,7 +50,7 @@ export function offerFor(treatment: Treatment, option: { detail: string; cost: s
 }
 
 // The homepage: the clinic itself
-export function clinicJsonLd() {
+export function clinicJsonLd(list: Treatment[] = treatments) {
   return {
     '@context': 'https://schema.org',
     '@type': 'Dentist',
@@ -63,7 +65,7 @@ export function clinicJsonLd() {
     // From the clinic's Google Maps place
     geo: { '@type': 'GeoCoordinates', latitude: 13.2845037, longitude: 74.7497085 },
     hasMap: siteConfig.directionsLink,
-    priceRange: priceRange(),
+    priceRange: priceRange(list),
     currenciesAccepted: 'INR',
     paymentAccepted: 'Cash, UPI',
     openingHoursSpecification: OPEN_SESSIONS.map(([opens, closes]) => ({
@@ -86,22 +88,21 @@ export function faqJsonLd(questions: { question: string; answer: string }[]) {
 }
 
 // The price list page: every treatment under the homepage's headings, each option with its price
-export function priceListJsonLd() {
+export function priceListJsonLd(list: Treatment[] = treatments) {
   return {
     '@context': 'https://schema.org',
     '@type': 'Dentist',
     '@id': CLINIC_ID,
     name: siteConfig.name,
     url: siteConfig.url,
-    priceRange: priceRange(),
+    priceRange: priceRange(list),
     hasOfferCatalog: {
       '@type': 'OfferCatalog',
       name: 'Treatments and prices',
-      itemListElement: homeServices.map((service) => ({
+      itemListElement: treatmentGroups(list).map((group) => ({
         '@type': 'OfferCatalog',
-        name: service.name,
-        itemListElement: treatments
-          .filter((t) => service.slugs.includes(t.slug))
+        name: group.name,
+        itemListElement: group.items
           .flatMap((t) => (t.pricing ?? []).map((option) => offerFor(t, option))),
       })),
     },

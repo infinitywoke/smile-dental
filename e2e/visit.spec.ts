@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
 import { addDays, formatBlock, inIndia } from '../src/lib/schedule'
 import {
-  blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, createVisit, newPhone, newRunId, photoFolderFiles,
+  billOnLink, blocksLeftToday, captureWhatsapp, cleanRun, notesBox, createAppointmentAtFirstFree, createPatient, createVisit, newPhone, newRunId, photoFolderFiles,
   signIn, testDb, visible, whatsappText,
 } from './helpers'
 
@@ -76,8 +76,11 @@ test('notes save by themselves', async () => {
   await visible(page.getByLabel('Notes', { exact: true })).fill(notes)
   await expect(visible(page.getByText('Saved', { exact: true }))).toBeVisible({ timeout: 15_000 })
 
+  // Reopened, they read like a document; Edit notes opens the box with the same text
   await page.reload()
-  await expect(visible(page.getByLabel('Notes', { exact: true }))).toHaveValue(notes)
+  await expect(visible(page.getByRole('group', { name: 'Notes' }))).toBeVisible()
+  await expect(await notesBox(page)).toHaveValue(notes)
+  await expect(await notesBox(page)).toBeFocused()
 })
 
 test('a photo uploads by itself; Other asks what it is; Prescription is one tap', async () => {
@@ -177,7 +180,7 @@ async function sendOnWhatsapp() {
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
 }
 
-test('Send tapped straight after booking the next visit: one message with the bill, the next visit and a short link to the prescription', async () => {
+test('Send tapped straight after booking the next visit: one friendly message with the next visit and a short link to the prescription and bill', async () => {
   const whatsapp = await captureWhatsapp(page)
   // No waiting between the two taps: Send waits for the booking itself
   await visible(page.getByRole('button', { name: /^Book / })).click()
@@ -185,17 +188,21 @@ test('Send tapped straight after booking the next visit: one message with the bi
 
   expect(whatsapp.url).toContain(`wa.me/91${phone}`)
   const text = whatsappText(whatsapp.url)
-  expect(text.startsWith(`*Smile Dental Clinic*\n_Dr. Rahil Yusuf, BDS_\n\nDear ${runId},\nThank you for visiting us on `)).toBe(true)
+  // No clinic heading and no money: the bill is on the link's page
+  expect(text.startsWith(`Hi ${runId},\n\nThank you for coming in today. It was good to see you.`)).toBe(true)
+  expect(text).not.toContain('BDS')
+  expect(text).not.toContain('₹')
   expect(text).not.toContain(patientName)
   expect(text).not.toContain('Penicillin')
-  expect(text).toContain(`*Treatment & charges*\n- ${scaling}: ₹600\n- ${otherCharge}: ₹600\n*Total: ₹1,200*`)
-  expect(text).toContain('*Payment*\nPaid: ₹1,000 (Cash)\n*Balance due: ₹200*')
-  expect(text).toMatch(/\*Next appointment\*\nDate: \*\w+day, \d{1,2} \w+\*\nTime: \*\d{1,2}:\d{2} (AM|PM)\*\nAddress: /)
+  expect(text).toMatch(/\*Your next appointment\*\nDate: \*\w+day, \d{1,2} \w+\*\nTime: \*\d{1,2}:\d{2} (AM|PM)\*\nAddress: /)
   expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)
-  expect(text).toContain('Warm regards,\n*Dr. Rahil Yusuf*\nSmile Dental Clinic, Katapadi')
-  // The prescription: one short link in the text, no storage address, no second step
-  expect(text).toMatch(/\*Your prescription\* _\(the link works for 30 days\)_\nhttps?:\/\/[^\s/]+\/r\/[A-Za-z0-9_-]{32}\n/)
+  expect(text).toContain('Take care,\n*Dr. Rahil Yusuf*\nSmile Dental Clinic, Katapadi')
+  // The prescription and the bill: one short link in the text, no storage address, no second step
+  expect(text).toMatch(/Your prescription and bill are here _\(the link works for 30 days\)_:\nhttps?:\/\/[^\s/]+\/r\/[A-Za-z0-9_-]{32}\n/)
   expect(text).not.toContain('storage/v1/object')
+  const bill = await billOnLink(page, text)
+  expect(bill).toContain(`${scaling} ₹600 ${otherCharge} ₹600 Total ₹1,200`)
+  expect(bill).toContain('Paid (Cash) ₹1,000 Balance due ₹200')
   expect(await bookedCount()).toBe(1)
 
   // Coming back, the visit says the message went and shows the booking
@@ -217,8 +224,8 @@ test('the link shows the prescription to anyone with it, signed out, for 30 days
   const elsewhere = await browser.newContext()
   const stranger = await elsewhere.newPage()
   await stranger.goto(`/r/${token}`)
-  await expect(stranger.getByRole('heading', { name: 'Your prescription' })).toBeVisible()
-  await expect(stranger.getByText(`Dear ${runId},`)).toBeVisible()
+  await expect(stranger.getByRole('heading', { name: 'Your prescription and bill' })).toBeVisible()
+  await expect(stranger.getByText(`Hi ${runId},`)).toBeVisible()
   const photo = stranger.getByRole('img', { name: 'Prescription' })
   await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), { timeout: 20_000 }).toBe(true)
   await expect(stranger.getByRole('link', { name: 'Save' })).toHaveAttribute('href', /&download=Prescription-\d{1,2}-\w{3}-\d{4}\.(jpg|png|webp)$/)
@@ -253,7 +260,7 @@ test('sending again makes a fresh link and never books or bills twice', async ()
   await sendOnWhatsapp()
   const text = whatsappText(whatsapp.url)
   expect(text).toMatch(/\/r\/[A-Za-z0-9_-]{32}\n/)
-  expect(text).toContain('*Total: ₹1,200*')
+  expect(await billOnLink(page, text)).toContain('Total ₹1,200')
   expect(await bookedCount()).toBe(1)
   const { supabase } = await testDb()
   expect((await supabase.from('share_links').select('token').eq('visit_id', visitId)).data).toHaveLength(2)
@@ -279,8 +286,8 @@ test('a next visit booked from the visit can be changed; it moves, never doubles
   await page.waitForURL(/wa\.me\//, { timeout: 30_000 })
   expect(whatsapp.url).toContain(`wa.me/91${phone}`)
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain(`Dear ${runId},`)
-  expect(text).toContain('has been moved to:')
+  expect(text).toContain(`Hi ${runId},`)
+  expect(text).toContain("has moved. Here's the new time:")
   expect(text).not.toContain(patientName)
 
   await page.goto(visitUrl)
@@ -325,7 +332,7 @@ test('a payment changed after Send: "Bill changed – send again" until it is se
   await page.goto(visitUrl)
   const whatsapp = await captureWhatsapp(page)
   await sendOnWhatsapp()
-  expect(whatsappText(whatsapp.url)).toContain('*Balance due: ₹200*')
+  expect(await billOnLink(page, whatsappText(whatsapp.url))).toContain('Balance due ₹200')
   await page.goto('/app')
   await expect(row).toContainText('WhatsApp sent')
   await expect(row).not.toContainText('Bill changed')
@@ -384,7 +391,7 @@ test('Delete visit is refused while it holds a payment; once removed, it goes an
   expect((await supabase.from('payments').select('id').eq('patient_id', patientId)).data).toHaveLength(0)
 })
 
-test('an advance from an earlier visit: Today, the patient page, the card, the box and the message all say ₹4,499', async () => {
+test("an advance from an earlier visit: Today, the patient page, the card, the box and the message's bill all say ₹4,499", async () => {
   const name = `${runId} Advance`
   const advancePhone = newPhone('5')
   const patientId = await createPatient(name, advancePhone)
@@ -412,7 +419,7 @@ test('an advance from an earlier visit: Today, the patient page, the card, the b
   const whatsapp = await captureWhatsapp(page)
   await sendOnWhatsapp()
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain('*Total: ₹7,499*\n\n*Payment*\nAdvance from other visits: ₹3,000\n*Balance due: ₹4,499*')
+  expect(await billOnLink(page, text)).toContain('Total ₹7,499 Advance from other visits ₹3,000 Balance due ₹4,499')
 
   await page.goto('/app')
   const row = visible(page.getByRole('link').filter({ hasText: name }))

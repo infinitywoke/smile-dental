@@ -228,3 +228,29 @@ export async function showMonth(scope: Locator, month: string) {
   const name = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', timeZone: 'UTC' })
   await scope.getByRole('group', { name: `Months of ${year}` }).getByRole('button', { name: new RegExp(`^${name} ${year}`) }).click()
 }
+
+// The visit's notes box: notes with text are shown formatted until "Edit notes" opens the box
+export async function notesBox(page: Page): Promise<Locator> {
+  const edit = page.getByRole('button', { name: 'Edit notes' })
+  if (await edit.isVisible()) await edit.click()
+  return visible(page.getByLabel('Notes', { exact: true }))
+}
+
+// The visit message's one short link (the message itself carries no money)
+export const messageLink = (text: string) => text.match(/https?:\/\/\S+\/r\/[A-Za-z0-9_-]{32}/)?.[0] ?? null
+
+// The bill on the page the visit message's link opens, as the patient sees it (another phone, not
+// signed in), its words one space apart
+export async function billOnLink(page: Page, text: string): Promise<string> {
+  const link = messageLink(text)
+  if (!link) throw new Error('the message has no link')
+  // The link carries the address of the server that made it (the test server here)
+  const elsewhere = await page.context().browser()!.newContext()
+  try {
+    const other = await elsewhere.newPage()
+    await other.goto(link)
+    return (await other.getByRole('region', { name: 'Bill' }).innerText()).replace(/\s+/g, ' ')
+  } finally {
+    await elsewhere.close()
+  }
+}

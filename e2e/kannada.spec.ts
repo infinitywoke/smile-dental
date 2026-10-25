@@ -24,7 +24,7 @@ test('Settings shows every patient message in Kannada, with the English one besi
   await expect(visible(page.getByText(/ನಮಸ್ಕಾರ Prakash ಅವರೇ,/)).first()).toBeVisible()
 
   await visible(page.getByText('The English one')).first().click()
-  await expect(visible(page.getByText(/Your appointment at Smile Dental Clinic is/)).first()).toBeVisible()
+  await expect(visible(page.getByText(/your appointment at Smile Dental Clinic is/i)).first()).toBeVisible()
 })
 
 test('a patient set to Kannada on New patient gets their messages in Kannada; Edit sets English again', async ({ page }) => {

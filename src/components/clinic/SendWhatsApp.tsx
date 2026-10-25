@@ -129,9 +129,6 @@ export function SendWhatsApp({
       visitMessage({
         patientName: visit.patient.name,
         visitDate: visit.visit_date,
-        lines: data.charges,
-        payments: data.payments,
-        summary: data.summary,
         nextAppointment: data.nextAppointment,
         photoLink,
         review: reviewInMessage.current,
@@ -140,8 +137,9 @@ export function SendWhatsApp({
     )
   }
 
-  // The message made here, from the bill and next visit on show. The link needs the server, so with a
-  // prescription or photos ticked it can't be made this way (null).
+  // The message made here, from the next visit on show. The link needs the server, so with a
+  // prescription or photos ticked it can't be made this way (null); with only a bill, the message goes
+  // without its link (the bill stays in Clinic OS; Send again with signal gives the patient the link).
   const linkHere = () =>
     prescription || tickedPhotos.length > 0
       ? null

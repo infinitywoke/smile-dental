@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Download } from 'lucide-react'
 import { siteConfig } from '@/config/site'
-import { photosWord } from '@/lib/billing'
+import { linkWord } from '@/lib/billing'
 import { formatRupees } from '@/lib/pricing'
 import { formatDate } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
@@ -92,7 +92,7 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
         <Clinic />
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">{shared ? 'This link has expired' : "This link doesn't work"}</h1>
         <p className="text-base text-gray-700">
-          {shared ? `Photo links work for 30 days. For your photos, call or WhatsApp us on ${siteConfig.phone}.` : `Check that the whole link was copied. ${questionsLine()}`}
+          {shared ? `These links work for 30 days. For your prescription, photos or bill, call or WhatsApp us on ${siteConfig.phone}.` : `Check that the whole link was copied. ${questionsLine()}`}
         </p>
       </Page>
     )
@@ -105,6 +105,8 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
   const bill = shared.photos.find(isSharedBill)
   const shown = shared.photos.filter((item) => !isSharedBill(item)) as Exclude<SharedItem, SharedBill>[]
   const labels = shown.map((p) => p.label)
+  // "prescription, X-ray and bill", as the message said it
+  const holds = linkWord(shared.photos.map((p) => p.label), language)
   const save = kn ? 'ಉಳಿಸಿ' : 'Save'
   // Two X-rays read "X-ray 1", "X-ray 2"
   const numbered = labels.map((label, i) => (labels.filter((l) => l === label).length > 1 ? `${label} ${labels.slice(0, i + 1).filter((l) => l === label).length}` : label))
@@ -112,8 +114,8 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
     <Page>
       <Clinic />
       <div lang={kn ? 'kn' : 'en'} className="space-y-1">
-        <p className="text-base text-gray-700">{kn ? `ನಮಸ್ಕಾರ ${firstName(shared.first_name)} ಅವರೇ,` : `Dear ${firstName(shared.first_name)},`}</p>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">{kn ? photosWord(labels, 'kn') : `Your ${photosWord(labels)}`}</h1>
+        <p className="text-base text-gray-700">{kn ? `ನಮಸ್ಕಾರ ${firstName(shared.first_name)} ಅವರೇ,` : `Hi ${firstName(shared.first_name)},`}</p>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">{kn ? `ನಿಮ್ಮ ${holds}` : `Your ${holds}`}</h1>
         <p className="text-sm text-gray-600">{date}</p>
       </div>
       {shown.map((item, i) => (

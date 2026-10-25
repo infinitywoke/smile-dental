@@ -45,9 +45,10 @@ export function bookingRequestMessage(args: {
   ].join('\n')
 }
 
-// ---- Clinic -> patient: every message has the same plain, professional look, with no emojis (WhatsApp
-// styling only: *bold* for what matters, _italic_ for a note, "- " for lists). The patient's first name
-// is the only thing about them in any message.
+// ---- Clinic -> patient: every message is friendly and short, the same look in each: "Hi Asha," (no
+// clinic heading), warm plain words, and Dr. Rahil's name with the clinic at the end; no emojis (WhatsApp
+// styling only: *bold* for what matters, _italic_ for a note). The patient's first name is the only
+// thing about them in any message.
 
 // The language of a patient's messages: Kannada once it is set on their record (patients.language),
 // else English. Website requests are answered in English: who sent one isn't known yet.
@@ -77,17 +78,16 @@ const APPOINTMENT_KN = 'ಅಪಾಯಿಂಟ್ಮೆಂಟ್'
 
 export const firstName = (name: string) => name.trim().split(/\s+/)[0]
 
-// "*Smile Dental Clinic*", "_Dr. Rahil Yusuf, BDS_", then "Dear Prakash," ("ನಮಸ್ಕಾರ Prakash ಅವರೇ,")
+// "Hi Prakash," ("ನಮಸ್ಕಾರ Prakash ಅವರೇ,") and a blank line: no clinic heading, the sign-off says who it is
 export function messageHeader(name: string, language: MessageLanguage = 'en'): string[] {
-  const degree = siteConfig.dentist.qualifications.split(',')[0].trim()
-  const greeting = language === 'kn' ? `ನಮಸ್ಕಾರ ${firstName(name)} ಅವರೇ,` : `Dear ${firstName(name)},`
-  return [`*${siteConfig.name}*`, `_${siteConfig.dentist.name}, ${degree}_`, '', greeting]
+  return [language === 'kn' ? `ನಮಸ್ಕಾರ ${firstName(name)} ಅವರೇ,` : `Hi ${firstName(name)},`, '']
 }
 
-export function messageSignOff(language: MessageLanguage = 'en'): string[] {
+// "See you soon," before an appointment, else "Take care,"; then Dr. Rahil and the clinic
+export function messageSignOff(language: MessageLanguage = 'en', closing: 'soon' | 'care' = 'care'): string[] {
   return language === 'kn'
     ? ['', 'ಶುಭಾಶಯಗಳೊಂದಿಗೆ,', `*${siteConfig.dentist.name}*`, `${siteConfig.name}, ಕಟಪಾಡಿ`]
-    : ['', 'Warm regards,', `*${siteConfig.dentist.name}*`, `${siteConfig.name}, Katapadi`]
+    : ['', closing === 'soon' ? 'See you soon,' : 'Take care,', `*${siteConfig.dentist.name}*`, `${siteConfig.name}, Katapadi`]
 }
 
 // "Date: *Thursday, 15 October*" and "Time: *6:00 PM*"
@@ -104,11 +104,11 @@ const SHORT_ADDRESS = '1st Floor, YM Zohara Building, Shirva Road, Katapadi'
 const addressLabel = (language: MessageLanguage) => (language === 'kn' ? 'ವಿಳಾಸ' : 'Address')
 export const shortLocation = (language: MessageLanguage = 'en') => `${addressLabel(language)}: ${SHORT_ADDRESS}`
 
-export const QUESTIONS_LINE = `For any questions, call or WhatsApp us on ${siteConfig.phone}.`
+export const QUESTIONS_LINE = `Any questions? Just call or WhatsApp us on ${siteConfig.phone}.`
 
 export const questionsLine = (language: MessageLanguage = 'en') => (language === 'kn' ? `ಏನಾದರೂ ಪ್ರಶ್ನೆಗಳಿದ್ದರೆ ${CALL_US_KN}.` : QUESTIONS_LINE)
 
-const arriveEarly = (language: MessageLanguage) => (language === 'kn' ? '_ದಯವಿಟ್ಟು 5 ನಿಮಿಷ ಮುಂಚಿತವಾಗಿ ಬನ್ನಿ._' : '_Please arrive 5 minutes early._')
+const arriveEarly = (language: MessageLanguage) => (language === 'kn' ? '_ದಯವಿಟ್ಟು 5 ನಿಮಿಷ ಮುಂಚಿತವಾಗಿ ಬನ್ನಿ._' : '_Please come 5 minutes early if you can._')
 
 // Day, time, address and directions, for a confirmed or moved appointment
 function appointmentBlock(startsAt: string, language: MessageLanguage): string[] {
@@ -121,7 +121,7 @@ function appointmentBlock(startsAt: string, language: MessageLanguage): string[]
     `${kn ? 'ದಾರಿ' : 'Directions'}: ${siteConfig.googleReviewsLink}`,
     '',
     arriveEarly(language),
-    kn ? `ಸಮಯ ಬದಲಿಸಲು ಅಥವಾ ರದ್ದುಗೊಳಿಸಲು ${CALL_US_KN}.` : `To change or cancel, call or WhatsApp us on ${siteConfig.phone}.`,
+    kn ? `ಸಮಯ ಬದಲಿಸಲು ಅಥವಾ ರದ್ದುಗೊಳಿಸಲು ${CALL_US_KN}.` : `Need to change it? Just call or WhatsApp us on ${siteConfig.phone}.`,
   ]
 }
 
@@ -134,9 +134,9 @@ export function confirmationMessage(args: To & { startsAt: string }): string {
     ...messageHeader(args.name, language),
     language === 'kn'
       ? `${siteConfig.name} ನಲ್ಲಿ ನಿಮ್ಮ ${APPOINTMENT_KN} *ಖಚಿತವಾಗಿದೆ*.`
-      : `Your appointment at ${siteConfig.name} is *confirmed*.`,
+      : `Good news, your appointment at ${siteConfig.name} is *confirmed*.`,
     ...appointmentBlock(args.startsAt, language),
-    ...messageSignOff(language),
+    ...messageSignOff(language, 'soon'),
   ].join('\n')
 }
 
@@ -147,9 +147,9 @@ export function movedMessage(args: To & { startsAt: string }): string {
     ...messageHeader(args.name, language),
     language === 'kn'
       ? `${siteConfig.name} ನಲ್ಲಿ ನಿಮ್ಮ ${APPOINTMENT_KN} ಅನ್ನು ಈ ಸಮಯಕ್ಕೆ ಬದಲಾಯಿಸಲಾಗಿದೆ:`
-      : `Your appointment at ${siteConfig.name} has been moved to:`,
+      : `Your appointment at ${siteConfig.name} has moved. Here's the new time:`,
     ...appointmentBlock(args.startsAt, language),
-    ...messageSignOff(language),
+    ...messageSignOff(language, 'soon'),
   ].join('\n')
 }
 
@@ -159,11 +159,11 @@ export function cancelledMessage(args: To & { startsAt: string }): string {
   const kn = language === 'kn'
   return [
     ...messageHeader(args.name, language),
-    kn ? `${siteConfig.name} ನಲ್ಲಿ ನಿಮ್ಮ ಈ ${APPOINTMENT_KN} *ರದ್ದಾಗಿದೆ*:` : `Your appointment at ${siteConfig.name} has been *cancelled*:`,
+    kn ? `${siteConfig.name} ನಲ್ಲಿ ನಿಮ್ಮ ಈ ${APPOINTMENT_KN} *ರದ್ದಾಗಿದೆ*:` : `Your appointment at ${siteConfig.name} is *cancelled*:`,
     '',
     ...appointmentLines(args.startsAt, language),
     '',
-    kn ? `ಹೊಸ ಸಮಯ ಬುಕ್ ಮಾಡಲು ${CALL_US_KN}.` : `To book a new time, call or WhatsApp us on ${siteConfig.phone}.`,
+    kn ? `ಹೊಸ ಸಮಯ ಬುಕ್ ಮಾಡಲು ${CALL_US_KN}.` : `Whenever you'd like a new time, just call or WhatsApp us on ${siteConfig.phone}.`,
     ...messageSignOff(language),
   ].join('\n')
 }
@@ -174,11 +174,11 @@ export function declineMessage(args: To): string {
   const kn = language === 'kn'
   return [
     ...messageHeader(args.name, language),
-    kn ? `${siteConfig.name} ಅನ್ನು ಸಂಪರ್ಕಿಸಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for contacting ${siteConfig.name}.`,
+    kn ? `${siteConfig.name} ಅನ್ನು ಸಂಪರ್ಕಿಸಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for getting in touch with ${siteConfig.name}.`,
     '',
     kn
       ? `ಕ್ಷಮಿಸಿ, ನೀವು ಕೇಳಿದ ಸಮಯವನ್ನು ನಮಗೆ ಹೊಂದಿಸಲು ಆಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ${CALL_US_KN}, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಸಮಯವನ್ನು ಹುಡುಕೋಣ.`
-      : `We're sorry, we couldn't fit the time you asked for. Please call or WhatsApp us on ${siteConfig.phone} and we'll find a time that suits you.`,
+      : `Sorry, we couldn't fit the time you asked for. Just call or WhatsApp us on ${siteConfig.phone} and we'll find a time that suits you.`,
     ...messageSignOff(language),
   ].join('\n')
 }
@@ -191,7 +191,7 @@ export function reminderMessage(args: To & { startsAt: string; tomorrow: boolean
     ...messageHeader(args.name, language),
     kn
       ? (args.tomorrow ? `ನಾಳೆ ನಿಮ್ಮ ${APPOINTMENT_KN} ಇದೆ ಎಂದು ನೆನಪಿಸುತ್ತಿದ್ದೇವೆ:` : `ನಿಮ್ಮ ಮುಂದಿನ ${APPOINTMENT_KN} ಬಗ್ಗೆ ನೆನಪಿಸುತ್ತಿದ್ದೇವೆ:`)
-      : `A reminder of your appointment ${args.tomorrow ? 'tomorrow' : 'coming up'}:`,
+      : `Just a friendly reminder of your appointment ${args.tomorrow ? 'tomorrow' : 'coming up'}:`,
     '',
     ...appointmentLines(args.startsAt, language),
     shortLocation(language),
@@ -199,8 +199,8 @@ export function reminderMessage(args: To & { startsAt: string; tomorrow: boolean
     arriveEarly(language),
     kn
       ? `ಬರಲು ಆಗದಿದ್ದರೆ ದಯವಿಟ್ಟು ${CALL_US_KN}, ಆ ಸಮಯವನ್ನು ಬೇರೆಯವರಿಗೆ ನೀಡುತ್ತೇವೆ.`
-      : `If you can't make it, please call or WhatsApp us on ${siteConfig.phone}, so we can give the time to someone else.`,
-    ...messageSignOff(language),
+      : `If you can't make it, please let us know on ${siteConfig.phone}, so we can give the time to someone else.`,
+    ...messageSignOff(language, 'soon'),
   ].join('\n')
 }
 
@@ -213,9 +213,9 @@ export function missedMessage(args: To & { startsAt: string }): string {
     ...messageHeader(args.name, language),
     kn
       ? `${kannadaDate(date)} ರಂದು ನಿಮ್ಮ ${APPOINTMENT_KN} ಸಮಯದಲ್ಲಿ ನಿಮ್ಮನ್ನು ಕಾಣಲಾಗಲಿಲ್ಲ. ಎಲ್ಲವೂ ಚೆನ್ನಾಗಿದೆ ಎಂದು ಆಶಿಸುತ್ತೇವೆ.`
-      : `We missed you at your appointment on ${formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}. We hope all is well.`,
+      : `We missed you at your appointment on ${formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}. We hope all is well!`,
     '',
-    kn ? 'ಈ ಸಂದೇಶಕ್ಕೆ ಉತ್ತರಿಸಿ, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಹೊಸ ಸಮಯವನ್ನು ನಿಗದಿಪಡಿಸುತ್ತೇವೆ.' : 'Reply to this message and we will find a new time that suits you.',
+    kn ? 'ಈ ಸಂದೇಶಕ್ಕೆ ಉತ್ತರಿಸಿ, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಹೊಸ ಸಮಯವನ್ನು ನಿಗದಿಪಡಿಸುತ್ತೇವೆ.' : "Just reply to this message and we'll find a new time that suits you.",
     ...messageSignOff(language),
   ].join('\n')
 }
@@ -228,15 +228,15 @@ export function runningLateMessage(args: To & { startsAt: string; minutes: numbe
     ...messageHeader(args.name, language),
     kn
       ? `ಡಾ. ರಾಹಿಲ್ ಅವರು ಇಂದು ಸುಮಾರು ${args.minutes} ನಿಮಿಷ ತಡವಾಗಿದ್ದಾರೆ. ಕಾಯಿಸುತ್ತಿರುವುದಕ್ಕೆ ಕ್ಷಮಿಸಿ.`
-      : `Dr. Rahil is running about ${args.minutes} minutes late today. Sorry to keep you waiting.`,
+      : `Dr. Rahil is running about ${args.minutes} minutes late today. Sorry to keep you waiting!`,
     '',
     kn ? `ನಿಮ್ಮ ${APPOINTMENT_KN}:` : 'Your appointment:',
     ...appointmentLines(args.startsAt, language),
     '',
     kn
       ? `ನಿಮ್ಮ ಸಮಯಕ್ಕಿಂತ ಸುಮಾರು ${args.minutes} ನಿಮಿಷ ತಡವಾಗಿ ಬರಬಹುದು. ಅದು ಅನುಕೂಲವಾಗದಿದ್ದರೆ ${CALL_US_KN}.`
-      : `You can come about ${args.minutes} minutes after your time. If that doesn't suit you, call or WhatsApp us on ${siteConfig.phone}.`,
-    ...messageSignOff(language),
+      : `Feel free to come about ${args.minutes} minutes after your time. If that doesn't suit you, just call or WhatsApp us on ${siteConfig.phone}.`,
+    ...messageSignOff(language, 'soon'),
   ].join('\n')
 }
 
@@ -248,13 +248,13 @@ export function recallMessage(args: To & { lastVisit: string }): string {
     ...messageHeader(args.name, language),
     kn
       ? `ನಿಮ್ಮ ಕೊನೆಯ ಭೇಟಿಯಿಂದ (${kannadaDate(args.lastVisit, true)}) ಸುಮಾರು ಆರು ತಿಂಗಳಾಗಿದೆ.`
-      : `It has been about six months since your last visit (${formatDate(args.lastVisit, { day: 'numeric', month: 'long', year: 'numeric' })}).`,
+      : `It's been about six months since your last visit (${formatDate(args.lastVisit, { day: 'numeric', month: 'long', year: 'numeric' })}), so it's time for a check-up.`,
     '',
     kn
       ? 'ಪ್ರತಿ ಆರು ತಿಂಗಳಿಗೊಮ್ಮೆ ತಪಾಸಣೆ ಮತ್ತು ಹಲ್ಲು ಸ್ವಚ್ಛಗೊಳಿಸುವುದರಿಂದ ಹಲ್ಲು ಮತ್ತು ಒಸಡುಗಳು ಆರೋಗ್ಯವಾಗಿರುತ್ತವೆ, ಸಣ್ಣ ಸಮಸ್ಯೆಗಳು ಬೇಗನೆ ತಿಳಿಯುತ್ತವೆ.'
       : 'A check-up and cleaning every six months keeps your teeth and gums healthy and catches small problems early.',
     '',
-    kn ? 'ಈ ಸಂದೇಶಕ್ಕೆ ಉತ್ತರಿಸಿ, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಸಮಯವನ್ನು ಬುಕ್ ಮಾಡುತ್ತೇವೆ.' : 'Reply to this message and we will book a time that suits you.',
+    kn ? 'ಈ ಸಂದೇಶಕ್ಕೆ ಉತ್ತರಿಸಿ, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಸಮಯವನ್ನು ಬುಕ್ ಮಾಡುತ್ತೇವೆ.' : "Just reply to this message and we'll book a time that suits you.",
     ...messageSignOff(language),
   ].join('\n')
 }
@@ -266,7 +266,7 @@ export function reviewMessage(args: To): string {
   const kn = language === 'kn'
   return [
     ...messageHeader(args.name, language),
-    kn ? `${siteConfig.name} ಗೆ ಭೇಟಿ ನೀಡಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for visiting ${siteConfig.name}.`,
+    kn ? `${siteConfig.name} ಗೆ ಭೇಟಿ ನೀಡಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for visiting ${siteConfig.name}!`,
     '',
     kn
       ? 'ಒಂದು ನಿಮಿಷ ಸಮಯವಿದ್ದರೆ, Google ನಲ್ಲಿ ಒಂದು ಚಿಕ್ಕ ವಿಮರ್ಶೆ (review) ಬರೆಯಿರಿ. ಇದರಿಂದ ಈ ಭಾಗದ ಇತರರಿಗೆ ಕ್ಲಿನಿಕ್ ಹುಡುಕಲು ಸಹಾಯವಾಗುತ್ತದೆ:'

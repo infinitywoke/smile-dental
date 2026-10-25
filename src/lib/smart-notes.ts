@@ -1,4 +1,5 @@
 import 'server-only'
+import { treatments, type Treatment } from '@/config/site'
 import { priceListOptions, type PriceListOption } from '@/lib/pricing'
 import { isLength } from '@/lib/schedule'
 
@@ -31,14 +32,14 @@ function geminiKeys(): string[] {
 let nextKey = 0
 
 // The clinic's price list as IDs ("P15"): Gemini names an item; the app shows its own price
-export function priceListWithIds(): { id: string; option: PriceListOption }[] {
-  return priceListOptions().map((option, i) => ({ id: `P${i + 1}`, option }))
+export function priceListWithIds(list: Treatment[] = treatments): { id: string; option: PriceListOption }[] {
+  return priceListOptions(list).map((option, i) => ({ id: `P${i + 1}`, option }))
 }
 
 // medicines: the ones he has prescribed before (from his own notes), so a brand name he says is written
 // the way he writes it
-export function smartNotesInstructions(medicines: string[] = []): string {
-  const list = priceListWithIds()
+export function smartNotesInstructions(medicines: string[] = [], priceList: Treatment[] = treatments): string {
+  const list = priceListWithIds(priceList)
     .map(({ id, option }) => `${id} | ${option.treatment} | ${option.detail}`)
     .join('\n')
   const known = medicines.length > 0
@@ -161,9 +162,9 @@ export function checkAgainstTranscript(sorted: SortedNotes): SortedNotes {
 }
 
 // Anything Gemini returns is checked: text is cut to size, unknown price-list IDs and odd lengths are dropped
-export function checkSorted(raw: unknown): SortedNotes {
+export function checkSorted(raw: unknown, priceList: Treatment[] = treatments): SortedNotes {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-  const items = new Map(priceListWithIds().map((x) => [x.id, x.option]))
+  const items = new Map(priceListWithIds(priceList).map((x) => [x.id, x.option]))
   const charges = (Array.isArray(r.charges) ? r.charges : [])
     .map((c) => (c && typeof c === 'object' ? (c as Record<string, unknown>) : {}))
     .filter((c) => typeof c.id === 'string' && items.has(c.id))
@@ -206,9 +207,9 @@ export function notesText(sorted: SortedNotes): string {
 }
 
 // A pretend answer for the end-to-end tests (no recording leaves the test machine)
-function fakeAnswer(): unknown {
-  const rct = priceListWithIds().find((x) => x.option.slug === 'root-canal-treatment')
-  const xray = priceListWithIds().find((x) => x.option.slug === 'x-ray')
+function fakeAnswer(priceList: Treatment[]): unknown {
+  const rct = priceListWithIds(priceList).find((x) => x.option.slug === 'root-canal-treatment')
+  const xray = priceListWithIds(priceList).find((x) => x.option.slug === 'x-ray')
   return {
     transcript: 'Pain lower right back tooth for a week, worse at night. 46 deep caries, tender on percussion. Started RCT on 46. Amoxicillin 500 three times a day for five days. Avoid chewing on the right side. Review in a week for the second sitting.',
     complaint: 'Pain lower right back tooth for a week, worse at night',
@@ -226,8 +227,9 @@ function fakeAnswer(): unknown {
   }
 }
 
-export async function sortVisitRecording(audio: Blob, medicines: string[] = []): Promise<SortedNotes> {
-  if (process.env.GEMINI_FAKE === '1') return checkAgainstTranscript(checkSorted(fakeAnswer()))
+// priceList: the clinic's price list now (src/lib/data/price-list.ts), the same for the question and the answer
+export async function sortVisitRecording(audio: Blob, medicines: string[] = [], priceList: Treatment[] = treatments): Promise<SortedNotes> {
+  if (process.env.GEMINI_FAKE === '1') return checkAgainstTranscript(checkSorted(fakeAnswer(priceList), priceList))
   const keys = geminiKeys()
   if (keys.length === 0) throw new Error('Smart notes are not set up (no Gemini key).')
   const start = nextKey++ % keys.length
@@ -235,7 +237,7 @@ export async function sortVisitRecording(audio: Blob, medicines: string[] = []):
 
   const data = Buffer.from(await audio.arrayBuffer()).toString('base64')
   const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: smartNotesInstructions(medicines) }] },
+    systemInstruction: { parts: [{ text: smartNotesInstructions(medicines, priceList) }] },
     contents: [{ role: 'user', parts: [{ inlineData: { mimeType: audio.type.split(';')[0] || 'audio/webm', data } }, { text: 'Here are the notes for this visit.' }] }],
     // Temperature 0: the same recording gives the same notes, with no invention for variety
     generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
@@ -255,7 +257,7 @@ export async function sortVisitRecording(audio: Blob, medicines: string[] = []):
       if (response.ok) {
         const json = (await response.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
         const answer = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
-        return { kind: 'ok', sorted: checkAgainstTranscript(checkSorted(JSON.parse(answer))) }
+        return { kind: 'ok', sorted: checkAgainstTranscript(checkSorted(JSON.parse(answer), priceList)) }
       }
       const problem = response.status === 503 ? 'Gemini is busy right now' : `Gemini answered ${response.status}`
       if (response.status === 429) return { kind: 'next-key', problem }

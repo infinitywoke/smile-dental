@@ -86,13 +86,15 @@ test('with no signal the next visit is booked from the clinic times and the What
   await expect(visible(page.getByText(/^Booked: /))).toBeVisible()
   await expect(visible(page.locator('#visit-next').getByText('Waiting to save'))).toBeVisible()
 
-  // Send: the message is made on the phone, with the bill and the next visit on show
+  // Send: the message is made on the phone, with the next visit on show; the bill's link needs the
+  // server, so it goes without it (sending again with signal gives the link)
   const whatsapp = await captureWhatsapp(page)
   await visible(page.getByRole('link', { name: 'Send on WhatsApp' })).click()
   await expect.poll(() => whatsapp.url).toContain('wa.me/')
   const text = whatsappText(whatsapp.url)
-  expect(text).toContain('*Total: ₹300*')
-  expect(text).toContain('*Next appointment*')
+  expect(text).toContain('*Your next appointment*')
+  expect(text).not.toContain('₹')
+  expect(text).not.toMatch(/\/r\/[A-Za-z0-9_-]{32}/)
   const { supabase } = await testDb()
   expect((await supabase.from('appointments').select('id').eq('from_visit_id', visitId)).data).toHaveLength(0)
 

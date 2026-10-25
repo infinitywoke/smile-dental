@@ -470,9 +470,115 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **Discounts** (`supabase/discounts-2026-10.sql`, applied live with the owner's "Yes, apply it", checked): a bill line of kind `discount` below zero; totals, dues, `visit_money`, the message ("- Discount (Senior citizen): −₹100") and Insights ("Discounts", its own row) take it off; Tally gets only money received. Visit: "Discount" beside "Add charge" (10% / 20% / 50% or an amount, optional reason, Undo, never more than the bill, works with no signal). `discount.check.mjs` 9, `e2e/discount.spec.ts`.
     - **WhatsApp:** every outgoing message without emojis (Date: / Time: / Address: lines, Kannada ದಿನಾಂಕ / ಸಮಯ / ವಿಳಾಸ); the Google review asked inside the visit message (ticked unless unticked, once per patient); WhatsApp Business or WhatsApp per phone (Settings, and "Use WhatsApp" under Send on Android).
     - **The link's page:** the bill as sent (lines, total, paid, balance) under the prescription and photos; the typed prescription with the patient's full name and age; 8 photos at most per message (a link holds 10 things).
-    - **Tally** (`docs/TALLY.md`, "Dr. Rahil's Day Book"): his receipts credit each patient's own ledger (name + age + place), Dr `Cash` or `Savings A/C`, clinical narrations. Done: `Savings A/C` default, PARTYLEDGERNAME/ISPARTYLEDGER as in Tally's export, treatments in the narration. Saved names on the live screen are `Bank of Baroda` and `Shin` (to change). Waiting: the group patient ledgers sit under, and whether to credit them.
+    - **Tally** (`docs/TALLY.md`, "Dr. Rahil's Day Book"): his receipts credit each patient's own ledger (name + age + place), Dr `Cash` or `Savings A/C`, clinical narrations. Done: `Savings A/C` default, PARTYLEDGERNAME/ISPARTYLEDGER as in Tally's export, treatments in the narration. Saved names on the live screen are `Bank of Baroda` and `Shin` (to change). Answered 25 Oct from his exports: Direct Incomes, and yes, each receipt credits the patient's ledger; built the same day (see the Log).
     - **Recorded notes:** sections with points (tooth first), a blank line between; Gemini writes a word-for-word transcript first and everything must come from it; self-corrections kept, fillers dropped; his own past medicine names given for spelling; temperature 0; a medicine not in the transcript is marked "(?)" and listed to check. Advice written as points prints on the prescription.
     - **Cleanup:** D: 7.5 → 11 GB free (`.next/dev` 2.8 GB and `.next/cache` 0.6 GB); C: 59 → 67 GB free (npm cache 4.4 GB, old Claude temp folders 2.1 GB, the comparison checkout, Playwright 1243 browsers 0.7 GB). The cleanup exposed a Next dev-server font bug with JetBrains Mono from Google (`next/font/google queries have exactly one entry`): the font is now kept in the repo (`src/app/app/fonts/jetbrains-mono.woff2`, OFL, one variable file).
     - **Commits:** b77c571 speed, a66517f font, 1bec4d4 recorded notes, 0681475 the visit message, 14343fe discounts, e2fee37 Tally, d16c53a the discount test on a fast server. Gates: tsc, lint, unit 321, database checks 275 (discount 9 new), build, all browser tests (114 passed, 4 skipped), and on a production build the offline, visit, discount and prescription tests (28 passed, 1 skipped). Two fixes found by the runs: a Tally test still expected the old narration; the discount test's text check also matched the Undo bar, which a production build shows sooner.
     - **Dr. Rahil's first-week doc** ("First week with Clinic OS", dated 24 Oct): "Before they leave" names what the message holds (the bill, the prescription link, the first time a Google review request); two new items to try: a discount, and Settings → WhatsApp naming the app the clinic's number is on.
     - **Needed from the owner / Dr. Rahil:** his signature (a photo on white paper) and Dental Council registration number; the practice details for the letterhead; the Google Business Profile "Ask for reviews" link (messages use the Maps link until then) and the earlier Business Profile recommendations; for Tally, the group his patient ledgers sit under, whether Clinic OS should credit them, his ledger list, and the saved names fixed once on the Tally screen (`Bank of Baroda` → `Savings A/C`, `Shin`); his check of the eight starter medicines and the new Kannada words (ದಿನಾಂಕ, ಸಮಯ, ವಿಳಾಸ); which records in his account are trials; the voice-notes (Gemini paid tier) call.
+- 2026-10-25 Tally, read from Rahil's full exports (`docs/tally/Master.xml`, `DayBook.xml`, both UTF-16; sampled with grep, never read whole; **`/docs/tally/` added to `.gitignore`**: patient data) and the company settings screenshots. Details in `docs/TALLY.md`, "His company, from the full exports and settings".
+    - **Company:** Tally.ERP 9 Release 1, `SMILE DENTAL0`, books from 1 Apr 2025, accounts with inventory, bill-wise on, no taxes.
+    - **Answers the open question:** his 846 patient ledgers (name + age + place) sit under **Direct Incomes**, and each receipt credits the patient ledger and debits `Cash` or `Savings A/C`. The `Patient Details` group (under Capital Account) is empty.
+    - **Other ledgers:** no stock items; only Receipt vouchers in his Day Book (one of them with no amount, used as a visit note); costs under Indirect Expenses, including two labs and 7 visiting specialists under Doctors Commission.
+    - **Next (needs the owner's OK; it adds `patients.tally_ledger`):** credit the patient's own ledger instead of one income ledger. Match old patients from a one-time upload of his List of Accounts (name + place, age ignored, doubtful matches confirmed by Rahil). New patients get a ledger created in the same file under Direct Incomes. Then a test import of one day into a backup company.
+    - **Questions for Rahil:** zero-amount receipts; whether the employee and the specialists are current. Costs stay in Tally, as he said on 19 Oct; his books count a lab fee as an expense when it is paid.
+- 2026-10-25 Owner: "OK" to the per-patient ledgers. Answers: yes to zero-amount receipts; yes, the employee and the 7 visiting specialists are current. So Rahil doesn't work alone; nothing on the screens changes for that without the owner's say (Costs has no Salary option; one login).
+    - **Database:** `supabase/tally-patient-ledgers-2026-10.sql` **applied live** and checked read-only. It adds `patients.tally_ledger` and `tally_ledger_listed` and makes `tally_settings.income_ledger` optional; it is folded into `schema.sql`. `tally.check.mjs` passes 5 checks, including on the schema as it was with saved settings kept. All 280 database checks pass.
+    - **Built** (details in `docs/TALLY.md`, "Built 25 Oct"):
+        - receipts credit the patient's own ledger;
+        - a new patient's ledger (name age place) is named once, saved, and created at the top of each file until his List of Accounts shows it;
+        - "Match from your List of Accounts" on the Tally screen (`TallyLedgers.tsx`; matching in `src/lib/tally-ledgers.ts`). On his real export it reads 846 patient ledgers, the same count grep found;
+        - visits with nothing paid become receipts with no amount;
+        - each receipt has a REMOTEID, so the same receipt imported twice is refused;
+        - the income ledger is asked for only with "one per day";
+        - Delete patient (keep the money) clears the ledger name.
+    - **Bugs caught by the tests:**
+        - a place mismatch was still counted as a sure match (a flag overwrote the place);
+        - after a refused save, React's form reset sent "each payment" while the screen showed "one per day". The choice now goes from the screen's state in a hidden field.
+    - **Gates:** tsc, lint, unit 329, build, database checks 280, browser tests 116 passed. 1 failed: `visit.spec.ts` "Send leaves a later booking today booked…" saw the 2:30 PM row twice on Today. The 2 tests after it didn't run. On its own, `visit.spec.ts` then passed 17/17; the failure looks like a timing flake, not this change. `tally.spec.ts` 3/3.
+    - **Download month, to import into his Tally** (owner: "a file … to add all the data of everything that was done this month"):
+        - With "each payment", the month file holds every payment received that month and every visit that month with nothing paid, each to the patient's own ledger, with new patients' ledgers first.
+        - The visit's notes are on one line in the narration, as his own Day Book narrations are: on the visit's first receipt on its own day only, so a balance paid later doesn't repeat them.
+        - Months with only unpaid visits are offered too.
+        - The screen says what the file holds, that a receipt Tally already has (same REMOTEID) is refused, and not to also type these receipts by hand.
+        - Costs aren't in it: expenses stay in Tally (Rahil, 19 Oct).
+        - Tests: unit 330, `tally.spec.ts` 3/3 (now also the month file in "each payment"), tsc, lint, build.
+    - **Built in from his Tally** (owner: "Hardcode whatever you can - use your best judgement"):
+        - `siteConfig.tally` holds the company `SMILE DENTAL0`, `Cash`, `Savings A/C` and the patient group Direct Incomes.
+        - The Tally screen works with nothing saved: these are the defaults, and the first "new" file saves them along with what it covered (an upsert; before, an update on a missing row saved nothing).
+        - Every file names the company (`SVCURRENTCOMPANY`, as his exports do), so Tally imports only into `SMILE DENTAL0`.
+    - **Live data:** the clinic account's saved ledgers corrected (`Bank of Baroda` → `Savings A/C`; income ledger `Shin` → none, since each payment goes to the patient's ledger).
+    - **Matching his live patients:** his 5 patients matched against his List of Accounts (= `docs/tally/Master.xml`) with the app's own code; counts only, no names printed. Result: 0 sure, 3 with possible ledgers to confirm, 2 with none in Tally (probably trials), so nothing was saved. Dr. Rahil (or the owner signed in as him) uploads `Master.xml` on Send to Tally → Patient ledgers and confirms the 3. The scratch copies of patient data were deleted afterwards.
+    - **Gates:** unit 330, `tally.spec.ts` 3/3, tsc, lint, build.
+    - **Not yet committed or pushed.**
+- 2026-10-25 **REMINDER for the owner (asked: "Remind me to do this later"), bring up at the next resume:**
+    1. Signed in as Dr. Rahil, go to Send to Tally → Patient ledgers → "Match from your List of Accounts", pick `docs/tally/Master.xml`, and confirm the 3 possible matches.
+    2. Import one month into a backup copy of `SMILE DENTAL0` (same name) and compare it with his Day Book: new ledgers created, no-amount receipts accepted, a second import refused.
+- 2026-10-25 Owner's items 3 and 4:
+    - **3. One WhatsApp message, friendly, no money** (`visitMessage` in `src/lib/billing.ts`):
+        - no clinic heading ("Smile Dental Clinic / Dr. Rahil Yusuf, BDS");
+        - "Hi Asha,", then "Thank you for coming in today. It was good to see you." (or "on 12 Oct 2026" if sent another day);
+        - one link: "Your prescription, X-ray and bill are here (the link works for 30 days):" (`linkWord`);
+        - "*Your next appointment*", the review once, "Any questions? Just call or WhatsApp us on …", and "Take care," with his name.
+        - No bill lines, total, payment or balance in the message: they are only on the link's page.
+        - The link is now made whenever the visit has a bill, not only for a prescription or photos.
+        - The link page says "Hi", with a heading from what it holds ("Your bill", "Your prescription and bill").
+        - With no signal and only a bill, the message goes without its link; sending again with signal gives the link.
+        - Other messages (confirmation, reminder, moved…) keep the heading.
+        - Kannada: new words for Dr. Rahil to check: ಇಂದು (today), "ನಿಮ್ಮ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್, ಫೋಟೋ ಮತ್ತು ಬಿಲ್ ಈ ಲಿಂಕ್‌ನಲ್ಲಿ ನೋಡಿ".
+    - **4. Prescription:** registration number `51950-A` and his signature (`public/images/signature.png`, made transparent from the owner's photo: cropped, paper removed, ink kept dark blue) in `siteConfig.dentist`. The letterhead prints "Reg. No. 51950-A" and draws the signature over the line; checked on a downloaded sheet.
+    - **Tests:** unit 324 (the old bill-in-message tests replaced). Browser tests now read the money from the link's page (`billOnLink` in `e2e/helpers.ts`): visit, discount, prescription, follow-ups, offline. With `E2E_SHOTS` the prescription test also saves the whole sheet.
+    - **Gates:** tsc, lint, unit 324, build. All browser tests: 118 passed and 1 failed, `cockpit.spec.ts`, which still looked for the total in the message. It now reads the total from the link's page and passes 5/5.
+    - **Not yet committed or pushed.**
+- 2026-10-25 Owner: "I want all the whatsapp messages to be friendly like this."
+    - **Every message to a patient** (`src/lib/whatsapp.ts`): confirmed, moved, cancelled, the time can't be given, reminder, didn't come, running late, six-month check-up, Google review, and the visit message.
+        - "Hi Asha," with no clinic heading (`messageHeader`).
+        - Warmer English: "Good news, your appointment at Smile Dental Clinic is *confirmed*", "Just a friendly reminder…", "Need to change it? Just call or WhatsApp us…", "Please come 5 minutes early if you can", "Any questions? Just call or WhatsApp us…".
+        - Closing: "See you soon," before an appointment (confirmed, moved, reminder, running late), "Take care," otherwise; then Dr. Rahil Yusuf and Smile Dental Clinic, Katapadi.
+    - **Kannada:** only the heading is gone. The words Dr. Rahil checked are unchanged.
+    - **Unchanged:** the website's request to the clinic (it goes to the clinic, not a patient).
+    - **Tests:** unit 325 (one new: every patient message starts "Hi", has no heading, no "Dear" or "Warm regards", and ends with a warm sign-off); the browser tests for times, follow-ups, visit, cockpit, patients and requests pass 42/42 after their wording was updated.
+    - **Not yet committed or pushed.**
+- 2026-10-25 Owner's items 6–9 (the Gemini free tier stays for now, while the app is on trial):
+    - **6. Google review link:** `siteConfig.reviewRequestLink` = `https://g.page/r/CUdtAiciUfvKEBM/review`, so the visit message and the review message now use it instead of the Maps link.
+    - **7. Recorded notes read like a document** (`src/lib/note-format.ts`, `VisitNotes.tsx`):
+        - Notes stay plain text: the box, the prescription read back from them, and Tally's narration all use it.
+        - A visit with notes shows them formatted: a heading on its own line ("Findings:") in bold, a label before its text ("Complaint: …") in bold, "- " lines as a bulleted list, a gap between sections.
+        - Tapping them, or Edit notes, opens the box with the caret at the end; leaving the box shows them formatted again.
+        - Notes from a recording appear formatted at once, unless he is typing in the box.
+    - **8. Photos from the chair monitor (Intellicam)** (`MonitorPhoto.tsx`, `src/lib/offline/monitor-photo.ts`, `public/sw.js`):
+        - Photos has a third button, **Monitor**. It opens the camera at once, with the monitor's Wi-Fi above it (`siteConfig.chairMonitor`: `Q5Y422EW500-294`, password `12345678`, Copy).
+        - Scanning the QR code on the monitor (Chrome's built-in QR reader) pulls the photo from its address (e.g. `http://192.168.1.1/store/00017.jpg`) into the visit like a camera photo: kept on the phone, uploaded once there is internet.
+        - **Limit, untested on the real monitor:** Chrome lets an https page fetch an http address on the local network only with its Local Network Access permission (Chrome 142+, asked once: "devices on your local network"), and only if the monitor allows the read (CORS). The app's security policy now allows `http://192.168.1.1` (`next.config.ts`).
+        - Where the pull is refused, the sheet says so and offers **Open the photo**: press and hold it, Share image, Clinic OS. The service worker sends a photo shared within 30 minutes of tapping Monitor straight to that visit, not to the "which visit?" list. The waiting visit is kept in cache storage `clinic-monitor-v1`, not in a new IndexedDB version, so an old page can't hit a version error.
+        - If the direct pull never works on his phone, a small Android app around Clinic OS can fetch the monitor's photos itself (to decide later).
+        - **To try on the phone:** join the monitor's Wi-Fi, Monitor, scan, and allow "local network" if Chrome asks.
+        - Tests: `src/lib/offline/monitor-photo.test.ts` (QR addresses: only http(s) on a private network), `e2e/monitor.spec.ts` (a stand-in camera, QR reader and monitor; pulled straight in; refused, then shared back to the same visit).
+    - **9. Treatments sheet in the stock spreadsheet** (owner chose "App and website": one price list for Clinic OS bills, the website's prices and Google's price data together):
+        - **Database** (`supabase/price-list-2026-10.sql`, **applied live** and checked):
+            - `price_list` holds one row per priced option, in order.
+            - `public_price_list()` is readable by anyone (the website); `replace_price_list(jsonb)` lets the signed-in doctor replace the whole list at once, or nothing if a line is wrong. Anonymous visitors can't run it: Supabase's default grant to anon was found live and revoked.
+            - The table is empty until a sheet is loaded, so everything uses the list in `src/config/site.ts` until then.
+            - Folded into `schema.sql`; `price.check.mjs` 10; all database checks 290.
+        - **The list** (`src/lib/data/price-list.ts` `getTreatments()`):
+            - The clinic's list from the database, else the list in the app. Cached for an hour (`'use cache'`, tag `price-list`) and made again at once when a sheet is loaded (`updateTag`).
+            - Read by: the visit's Add charge, usual charges, smart notes (Gemini's price IDs, question and answer from the same list), What each treatment uses, the stock loader, the treatments pages, the homepage, the booking card, the tooth chart, Google's price data and the sitemap.
+        - **Website prices follow the list** (`src/lib/price-list.ts`):
+            - The homepage rows and the tooth chart are templates such as `from {fillings|3M Ketac Molar GIC}` (that option's price; `:max` the top of a range; `:per` the price per extra tooth). Filled from today's list they read exactly as before (a test holds every one).
+            - A price the list no longer has is left out, never shown old; a line keeps its first part ("An examination by Dr. Rahil.").
+            - A treatment no homepage row names goes under "Other treatments" on /treatments, and its page is built the first time someone opens it.
+        - **The sheet** (`planStockImport`, `StockImport.tsx`, `loadStockSpreadsheet`):
+            - Columns: Treatment, Option, Price, About (a line for the website). A row without a treatment adds an option to the one above.
+            - A plain number becomes "3,500/-"; a price Clinic OS can't read, a missing price or a repeat goes under "Check these".
+            - A treatment keeps its web address; a new one gets one from its name.
+            - The preview shows New, Price changes and Coming off the list; Load replaces the list first, then stock, bills and materials. Materials are matched to the new list, and a treatment with materials that comes off the list is noted.
+            - The same list as now: nothing to load.
+        - **Dr. Rahil's file:** `for-dr-rahil/Stock-and-costs-to-fill.xlsx` has a **Treatments** sheet after Read me, in the same look, prefilled with today's 35 options. The Read me now says it can be loaded again whenever the Treatments sheet changes. The earlier file is in `for-dr-rahil/old-2026-10-25/`. Read back with the app's own reader: all sheets found, the price list unchanged, nothing to check.
+        - **Tests:** unit 325 (homepage prices from the list, kept, changed and removed; the Treatments sheet: unchanged, added/removed/repriced, problem rows, nothing loadable, materials against the new list); `e2e/stock-import.spec.ts` loads a Treatments sheet into the test account's own list and checks the website is unchanged (the clinic's list is not the test account's to change); home and site pages pass as before.
+    - **Gates for items 6–9:** tsc, lint, unit 325, build, database checks 290, **all browser tests 122/122**.
+    - **Not yet committed or pushed.** To try on the phone after the push: Monitor (join its Wi-Fi first), the formatted notes, a WhatsApp after a visit, a prescription (signature and Reg. No.).
+    - **Other fixes:**
+        - The Kannada review screen's test looked for "Your appointment…" (now "Good news, your appointment…").
+        - The offline test's "no link" check matched the new review link (`g.page/r/…`); it now looks only for the clinic's 32-character share link.
+    - **Not yet committed or pushed.**
+    - **Next:** import one real day into a backup copy of his company and compare it with his Day Book (`docs/TALLY.md`, "Still to do"); then on the Tally screen change the saved bank ledger (`Bank of Baroda` → `Savings A/C`) and upload his List of Accounts once.

@@ -55,3 +55,6 @@ supabase/.temp/
 
 # Evidence tour output (docs/BUILD_LOG.md)
 /tour/out/
+
+# Dr. Rahil's Tally exports: patient names, ages, places and clinical notes (docs/TALLY.md)
+/docs/tally/
