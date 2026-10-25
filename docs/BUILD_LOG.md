@@ -510,7 +510,7 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **Live data:** the clinic account's saved ledgers corrected (`Bank of Baroda` → `Savings A/C`; income ledger `Shin` → none, since each payment goes to the patient's ledger).
     - **Matching his live patients:** his 5 patients matched against his List of Accounts (= `docs/tally/Master.xml`) with the app's own code; counts only, no names printed. Result: 0 sure, 3 with possible ledgers to confirm, 2 with none in Tally (probably trials), so nothing was saved. Dr. Rahil (or the owner signed in as him) uploads `Master.xml` on Send to Tally → Patient ledgers and confirms the 3. The scratch copies of patient data were deleted afterwards.
     - **Gates:** unit 330, `tally.spec.ts` 3/3, tsc, lint, build.
-    - **Not yet committed or pushed.**
+    - **Pushed 25 Oct (37863d0), live within 2 minutes.**
 - 2026-10-25 **REMINDER for the owner (asked: "Remind me to do this later"), bring up at the next resume:**
     1. Signed in as Dr. Rahil, go to Send to Tally → Patient ledgers → "Match from your List of Accounts", pick `docs/tally/Master.xml`, and confirm the 3 possible matches.
     2. Import one month into a backup copy of `SMILE DENTAL0` (same name) and compare it with his Day Book: new ledgers created, no-amount receipts accepted, a second import refused.
@@ -529,7 +529,7 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **4. Prescription:** registration number `51950-A` and his signature (`public/images/signature.png`, made transparent from the owner's photo: cropped, paper removed, ink kept dark blue) in `siteConfig.dentist`. The letterhead prints "Reg. No. 51950-A" and draws the signature over the line; checked on a downloaded sheet.
     - **Tests:** unit 324 (the old bill-in-message tests replaced). Browser tests now read the money from the link's page (`billOnLink` in `e2e/helpers.ts`): visit, discount, prescription, follow-ups, offline. With `E2E_SHOTS` the prescription test also saves the whole sheet.
     - **Gates:** tsc, lint, unit 324, build. All browser tests: 118 passed and 1 failed, `cockpit.spec.ts`, which still looked for the total in the message. It now reads the total from the link's page and passes 5/5.
-    - **Not yet committed or pushed.**
+    - **Pushed 25 Oct (37863d0), live within 2 minutes.**
 - 2026-10-25 Owner: "I want all the whatsapp messages to be friendly like this."
     - **Every message to a patient** (`src/lib/whatsapp.ts`): confirmed, moved, cancelled, the time can't be given, reminder, didn't come, running late, six-month check-up, Google review, and the visit message.
         - "Hi Asha," with no clinic heading (`messageHeader`).
@@ -538,7 +538,7 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **Kannada:** only the heading is gone. The words Dr. Rahil checked are unchanged.
     - **Unchanged:** the website's request to the clinic (it goes to the clinic, not a patient).
     - **Tests:** unit 325 (one new: every patient message starts "Hi", has no heading, no "Dear" or "Warm regards", and ends with a warm sign-off); the browser tests for times, follow-ups, visit, cockpit, patients and requests pass 42/42 after their wording was updated.
-    - **Not yet committed or pushed.**
+    - **Pushed 25 Oct (37863d0), live within 2 minutes.**
 - 2026-10-25 Owner's items 6–9 (the Gemini free tier stays for now, while the app is on trial):
     - **6. Google review link:** `siteConfig.reviewRequestLink` = `https://g.page/r/CUdtAiciUfvKEBM/review`, so the visit message and the review message now use it instead of the Maps link.
     - **7. Recorded notes read like a document** (`src/lib/note-format.ts`, `VisitNotes.tsx`):
@@ -576,9 +576,9 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - **Dr. Rahil's file:** `for-dr-rahil/Stock-and-costs-to-fill.xlsx` has a **Treatments** sheet after Read me, in the same look, prefilled with today's 35 options. The Read me now says it can be loaded again whenever the Treatments sheet changes. The earlier file is in `for-dr-rahil/old-2026-10-25/`. Read back with the app's own reader: all sheets found, the price list unchanged, nothing to check.
         - **Tests:** unit 325 (homepage prices from the list, kept, changed and removed; the Treatments sheet: unchanged, added/removed/repriced, problem rows, nothing loadable, materials against the new list); `e2e/stock-import.spec.ts` loads a Treatments sheet into the test account's own list and checks the website is unchanged (the clinic's list is not the test account's to change); home and site pages pass as before.
     - **Gates for items 6–9:** tsc, lint, unit 325, build, database checks 290, **all browser tests 122/122**.
-    - **Not yet committed or pushed.** To try on the phone after the push: Monitor (join its Wi-Fi first), the formatted notes, a WhatsApp after a visit, a prescription (signature and Reg. No.).
+    - **Pushed 25 Oct (37863d0), live within 2 minutes.** To try on the phone after the push: Monitor (join its Wi-Fi first), the formatted notes, a WhatsApp after a visit, a prescription (signature and Reg. No.).
     - **Other fixes:**
         - The Kannada review screen's test looked for "Your appointment…" (now "Good news, your appointment…").
         - The offline test's "no link" check matched the new review link (`g.page/r/…`); it now looks only for the clinic's 32-character share link.
-    - **Not yet committed or pushed.**
+    - **Pushed 25 Oct (37863d0), live within 2 minutes.**
     - **Next:** import one real day into a backup copy of his company and compare it with his Day Book (`docs/TALLY.md`, "Still to do"); then on the Tally screen change the saved bank ledger (`Bank of Baroda` → `Savings A/C`) and upload his List of Accounts once.
