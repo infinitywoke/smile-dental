@@ -61,6 +61,11 @@ export function clinicJsonLd(list: Treatment[] = treatments) {
     telephone: siteConfig.phone,
     email: siteConfig.email,
     image: `${siteConfig.url}${siteConfig.dentist.portraitPhoto}`,
+    logo: `${siteConfig.url}${siteConfig.media.logo}`,
+    medicalSpecialty: 'https://schema.org/Dentistry',
+    isAcceptingNewPatients: true,
+    // The clinic's place on Google Maps
+    sameAs: [siteConfig.directionsLink],
     address,
     // From the clinic's Google Maps place
     geo: { '@type': 'GeoCoordinates', latitude: 13.2845037, longitude: 74.7497085 },
@@ -75,6 +80,16 @@ export function clinicJsonLd(list: Treatment[] = treatments) {
       closes,
     })),
     employee: { '@type': 'Person', name: siteConfig.dentist.name, jobTitle: 'Dentist (BDS)' },
+    // Where to book, for search engines and AI agents: the booking page
+    potentialAction: {
+      '@type': 'ReserveAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${siteConfig.url}/book`,
+        actionPlatform: ['https://schema.org/DesktopWebPlatform', 'https://schema.org/MobileWebPlatform'],
+      },
+      result: { '@type': 'Reservation', name: 'Dental appointment' },
+    },
   }
 }
 

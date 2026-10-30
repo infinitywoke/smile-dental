@@ -20,6 +20,12 @@ describe('the two addresses', () => {
       ['/treatments', 'https://www.smiledentalkatapadi.com/treatments'],
       ['/treatments/:slug', 'https://www.smiledentalkatapadi.com/treatments/:slug'],
       ['/privacy', 'https://www.smiledentalkatapadi.com/privacy'],
+      ['/llms.txt', 'https://www.smiledentalkatapadi.com/llms.txt'],
+      ['/llms-full.txt', 'https://www.smiledentalkatapadi.com/llms-full.txt'],
+      ['/index.md', 'https://www.smiledentalkatapadi.com/index.md'],
+      ['/book.md', 'https://www.smiledentalkatapadi.com/book.md'],
+      ['/treatments.md', 'https://www.smiledentalkatapadi.com/treatments.md'],
+      ['/treatments/:slug.md', 'https://www.smiledentalkatapadi.com/treatments/:slug.md'],
     ])
     expect(moved.every((r) => r.permanent)).toBe(true)
     // Clinic OS itself stays on its address

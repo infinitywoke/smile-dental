@@ -8,6 +8,8 @@ import { Waves } from '@/components/home/Waves'
 export const metadata: Metadata = {
   title: 'Book an appointment · Smile Dental Clinic, Katapadi',
   description: "Pick a free time from Dr. Rahil Yusuf's calendar at Smile Dental Clinic, Katapadi. The clinic confirms your time on WhatsApp.",
+  // One address for the page, whatever reason or source a link adds
+  alternates: { canonical: '/book', types: { 'text/markdown': '/book.md' } },
 }
 
 // The booking card on a page of its own, for links that go straight to booking: the Google profile's

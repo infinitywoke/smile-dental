@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: 'Treatments and prices · Smile Dental Clinic, Katapadi',
   description:
     "Every treatment at Smile Dental Clinic in Katapadi, Udupi, with the clinic's own prices: check-ups, cleaning, fillings, root canals, crowns, braces, tooth removal and dentures.",
+  alternates: { canonical: '/treatments', types: { 'text/markdown': '/treatments.md' } },
 }
 
 // The whole price list, under the same headings as the homepage, and any treatment no heading names yet

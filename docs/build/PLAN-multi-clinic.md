@@ -34,6 +34,32 @@ Supabase Free.
       (`owner_id … on delete cascade`). Once several people work in a clinic, that has to stop.
     - The clinic-filling trigger must fire before any check that reads `clinic_id`. Postgres fires a table's
       triggers in name order.
+    - **Survey (30 Oct; paused for the website's AI readiness):**
+        - **Rules:**
+            - The 17 "Owner full access" policies become `clinic_id = (select public.my_clinic_id())`.
+            - A restrictive insert policy keeps `owner_id = auth.uid()`, so a new row names its maker.
+            - The cross-table checks compare `clinic_id`: visits → patients; photos, charges, payments, links
+              and recordings → visits; appointments → patients and visits; requests → patients and
+              appointments; stock moves and materials → stock items.
+        - **Functions:**
+            - `confirm_booking_request` finds the request, time off and patient by owner.
+            - `replace_price_list` deletes and inserts by owner.
+            - The voice-note storage policies go through the request's owner.
+            - `set_booking_pause` (app_config) waits for slice 4.
+        - **Storage:**
+            - The `visit-photos`, `visit-audio` and `cost-bills` folders are `<uid>/…`, and the
+              photo/recording checks require `storage_path like '<uid>/<visit>/%'`.
+            - New uploads go to `<clinic_id>/…` (`PhotoGallery.tsx`, `smart-notes.ts`, `CostForm.tsx`).
+            - Old folders stay readable by members of that login's clinic.
+            - `delete-patient.ts` and `actions/visits.ts` list folders by path.
+        - **One per person becomes one per clinic:**
+            - Covers `tally_settings` (its key is `owner_id`; upserts in `actions/tally.ts` and `app/tally/file/route.ts`),
+              `treatment_materials` (`actions/stock.ts`, `stock-import.ts`), `stock_items_owner_name` and
+              `price_list (owner_id, treatment, detail)`.
+            - Add the clinic key beside the old one, switch the app, then drop the old key, so no deploy
+              breaks.
+        - **Stay per person:** push subscriptions, notification settings, app errors, the access log, and
+          `notification_log` (slice 4).
     - Storage: files under the clinic's folder (old paths still readable).
     - Cross-table checks (a visit's patient in the same clinic) use `clinic_id`.
 3. **Settings from the database:**

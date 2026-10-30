@@ -1,4 +1,6 @@
+import type { Metadata } from 'next'
 import { Instrument_Serif, Manrope } from 'next/font/google'
+import { siteConfig } from '@/config/site'
 import { MobileBar } from '@/components/home/MobileBar'
 import { SiteFooter } from '@/components/home/SiteFooter'
 import { SiteHeader } from '@/components/home/SiteHeader'
@@ -7,6 +9,9 @@ import './home.css'
 
 const display = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['normal', 'italic'], variable: '--font-display' })
 const body = Manrope({ subsets: ['latin'], variable: '--font-body' })
+
+// The pages' own addresses in their metadata (canonical, the Markdown copy) are on the clinic's domain
+export const metadata: Metadata = { metadataBase: new URL(siteConfig.url) }
 
 // The website (D): its own fonts and styles, and on every page the header, the visit details at the
 // foot and the phone bar.

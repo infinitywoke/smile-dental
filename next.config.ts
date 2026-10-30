@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { siteConfig } from "./src/config/site";
+import { agentHeaders, markdownRewrites } from "./src/config/agents";
 import { hostRedirects } from "./src/config/redirects";
 
 // The browser's own guards on every page, the website's and Clinic OS's: nothing loads from other sites
@@ -53,7 +54,11 @@ const nextConfig: NextConfig = {
   // Dev-only badge: top-left keeps it off the Clinic OS bottom bar; hidden during e2e runs
   devIndicators: process.env.E2E === '1' ? false : { position: 'top-left' },
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }]
+    return [{ source: '/:path*', headers: securityHeaders }, ...agentHeaders()]
+  },
+  // AI agents: each website page's Markdown copy (src/config/agents.ts)
+  async rewrites() {
+    return { beforeFiles: markdownRewrites(), afterFiles: [], fallback: [] }
   },
   // Each of the two addresses shows only its own part (src/config/redirects.ts). The old website's pages
   // are sections of the homepage now; /preview was the new website before it went live.

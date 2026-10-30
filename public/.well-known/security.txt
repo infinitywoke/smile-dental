@@ -1,0 +1,6 @@
+# Smile Dental Clinic's website and Clinic OS: where to report a security problem (RFC 9116)
+Contact: mailto:smiledental8925@gmail.com
+Expires: 2027-10-30T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://www.smiledentalkatapadi.com/.well-known/security.txt
+Canonical: https://smile-dental-hin3.vercel.app/.well-known/security.txt

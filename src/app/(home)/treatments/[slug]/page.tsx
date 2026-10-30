@@ -18,7 +18,11 @@ const find = async (slug: string) => (await getTreatments()).find((t) => t.slug 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const treatment = await find((await params).slug)
   if (!treatment) return {}
-  return { title: `${treatment.name} · Smile Dental Clinic, Katapadi`, description: treatment.shortDescription || `${treatment.name} at Smile Dental Clinic, Katapadi, with its prices.` }
+  return {
+    title: `${treatment.name} · Smile Dental Clinic, Katapadi`,
+    description: treatment.shortDescription || `${treatment.name} at Smile Dental Clinic, Katapadi, with its prices.`,
+    alternates: { canonical: `/treatments/${treatment.slug}`, types: { 'text/markdown': `/treatments/${treatment.slug}.md` } },
+  }
 }
 
 // Every treatment on the price list is built ahead; one the stock spreadsheet adds later is built the

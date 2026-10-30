@@ -651,4 +651,23 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - all 126 rows with their owner's clinic, the 17 fill triggers on and no trigger off, and the 17 clinic links refusing a delete;
         - row security on; the website reads neither table and runs neither helper; signed-in people read but can't write.
     - The live price list is still empty (Rahil hasn't loaded the Treatments sheet), so the site uses the list in `src/config/site.ts`, as planned. The live homepage shows its prices.
+- 2026-10-30 **The website, ready for AI assistants and agents** (owner asked, with Cloudflare's Agent Readiness checklist; multi-clinic slice 2 paused, its survey saved in the plan).
+    - **What agents get** (`src/lib/agent-pages.ts`, built from the clinic's details and its price list like the pages, so a copy never disagrees with its page):
+        - `/llms.txt` (the llmstxt.org format: what the clinic is, visit details, every page and treatment with its starting price) and `/llms-full.txt` (the whole site in one file);
+        - a Markdown copy of the homepage, booking page, price list and each treatment page, at the page's address with `.md` (`/index.md` for the homepage) and at the page itself for a request asking for `text/markdown` (rewrites ahead of the pages, `src/config/agents.ts`);
+        - each copy names its page as canonical and carries `Vary: Accept`, so a cache never hands it to a person.
+    - **What the pages say:**
+        - a `Link` header to their copy and to `llms.txt`, beside Next's font preloads;
+        - `Content-Signal: search=yes, ai-input=yes, ai-train=yes`;
+        - canonical tags (`/book?reason=…` is `/book`), and a `<link rel="alternate" type="text/markdown">`.
+    - **Machine-readable data:** the clinic now has a "book here" action (`ReserveAction` → `/book`), `isAcceptingNewPatients`, `medicalSpecialty` Dentistry, its logo and its Google Maps place.
+    - **robots.txt** (now `public/robots.txt`; Next's generator can't write Content Signals):
+        - names 15 AI crawlers (OpenAI, Anthropic, Perplexity, Google-Extended, Apple, Amazon, Meta, DuckDuckGo, Mistral, Common Crawl), all welcome;
+        - the Content Signals are in each group;
+        - every group keeps out `/app/`, `/login`, `/auth/`, `/r/` (patients' links), `/api/` and `/md/`, since a named group doesn't follow the rules for `*`.
+    - **`/.well-known/security.txt`:** contact is the clinic's public email; it expires on 30 Oct 2027, and a unit test fails 30 days before.
+    - On Clinic OS's address, `llms.txt` and the copies go to the domain like the pages.
+    - **Left in Cloudflare, on purpose:** the domain is DNS only (grey cloud, as Vercel recommends), so Cloudflare's proxy features never see the traffic. These are Markdown for Agents, AI Crawl Control blocking, Always Use HTTPS, SSL mode and Redirects for AI Training. The site now does the same itself; Vercel already sends HTTP to HTTPS (308, HSTS), compresses and caches. When the website moves to Cloudflare Pages they come with it.
+    - **Not done yet:** MCP and A2A agent cards, an API catalog, OAuth discovery, WebMCP and agent payments (x402 and others). They describe tools an agent can call, and the booking API on the roadmap is where they start.
+    - **Tests:** `agent-pages.test.ts` (7), structured data (+1), redirects (the new files), the website browser tests (14, one new). Gates: tsc, lint, unit 337, build (76 pages). The local production build was checked for every address, Markdown when asked, the font preloads kept, canonical tags and the booking action.
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.

@@ -19,6 +19,7 @@ import { Waves } from '@/components/home/Waves'
 export const metadata: Metadata = {
   title: 'Smile Dental Clinic, Katapadi, Udupi · Dr. Rahil Yusuf, BDS',
   description: siteConfig.description,
+  alternates: { canonical: '/', types: { 'text/markdown': '/index.md' } },
 }
 
 export default async function HomePage() {

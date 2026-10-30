@@ -14,6 +14,13 @@ describe('structured data for search engines and AI assistants', () => {
     expect(clinic.openingHoursSpecification.every((h) => !h.dayOfWeek.includes('Friday'))).toBe(true)
   })
 
+  it('says where to book, for search engines and AI agents', () => {
+    const action = clinicJsonLd().potentialAction
+    expect(action['@type']).toBe('ReserveAction')
+    expect(action.target.urlTemplate).toBe('https://www.smiledentalkatapadi.com/book')
+    expect(clinicJsonLd().isAcceptingNewPatients).toBe(true)
+  })
+
   it('puts every option of every treatment on its page, with the price list amount in rupees', () => {
     for (const t of treatments) {
       const offers = treatmentJsonLd(t).offers as Offer[]

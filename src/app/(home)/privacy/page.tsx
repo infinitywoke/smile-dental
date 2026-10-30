@@ -6,6 +6,7 @@ import { PHONE_SHOWN, TEL } from '@/components/home/site-links'
 export const metadata: Metadata = {
   title: 'Privacy policy · Smile Dental Clinic, Katapadi',
   description: `Privacy policy and patient data handling for ${siteConfig.name}.`,
+  alternates: { canonical: '/privacy' },
 }
 
 function Part({ title, children }: { title: string; children: React.ReactNode }) {

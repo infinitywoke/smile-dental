@@ -91,6 +91,32 @@ test('from any page, the menu and the foot of the page lead to the homepage sect
   await expect(page.getByRole('heading', { level: 1, name: 'Every treatment, with the price.' })).toBeVisible()
 })
 
+test('AI assistants and agents get the site in Markdown: llms.txt, each page with .md, and a page asked for it', async ({ page, request }) => {
+  const llms = await request.get('/llms.txt')
+  expect(llms.headers()['content-type']).toContain('text/plain')
+  expect(await llms.text()).toContain('# Smile Dental Clinic, Katapadi')
+
+  // The homepage asked for in Markdown, as agents ask: the same address, its Markdown copy
+  const home = await request.get('/', { headers: { Accept: 'text/markdown' } })
+  expect(home.headers()['content-type']).toContain('text/markdown')
+  expect(home.headers()['vary']).toContain('Accept')
+  expect(await home.text()).toContain('## How booking works')
+  const crown = await request.get('/treatments/crowns-bridges-zirconia.md')
+  expect(await crown.text()).toContain('₹9,999 per crown')
+  expect((await request.get('/treatments/whitening.md')).status()).toBe(404)
+
+  // People still get the page, which points to its copy and gives its one address
+  const html = await request.get('/treatments')
+  expect(html.headers()['content-type']).toContain('text/html')
+  expect(html.headers()['link']).toContain('</treatments.md>; rel="alternate"; type="text/markdown"')
+  await page.goto('/book?reason=cleaning')
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://www.smiledentalkatapadi.com/book')
+  await expect(page.locator('link[rel="alternate"][type="text/markdown"]')).toHaveAttribute('href', 'https://www.smiledentalkatapadi.com/book.md')
+
+  expect(await (await request.get('/robots.txt')).text()).toContain('User-agent: ClaudeBot')
+  expect(await (await request.get('/.well-known/security.txt')).text()).toContain('Contact: mailto:')
+})
+
 test('the old About, Contact and FAQ pages open their homepage sections, and /preview the live pages', async ({ page }) => {
   for (const [from, to] of [['/about', '/#doctor'], ['/contact', '/#visit'], ['/faq', '/#questions'], ['/preview/treatments', '/treatments']]) {
     await page.goto(from)

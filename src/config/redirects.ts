@@ -1,3 +1,4 @@
+import { AGENT_FILES } from './agents'
 import { siteConfig } from './site'
 
 // The website and Clinic OS run from one deployment that answers on two addresses: the clinic's own
@@ -26,7 +27,8 @@ export function hostRedirects() {
   const clinicOsHost = hostOf(siteConfig.clinicOsUrl)
   if (websiteHosts().includes(clinicOsHost)) return []
   return [
-    ...WEBSITE_PAGES.map((source) => ({
+    // The website's pages, and what it has for AI agents (llms.txt and the pages' Markdown copies)
+    ...[...WEBSITE_PAGES, ...AGENT_FILES].map((source) => ({
       source,
       has: [{ type: 'host' as const, value: exactly(clinicOsHost) }],
       destination: `${siteConfig.url}${source}`,

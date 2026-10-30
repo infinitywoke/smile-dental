@@ -1,0 +1,41 @@
+# Smile Dental Clinic, Katapadi: https://www.smiledentalkatapadi.com
+# Search engines, AI assistants and AI agents are welcome. The site for AI, in Markdown: https://www.smiledentalkatapadi.com/llms.txt
+# Content-Signal (contentsignals.org): the pages may be used for search, for answers in AI assistants and for AI training.
+# The clinic's app, sign-in, patients' private links and the API are not for crawling. A named group
+# doesn't follow the rules for *, so each group carries them (src/lib/agent-pages.test.ts checks).
+
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: Amazonbot
+User-agent: meta-externalagent
+User-agent: DuckAssistBot
+User-agent: MistralAI-User
+User-agent: CCBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+Disallow: /app/
+Disallow: /login
+Disallow: /auth/
+Disallow: /r/
+Disallow: /api/
+Disallow: /md/
+
+User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+Disallow: /app/
+Disallow: /login
+Disallow: /auth/
+Disallow: /r/
+Disallow: /api/
+Disallow: /md/
+
+Sitemap: https://www.smiledentalkatapadi.com/sitemap.xml
