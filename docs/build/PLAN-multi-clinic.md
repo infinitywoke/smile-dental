@@ -28,12 +28,20 @@ Supabase Free.
     - A clinic that has records can't be deleted; its records have to go first, on purpose.
     - The change file guards the live run. It undoes itself unless only the clinic changed.
     - Who sees what doesn't change.
-2. **Access by clinic:**
-    - Every "Owner" policy becomes "members of the row's clinic", and `clinic_id` becomes NOT NULL.
-    - A record outlives the login that made it. Today, deleting a login deletes every row it owns
-      (`owner_id … on delete cascade`). Once several people work in a clinic, that has to stop.
-    - The clinic-filling trigger must fire before any check that reads `clinic_id`. Postgres fires a table's
-      triggers in name order.
+2. **Access by clinic**, in two parts:
+    - **2a, the database** (`supabase/multi-clinic-2-2026-10.sql`; the app needs no change):
+        - the 17 tables' rules go by the row's clinic, and a new row names its maker; the cross-table checks
+          compare clinics;
+        - files: the clinic's folder or a member's; request voice notes by the request's clinic;
+        - by clinic too: confirming a request, loading the price list (and the list the website reads), the
+          time-off check on appointments, a charge's materials, and no two booked appointments overlapping;
+        - clinic keys beside the per-person ones (Tally settings, materials, stock names, price-list options);
+        - `clinic_id` is required; a login with records can't be deleted (it deleted them); the clinic is
+          filled in first (trigger `0_fill_clinic`, since a table's triggers fire in name order);
+        - the change file's guard: each login sees exactly what it saw, row for row and file for file, or
+          nothing changes.
+    - **2b, the app:** uploads go to the clinic's folder, upserts use the clinic keys, and then the
+      per-person keys go.
     - **Survey (30 Oct; paused for the website's AI readiness):**
         - **Rules:**
             - The 17 "Owner full access" policies become `clinic_id = (select public.my_clinic_id())`.
@@ -69,6 +77,9 @@ Supabase Free.
 4. **Public side per clinic:**
     - The booking functions and the price list take the clinic's slug, and the website passes its own.
     - Notifications loop over clinics. `app_config` retires.
+    - Must come before slice 5. Until then, the website's free times (`get_open_slots`), its requests and the
+      notifications find the clinic's rows through app_config's login. With a second person in the clinic,
+      they would miss that person's appointments and time off.
 5. **Sign-in by membership:**
     - Anyone who is a member may sign in, replacing `ALLOWED_EMAIL`; sign-ups stay off.
     - A set-up script makes the clinic, invites the dentist and fills the settings.

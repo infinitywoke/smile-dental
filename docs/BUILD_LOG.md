@@ -678,4 +678,22 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - robots.txt has 16 user-agent lines, and both groups keep `/r/` out;
         - on Clinic OS's address, `/llms.txt` and `/index.md` answer 308 to the domain.
     - **Owner:** re-scan in Cloudflare's Agent Readiness (or isitagentready.com). Two defaults to confirm or change: AI training allowed (`ai-train=yes`, from Cloudflare's suggestion), and `security.txt`'s contact is the clinic's email rather than the owner's.
+- 2026-10-30 **Multi-clinic, slice 2a: access by clinic, in the database** (owner: "continue building"). Each clinic has one member, so the app needs no change and nobody sees more or less.
+    - **`supabase/multi-clinic-2-2026-10.sql`**, folded into `schema.sql` under its marker:
+        - the 17 tables' rules ("Clinic members") go by the row's clinic, and a restrictive rule makes a new row its maker's; what a row points at (a visit's patient, a charge's visit, a move's item...) must be in the same clinic;
+        - files (`visit-photos`, `visit-audio`, `cost-bills`) go by the clinic's folder or a member's (`is_clinic_folder()`); uploads go to the clinic's folder or one's own (the app's, until 2b); request voice notes go by the request's clinic;
+        - by clinic: `confirm_booking_request`, `replace_price_list` and `public_price_list`, the time-off check on appointments, a charge's materials (`use_materials_for_charge`), and `appointments_no_overlap`;
+        - unique per clinic, beside the per-person keys the app still names: Tally settings, materials, stock names, price-list options;
+        - `clinic_id` required; owner links `on delete restrict` (a login with records can't be deleted); the clinic filled in first (`0_fill_clinic`).
+    - **The guard:** it counts what each login sees as that login (17 tables, 4 file buckets) before and after, and undoes everything if any count moves. Read-only checks found the database tool can act as a signed-in user (`postgres` is a member of `authenticated`), the owner links named `<table>_owner_id_fkey` (cascading), and 89 files.
+    - **Tests:**
+        - `supabase/tests/access.check.mjs` (28):
+            - the schema twice;
+            - the change twice on the database as it was, with rows and files: every count unchanged, and a login with records can't be deleted;
+            - an assistant in Dr. Rahil's clinic sees and adds to its rows and files under the clinic's rules: materials, no overlap, no booking in time off, a request confirmed, the website's price list;
+            - the other clinic and a login in no clinic get nothing;
+            - the guard stops a change someone would see, and keeps none of it.
+        - All database checks 348.
+    - Found on the way, and planned: the website's free times, requests and notifications still go through app_config's login, so slice 4 must come before slice 5.
+    - **Not yet applied live:** waiting for the owner's OK.
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.
