@@ -6,6 +6,7 @@ import localFont from 'next/font/local'
 import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
 import { getStockAlerts } from '@/lib/data/stock'
+import { getAlertCount } from '@/lib/data/alerts'
 import { todayInIndia } from '@/lib/dates'
 import { THEME_COOKIE, themeFrom } from '@/lib/theme'
 import { BottomNav } from '@/components/clinic/BottomNav'
@@ -53,8 +54,9 @@ export default function ClinicLayout({ children }: LayoutProps<'/app'>) {
 async function DoctorGate({ children }: { children: React.ReactNode }) {
   await getDoctor()
   const theme = themeFrom((await cookies()).get(THEME_COOKIE)?.value)
-  // Stock low or expiring soon: a dot on Practice (stock actions refresh the layout, so it stays right)
-  const stock = await getStockAlerts(todayInIndia())
+  // Stock low or expiring soon: a dot on Practice; what needs a decision now: the number on Alerts (actions
+  // refresh the layout, so both stay right)
+  const [stock, alerts] = await Promise.all([getStockAlerts(todayInIndia()), getAlertCount()])
   return (
     <div id="hud-root" className="hud hud-grid flex flex-1 flex-col text-gray-900" data-theme={theme}>
       <ThemeColor />
@@ -65,7 +67,7 @@ async function DoctorGate({ children }: { children: React.ReactNode }) {
       {/* Tells the owner of errors on these screens (the daily health check) */}
       <ErrorReporter />
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-28"><PageTransition>{children}</PageTransition></main>
-      <BottomNav stockAlert={!!stock && stock.low + stock.expiring > 0} />
+      <BottomNav stockAlert={!!stock && stock.low + stock.expiring > 0} alerts={alerts} />
       <WhatsAppBusiness />
     </div>
   )

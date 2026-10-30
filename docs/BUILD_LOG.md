@@ -728,4 +728,35 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - the visit test's photo lands in the clinic's folder and its stray file in the old one, and deleting the visit clears both.
     - **Gates:** tsc, lint, unit 340, build, and the whole browser suite against the live database (119 passed, 4 skipped).
     - **Pushed 914a4af, live in about 30 s:** the website and `/book` answer 200, Clinic OS's `/login` 200, and the old address's `/` 308.
+- 2026-10-30 **Alerts: everything that needs the dentist, in one place** (owner: "a notifications button to check all notifications and get a short summary of the issue - when the doctor clicks, I want them to be directed to what action needs to be taken").
+    - **The button:** Alerts, with a bell, on the bottom bar between Patients and Practice.
+        - It carries how many need a decision now, in red ("9+" past nine), read aloud as "Alerts, 2 need you".
+    - **The screen** (`/app/alerts`): a line on each alert, what to do on its button, and a tap goes where that is done.
+        - **Needs you now:**
+            - each website booking request goes to its screen, on the day asked for ("Book a time");
+            - each bill changed after its WhatsApp went goes to the visit ("Send new bill");
+            - each patient who didn't come goes to Today's Needs you, where messaging them also marks them followed up;
+            - the next open day's reminders not yet sent go to Today's To send.
+        - **When you have a moment:**
+            - stock low or expiring goes to the item ("Restock", "Check");
+            - money owed: the five largest each go to their bill ("Collect"), and the rest together to Practice;
+            - patients due a check-up go to To send;
+            - online booking paused goes to Today's status.
+        - At the foot, the phone's notification settings: the earlier Notifications screen.
+    - **How it works:**
+        - `src/lib/alerts.ts` builds the list from the clinic's data, as a pure and tested function.
+        - `src/lib/data/alerts.ts` reads that data: requests and changed bills with lean queries; follow-ups, stock, dues and the pause through their own functions.
+        - The layout counts only the light lists for the button, and a failure shows no number rather than breaking a screen.
+        - Nothing is stored: an alert goes once it is dealt with. Today's To send section got the anchor `#to-send`.
+    - **Tests:**
+        - `alerts.test.ts` (9);
+        - `e2e/alerts.spec.ts`: a request and a changed bill show on the button and on the screen, each leads to its screen, and each goes once dealt with;
+        - looked at on the phone's screen size, with one alert of each kind.
+    - **Found on the way: a refused Tally save cleared the form.**
+        - "Your Tally ledger names" was a React form action, which resets the fields once it is done, refused or not. So a group typed for the income ledger came back with "One per day" unticked and the ledger blank.
+        - The whole suite caught it once, as a race: the reset landed just after the test typed the right ledger.
+        - The form now sends the save by hand (`onSubmit`), and a refused save keeps what was chosen and typed; `tally.spec.ts` checks both.
+    - **Gates:**
+        - tsc, lint, unit 349, build;
+        - the whole browser suite against the live database: 119 passed, 4 skipped, and the Tally race above, fixed, with all 3 Tally tests then passing.
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.

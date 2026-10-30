@@ -2,26 +2,33 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BriefcaseMedical, CalendarDays, Plus, Users } from 'lucide-react'
+import { Bell, BriefcaseMedical, CalendarDays, Plus, Users } from 'lucide-react'
 
-// Three places (Today, Patients, and Practice: money, costs, stock and settings) and, at the thumb, the
-// button for a walk-in. A small amber dot on Practice says stock is low or expiring.
+// Four places (Today, Patients, Alerts: everything that needs him, and Practice: money, costs, stock and
+// settings) and, at the thumb, the button for a walk-in. Alerts carries how many need a decision now; a
+// small amber dot on Practice says stock is low or expiring.
 const isToday = (p: string) => p === '/app' || p.startsWith('/app/visits') || p.startsWith('/app/requests') || p.startsWith('/app/appointments') || p.startsWith('/app/book')
 const isPatients = (p: string) => p.startsWith('/app/patients') && p !== '/app/patients/new'
+const isAlerts = (p: string) => p.startsWith('/app/alerts')
 const isPractice = (p: string) => ['/app/insights', '/app/tally', '/app/costs', '/app/stock', '/app/settings', '/app/notifications'].some((s) => p.startsWith(s))
 
-export function BottomNav({ stockAlert }: { stockAlert: boolean }) {
+export function BottomNav({ stockAlert, alerts }: { stockAlert: boolean; alerts: number }) {
   const pathname = usePathname()
 
   // The whole slot is the link, not just the words; the open place has a mark under its name
-  const tab = (href: string, name: string, Icon: typeof Users, active: boolean, dot = false) => (
-    <Link href={href} aria-current={active ? 'page' : undefined}
+  const tab = (href: string, name: string, Icon: typeof Users, active: boolean, dot = false, count = 0) => (
+    <Link href={href} aria-current={active ? 'page' : undefined} aria-label={count > 0 ? `${name}, ${count} need you` : undefined}
       className={`relative flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs font-bold transition-colors ${active ? 'text-gray-900' : 'text-gray-500'}`}>
       <Icon className="h-6 w-6" strokeWidth={active ? 2.3 : 2} aria-hidden="true" />
       {name}
       {dot && (
         <span className="absolute top-2 left-[calc(50%+6px)] h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white">
           <span className="sr-only">, stock low</span>
+        </span>
+      )}
+      {count > 0 && (
+        <span aria-hidden="true" className="absolute top-1 left-[calc(50%+4px)] flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] leading-none font-bold text-white ring-2 ring-white">
+          {count > 9 ? '9+' : count}
         </span>
       )}
       {/* The clinic's gold, a brand touch only (data-brand: not counted as a warning by the walk-through) */}
@@ -34,6 +41,7 @@ export function BottomNav({ stockAlert }: { stockAlert: boolean }) {
       <div className="mx-auto flex max-w-lg items-center gap-1 pr-3 pl-1">
         {tab('/app', 'Today', CalendarDays, isToday(pathname))}
         {tab('/app/patients', 'Patients', Users, isPatients(pathname))}
+        {tab('/app/alerts', 'Alerts', Bell, isAlerts(pathname), false, alerts)}
         {tab('/app/insights', 'Practice', BriefcaseMedical, isPractice(pathname), stockAlert)}
         <Link href="/app/patients/new" data-brand
           className="flex min-h-12 shrink-0 items-center gap-1.5 rounded-[14px] bg-[var(--hud-walkin)] px-4 text-[15px] font-extrabold text-[var(--hud-walkin-text)] transition-transform active:scale-95">

@@ -31,7 +31,11 @@ export function TallyPanel({ settings, overview, ledgers }: { settings: TallySet
   const [from, setFrom] = useState(overview.firstDay ?? '')
   const [month, setMonth] = useState(overview.months[0] ?? '')
 
-  async function save(formData: FormData) {
+  // Sent by hand, not as the form's action: a form action clears what was typed once it is done, even when
+  // the save is refused (a Tally group typed for a ledger, say), and he would have to type it all again
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
     setSaving(true)
     setError(null)
     const result = await saveTallySettings(formData)
@@ -91,7 +95,7 @@ export function TallyPanel({ settings, overview, ledgers }: { settings: TallySet
       </div>
 
       {editing ? (
-        <form action={save} className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200" aria-label="Tally ledger names">
+        <form onSubmit={save} className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200" aria-label="Tally ledger names">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Your Tally ledger names</h2>
             <p className="text-sm text-gray-600">Type them exactly as they are in Tally, or Tally will refuse the file.</p>

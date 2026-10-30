@@ -119,6 +119,9 @@ test('a whole month for the accountant, as one entry per day when chosen', async
   await form.getByLabel('Income ledger (treatment fees)').fill('Direct Incomes')
   await form.getByRole('button', { name: 'Save' }).click()
   await expect(visible(page.getByRole('alert').filter({ hasText: 'is a group in Tally' }))).toContainText('"Direct Incomes" is a group in Tally, not a ledger')
+  // A refused save keeps what he chose and typed
+  await expect(visible(page.getByRole('radio', { name: /One per day/ }))).toBeChecked()
+  await expect(form.getByLabel('Income ledger (treatment fees)')).toHaveValue('Direct Incomes')
   await form.getByLabel('Income ledger (treatment fees)').fill('Professional Fees')
   await form.getByRole('button', { name: 'Save' }).click()
   await expect(visible(page.getByText(/Ledgers: Cash · Savings A\/C · Professional Fees \(one per day\)/))).toBeVisible()

@@ -261,7 +261,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
 
       {/* WhatsApp to send today: tomorrow's reminders and check-ups, folded until opened */}
       {(showReminders || recallItems.length > 0) && (
-        <section aria-label="To send" className="space-y-2">
+        <section id="to-send" aria-label="To send" className="scroll-mt-4 space-y-2">
           {showReminders && <RemindersCard dayLabel={reminders!.tomorrow ? 'tomorrow' : formatDay(reminders!.date).split(',')[0]} items={reminderItems} />}
           {recallItems.length > 0 && <RecallCard items={recallItems} />}
         </section>
