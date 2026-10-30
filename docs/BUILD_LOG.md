@@ -646,4 +646,8 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - The guard stops a change that would touch anything else and keeps none of it.
         - All database checks 320, unit 329, lint.
     - **Live database, read only:** Postgres 17.11, 2 logins (the `app_config` owner is one), no trigger off, every table has `owner_id`, about 70 rows. The database tool runs as `postgres`, as for earlier changes.
-    - **Not yet applied live:** the auto-mode check holds production database changes for the owner's OK.
+    - **Applied live** (owner: "apply it and continue"). The guard passed. A read-only check afterwards found:
+        - 2 clinics, each login the owner of one; Rahil's is Smile Dental Clinic at `smile-dental-katapadi`;
+        - all 126 rows with their owner's clinic, the 17 fill triggers on and no trigger off, and the 17 clinic links refusing a delete;
+        - row security on; the website reads neither table and runs neither helper; signed-in people read but can't write.
+    - The live price list is still empty (Rahil hasn't loaded the Treatments sheet), so the site uses the list in `src/config/site.ts`, as planned. The live homepage shows its prices.
