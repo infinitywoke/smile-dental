@@ -91,6 +91,32 @@ check("the test account's clinic is a copy of them (its own slug kept), so the t
     && JSON.stringify((await db.query('select slug from public.clinics order by slug')).rows) === JSON.stringify(slugs),
   JSON.stringify(await one(db, `${CLINIC} where m.user_id = '${B}'`)))
 
+// The patient's link page (slice 3b): a link says which clinic and dentist it is from
+try {
+  await db.exec(read('multi-clinic-3b-2026-10.sql'))
+  await db.exec(read('multi-clinic-3b-2026-10.sql'))
+  ok("3b's change file applies twice")
+} catch (e) {
+  bad("apply 3b's change file", e)
+}
+const TOKEN = 'a'.repeat(40)
+await db.exec(`insert into public.patients (id, owner_id, name) values ('aaaaaaaa-0000-0000-0000-000000000001', '${A}', 'Asha Rao');
+  insert into public.visits (id, owner_id, patient_id, visit_date) values ('aaaaaaaa-0000-0000-0000-000000000002', '${A}', 'aaaaaaaa-0000-0000-0000-000000000001', '2026-10-30');
+  insert into public.share_links (owner_id, visit_id, token) values ('${A}', 'aaaaaaaa-0000-0000-0000-000000000002', '${TOKEN}');`)
+await as(db, '')
+const shared = (await one(db, `select public.shared_photos('${TOKEN}') s`)).s
+check("a link names its clinic and the dentist the prescription is from (for anyone who has it)",
+  shared.first_name === 'Asha' && shared.clinic?.name === SMILE.name && shared.clinic?.phone === SMILE.phone && shared.clinic?.address === SMILE.address
+    && shared.clinic?.dentist?.name === SMILE.dentist && shared.clinic?.dentist?.registration === SMILE.registration && shared.clinic?.dentist?.signature === SMILE.signature,
+  JSON.stringify(shared))
+await db.exec(`reset role; update public.share_links set expires_at = now() - interval '1 day' where token = '${TOKEN}'`)
+await as(db, '')
+const expired = (await one(db, `select public.shared_photos('${TOKEN}') s`)).s
+check('an expired link says only which clinic to call', expired.expired === true
+  && Object.keys(expired.clinic ?? {}).sort().join() === 'name,phone,place'
+  && expired.clinic.name === SMILE.name && expired.clinic.place === SMILE.place && expired.clinic.phone === SMILE.phone, JSON.stringify(expired))
+await db.exec('reset role')
+
 // Who reads and changes them
 await as(db, A)
 check('a member reads their clinic\'s details', (await one(db, 'select phone from public.clinics')).phone === SMILE.phone)

@@ -300,7 +300,8 @@ r = await db.query('select gender from public.patients where id = $1', [r?.rows?
 check('patient has the gender', r.rows[0]?.gender === 'female', JSON.stringify(r.rows))
 await expectErr('patients refuse a gender outside the three', `update public.patients set gender = 'x' where gender = 'female'`, [], /check/)
 await as('anon')
-await expectErr('only the ten-argument function exists for the website', `select public.submit_booking_request('a','b',null,null,null,null,null,null,null,null,null)`, [], /does not exist|function/)
+// The website's are the clinic's (eleven arguments, its slug first) and, until slice 4's clean-up, the old ten: nothing longer
+await expectErr('no website booking function takes more', `select public.submit_booking_request('a','b',null,null,null,null,null,null,null,null,null,null)`, [], /does not exist|function/)
 
 // --- Age as birth year --------------------------------------------------------------------------
 await db.exec('reset role')
@@ -319,7 +320,7 @@ r = await db.query('select birth_year from public.patients where id = $1', [r?.r
 check('patient has the birth year', r.rows[0]?.birth_year === 1988, JSON.stringify(r.rows))
 await db.exec('reset role')
 r = await db.query("select count(*)::int as n from pg_proc where proname = 'submit_booking_request'")
-check('exactly one website booking function exists', r.rows[0].n === 1, JSON.stringify(r.rows))
+check("the website booking functions are the clinic's and, until slice 4's clean-up, the old one", r.rows[0].n === 2, JSON.stringify(r.rows))
 
 // --- Patient voice notes (website) ----------------------------------------------------------------
 await setNow(at(WED, '10:00'))
@@ -381,7 +382,11 @@ check('online booking starts open', (await pausedNow()) === null)
 const openSlots = await slotsAs('anon')
 check('the website has free times while open', openSlots.length > 0, String(openSlots.length))
 await as('authenticated', B)
-await expectErr('only the clinic owner can pause online booking', "select public.set_booking_pause('infinity')", [], /Not allowed/)
+// Each clinic's members pause their own (slice 4): another clinic's login pauses only its own
+await expectOk("another clinic's login pauses its own online booking", "select public.set_booking_pause('infinity')")
+check("…and Smile Dental Clinic's stays open", (await pausedNow()) === null)
+await as('authenticated', B)
+await expectOk('…and opens its own again', 'select public.set_booking_pause(null)')
 await as('anon')
 await expectErr('a visitor cannot pause online booking', "select public.set_booking_pause('infinity')", [], /permission denied/)
 await as('authenticated', A)

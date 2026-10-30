@@ -742,6 +742,22 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **Who may change them:** members read them and can't change them; the website reads none.
     - **Tests:** `supabase/tests/details.check.mjs` (9).
     - **Applied live,** the first change let through by the allow rule. A read-only check found both clinics with the details and their dentists with theirs.
+- 2026-10-30 **Slice 3b's database part: the patient's link page learns its clinic from the link** (`supabase/multi-clinic-3b-2026-10.sql`, folded in).
+    - `shared_photos(token)` also returns the link's clinic (name, place, phone, address, logo) and the prescribing dentist (the visit's maker's, else the clinic's first: name, qualifications, registration, signature).
+    - An expired link returns only the clinic's name, place and phone.
+    - `details.check.mjs` now has 12 checks. Applied live.
+    - The app part of 3b, every message, prescription, link page, UPI code, Tally file and monitor from the clinic's details, is with a Sonnet builder per `docs/build/SPEC-3b-clinic-details.md`.
+- 2026-10-30 **Multi-clinic, slice 4's database part: the public side per clinic** (`supabase/multi-clinic-4-2026-10.sql`, folded in).
+    - **By slug:** `get_open_slots`, `booking_paused_until`, `submit_booking_request` and `public_price_list` each take the clinic's slug (`p_clinic`) and read that clinic's appointments, time off, held requests, pause and price list.
+    - **Requests** land in that clinic, under its owner's login, with the phone, device and busy limits counted per clinic and the lock per clinic.
+    - **The pause** moved to `clinics.booking_paused_until`. Any member sets their own clinic's with `set_booking_pause`.
+    - **Notifications:** `notify_new_request_all` and `notify_due_all` return one payload for each member of the clinic who has a phone set up, each with their own settings and once-only log. The morning brief is the clinic's, with its low stock.
+    - **The switch-over:** the versions without a slug, and `notify_new_request` and `notify_due`, keep serving Smile Dental Clinic (through `app_config_clinic_slug()`, the website can't call it) until the app has moved; slice 4's clean-up then drops them, with `app_config`.
+    - **Tests:**
+        - `supabase/tests/public.check.mjs` (22): free times, pauses and price lists each clinic's own; requests into their clinic, with per-clinic limits; the old versions still Smile Dental's; an assistant pausing their own clinic; notifications to Dr. Rahil and his assistant once each, never the other clinic.
+        - `booking.check.mjs` changed in three checks to the new rules, to 155: nothing takes more than the eleven arguments, the clinic's version plus the old one until the clean-up, and another clinic's login pausing only its own.
+        - All database checks 396.
+    - **Applied live.** The old and new versions agree: 430 free times either way, no pause, the same price list; the website can't run the internal helper.
 - 2026-10-30 **Alerts: everything that needs the dentist, in one place** (owner: "a notifications button to check all notifications and get a short summary of the issue - when the doctor clicks, I want them to be directed to what action needs to be taken").
     - **The button:** Alerts, with a bell, on the bottom bar between Patients and Practice.
         - It carries how many need a decision now, in red ("9+" past nine), read aloud as "Alerts, 2 need you".
