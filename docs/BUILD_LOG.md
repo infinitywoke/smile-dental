@@ -623,3 +623,27 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - `src/app/icon.png`: 192 x 192, a multiple of 48 px as Google asks;
         - `src/app/apple-icon.png`: 180 x 180, the whole logo on its navy square, for an iPhone home screen.
     - Each link carries a version tag, so browsers take the new icon. Clinic OS's app icons (`public/icons`) were already the logo.
+- 2026-10-30 **Multi-clinic, slice 1: the foundation** (owner: "Let's continue building"). The plan is `docs/build/PLAN-multi-clinic.md`: six slices, each tested, applied and live before the next, with Rahil's app working throughout.
+    - **What it adds** (`supabase/multi-clinic-1-2026-10.sql`, folded into `schema.sql`):
+        - `clinics` (a public `slug` the website's booking will use, and a name) and `clinic_members` (who works where: owner, dentist or assistant);
+        - `my_clinic_id()` and `is_clinic_member()`, for signed-in people only;
+        - every login becomes the owner of a clinic of its own; the one in `app_config` is Smile Dental Clinic at `smile-dental-katapadi`;
+        - `clinic_id` on the 17 clinic-data tables:
+            - existing rows are filled from their owner with the tables' own triggers off, so no "bill changed" mark, no appointment re-check and no new `updated_at`;
+            - new rows are filled by a trigger from their owner, whoever inserts them (the app, the website's booking, the scheduler).
+    - Who sees what is unchanged (each login sees its own rows) until slice 2.
+    - **Safety:**
+        - a clinic with records can't be deleted (`on delete restrict`); its records have to go first, on purpose;
+        - signed-in people can only read `clinics` and `clinic_members`, and only their own clinic's; the website reads neither;
+        - the change file guards the live run:
+            - it has the 17 tables to itself for a fraction of a second, waiting at most 10 s for a table the app is using;
+            - it notes what every row holds first;
+            - it undoes itself unless only the clinic changed, every row has a clinic and every trigger is back on.
+    - **Tests:** `supabase/tests/tenancy.check.mjs` (30).
+        - The schema applies twice.
+        - On the database as it was, with sample rows set up to trip each risk, the change file runs twice: a sent visit stays unmarked, no `updated_at` moves, an appointment at an old time is kept.
+        - New rows get their owner's clinic. Each login reads only its own clinic.
+        - The guard stops a change that would touch anything else and keeps none of it.
+        - All database checks 320, unit 329, lint.
+    - **Live database, read only:** Postgres 17.11, 2 logins (the `app_config` owner is one), no trigger off, every table has `owner_id`, about 70 rows. The database tool runs as `postgres`, as for earlier changes.
+    - **Not yet applied live:** the auto-mode check holds production database changes for the owner's OK.
