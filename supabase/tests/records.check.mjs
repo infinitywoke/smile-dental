@@ -55,7 +55,7 @@ try {
 await as(A)
 const patient = (await rows(`insert into public.patients (name, consent_at, language) values ('Asha Rao', now(), 'kn') returning id, language`))[0]
 check('consent and the Kannada language save', patient?.language === 'kn')
-check('a language other than Kannada is refused', (await err(`insert into public.patients (name, language) values ('Ravi', 'hi')`)) !== null)
+check('a language other than Kannada or Hindi is refused', (await err(`insert into public.patients (name, language) values ('Ravi', 'ta')`)) !== null)
 await db.exec(`insert into public.app_errors (place, message) values ('/app', 'Something broke')`)
 await db.exec(`insert into public.access_log (action, patient_id) values ('opened patient', '${patient.id}')`)
 check('the doctor adds and reads his error reports and access log',

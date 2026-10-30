@@ -58,6 +58,7 @@ const SETUP = JSON.stringify({
   address: '2nd Floor, Lake View Complex, Manipal - 576104', shortAddress: 'Lake View Complex, Manipal',
   mapsLink: 'https://maps.example/bright', reviewLink: 'https://reviews.example/bright', upi: { id: 'brightsmile@upi', payee: 'Bright Smile Dental' },
   logo: '/images/logo.jpg', tally: { company: 'BRIGHT SMILE', cashLedger: 'Cash', bankLedger: 'Bank', patientGroup: 'Sundry Debtors' },
+  languages: ['en', 'kn', 'hi'],
   chairs: ['Chair 1', 'Chair 2'],
   dentists: [
     { name: 'Dr. Kavya Shenoy', email: 'demo@example.com', shortName: 'Dr. Kavya', shortNameKn: 'ಡಾ. ಕಾವ್ಯಾ', qualifications: 'BDS, MDS', registration: '12345-A', signature: '/images/signature.png' },
@@ -73,6 +74,10 @@ await db.exec(`select public.setup_clinic('${SETUP}'::jsonb)`)
 check('set up (twice): the clinic, its two chairs, two dentists and its owner, once each',
   (await n(`select 1 from public.clinics where slug = 'demo-bright-smile'`)) === 1 && (await n(`select 1 from public.chairs where clinic_id = '${clinic}'`)) === 2
     && (await n(`select 1 from public.dentists where clinic_id = '${clinic}'`)) === 2 && (await n(`select 1 from public.clinic_members where clinic_id = '${clinic}'`)) === 1)
+check("Smile Dental Clinic offers English and Kannada (Hindi waits for a native speaker's check); the demo clinic Hindi too",
+  (await one(`select languages::text l from public.clinics where slug = 'smile-dental-katapadi'`)).l === '{en,kn}' && (await one(`select languages::text l from public.clinics where id = '${clinic}'`)).l === '{en,kn,hi}')
+check('a clinic offers only known languages, and always English', (await err(`update public.clinics set languages = '{en,ta}' where id = '${clinic}'`)) !== null && (await err(`update public.clinics set languages = '{kn}' where id = '${clinic}'`)) !== null)
+check('a patient takes Hindi, or Kannada, or none, and nothing else', (await err(`update public.patients set language = 'hi' where false`)) === null && (await err(`insert into public.patients (owner_id, name, language) values ('${A}', 'X', 'ta')`)) !== null)
 check('its dentist with a login is linked to it', (await one(`select user_id::text u from public.dentists where name = 'Dr. Kavya Shenoy'`)).u === DEMO)
 
 // The demo records (Smile Dental Clinic has a patient of its own, with a visit, a payment and an appointment)
@@ -98,6 +103,7 @@ check('…tomorrow has four to remind, a request waits, someone owes, and stock 
     && (await n(`select 1 from public.booking_requests where clinic_id = '${clinic}' and status = 'new'`)) === 1
     && (await n(`select 1 from public.visits v where v.clinic_id = '${clinic}' and not exists (select 1 from public.payments p where p.visit_id = v.id)`)) === 1
     && (await n(`select 1 from public.stock_levels l join public.stock_items i on i.id = l.item_id where i.clinic_id = '${clinic}' and l.on_hand <= l.low_level`)) === 1)
+check('…and its patients include one in Kannada and one in Hindi', (await n(`select 1 from public.patients where clinic_id = '${clinic}' and language = 'kn'`)) === 1 && (await n(`select 1 from public.patients where clinic_id = '${clinic}' and language = 'hi'`)) === 1)
 check('no demo bill reads "changed after sending"', (await n(`select 1 from public.visits where clinic_id = '${clinic}' and resend_needed`)) === 0)
 check("only a demo clinic is filled: Smile Dental Clinic's is refused", (await err(`select public.seed_demo_clinic('smile-dental-katapadi')`))?.includes('Only a demo clinic'))
 check("starting the demo over leaves Smile Dental Clinic's records alone", (await smileRows()) === 4)

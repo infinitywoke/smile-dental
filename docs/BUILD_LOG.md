@@ -820,17 +820,18 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - slices 1, 2a, 2b and 3a, plus the database parts of 3b, 4 and 5;
         - Alerts;
         - the website ready for AI agents.
-    - **Uncommitted at this point: slice 3b's app part** (spec `docs/build/SPEC-3b-clinic-details.md`).
-        - A Sonnet builder started before the owner's "no agents" was finishing it in `src/`.
-        - The new files are `src/lib/clinic.ts`, `src/lib/data/clinic.ts`, `src/lib/test-clinic.ts` and `src/lib/website-whatsapp.ts`; many others are changed.
-        - Next session: `git status` and `git diff`; check them against the spec (Smile Dental's messages byte-identical, no fallback to Smile Dental's details, the guard test `src/lib/clinic-os-details.test.ts`); finish what's missing; then the gates (`npx vitest run`, `npx tsc --noEmit`, `npx eslint`, `npx next build`), the whole browser suite, commit, push and check the deploy.
+    - **Done since this block was written:**
+        - **Slice 3b's app part** is live (1477170): Clinic OS reads every clinic detail from the database. The builder's work was reviewed and finished by hand. Review found two more Smile Dental leftovers, both fixed: the voice-notes prompt named Dr. Rahil and Katapadi, and sign-in fell back to the name "Dr. Rahil". The guard test `src/lib/clinic-os-details.test.ts` now fails on any read of a clinic detail from `siteConfig` in Clinic OS, and `src/lib/clinic.test.ts` proves a second clinic's messages, prescription, UPI code and Tally file carry only its own details.
+        - **Message languages' database part** is live (`supabase/multi-clinic-6a-2026-10.sql`): `patients.language` takes `'hi'`, and `clinics.languages` is what a clinic offers. Smile Dental stays on English and Kannada, so its patient form doesn't change until a native speaker has checked the Hindi. `setup_clinic` takes `languages`, and the demo clinic's patients include one in Kannada and one in Hindi.
+    - **In progress:** slice 4's app part, uncommitted in `src/` and `e2e/`, with the whole browser suite to pass before pushing:
+        - the website names its clinic (`siteConfig.clinicSlug`);
+        - `getWebsiteTreatments()` and `getClinicTreatments()` replace `getTreatments()`, and only the website's own clinic falls back to the list in the app (`listFor`);
+        - notifications go through `notify_new_request_all` and `notify_due_all`;
+        - `e2e/global-setup.ts` loads a price list into the test clinic, which now needs its own.
+    - **The demo clinic's name:** "Brightside Dental", not "Bright Smile Dental", which contains "Smile Dental". Slug `demo-brightside`.
     - **Then, in order:**
-        1. **Hindi messages,** brought forward from slice 6: `patients.language` takes `'hi'` (a guarded change) and the Hindi WhatsApp strings next to the Kannada ones. Hindi needs a native speaker's check before patients see it.
-        2. **Slice 4's app part,** per `docs/build/SPEC-4-public-by-slug.md`. Then slice 4's clean-up change, which drops:
-            - the versions without a slug, `notify_new_request` and `notify_due`;
-            - `app_config_clinic_slug()`, and `app_config` with its policy.
-
-           `booking.check.mjs` goes back to expecting one website booking function.
+        1. **Finish slice 4's app part** (above): commit, push, check the deploy.
+        2. **Hindi messages:** the wording is written in a script from the 30 Oct session; if that is gone, add a Hindi branch in front of each Kannada one in `src/lib/whatsapp.ts`, `src/lib/billing.ts` and `src/app/r/[token]/page.tsx`, then offer it on `PatientForm` only where `clinic.languages` includes `hi`. A native speaker checks it before real patients see it.
         3. **Slice 5's app part:**
             - sign-in by membership instead of `ALLOWED_EMAIL` (`getDoctor`, the login action, the proxy);
             - the demo clinic: a set-up description (slug `demo-…`, invented details like "Bright Smile Dental", Manipal) run through `setup_clinic`, then `seed_demo_clinic`.
@@ -846,6 +847,7 @@ The owner asked for a final check before going live, a familiar colour scheme ("
             - a deliberate two-chairs-at-once booking that needs an explicit yes.
         6. **Slice 6:** hours and closed days per clinic, and the clinic's message languages.
         7. **Slice 2c** (the per-person keys go), then the rest of Phase 2: Booking API v1, operator console, integrations, product address.
+        8. **Slice 4's clean-up, moved last:** dropping the versions without a slug, `notify_new_request`, `notify_due`, `app_config_clinic_slug()` and `app_config`. Nothing depends on them once slice 4's app is live, and removing them means rewriting most of `booking.check.mjs`, so it waits until the demo is ready.
     - **Database checks:** `supabase/tests/*.check.mjs`, 409 in 15 files. They need `@electric-sql/pglite` installed in a scratch folder: copy the files there and run `node X.check.mjs "D:/AG Projects/New Smile/smile-dental-website"`.
     - **Still with the owner:**
         - the demo login;
