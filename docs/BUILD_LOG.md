@@ -727,4 +727,5 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - the browser helpers know the test account's clinic and look in both folders;
         - the visit test's photo lands in the clinic's folder and its stray file in the old one, and deleting the visit clears both.
     - **Gates:** tsc, lint, unit 340, build, and the whole browser suite against the live database (119 passed, 4 skipped).
+    - **Pushed 914a4af, live in about 30 s:** the website and `/book` answer 200, Clinic OS's `/login` 200, and the old address's `/` 308.
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.
