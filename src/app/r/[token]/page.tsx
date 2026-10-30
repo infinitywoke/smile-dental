@@ -9,7 +9,7 @@ import { inIndia } from '@/lib/schedule'
 import type { Letterhead } from '@/lib/prescription-image'
 import { createPublicClient } from '@/lib/supabase/public'
 import { isSharedBill, isSharedPrescription, type SharedBill, type SharedItem } from '@/lib/share-link'
-import { firstName, kannadaDate, messageLanguage, questionsLine } from '@/lib/whatsapp'
+import { dateIn, firstName, kannadaDate, messageHeader, messageLanguage, questionsLine, type MessageLanguage } from '@/lib/whatsapp'
 import { ScreenLoading } from '@/components/clinic/ui'
 import { SharedPrescription } from '@/components/SharedPrescription'
 
@@ -55,15 +55,17 @@ function Page({ children }: { children: React.ReactNode }) {
 }
 
 // The bill as it stood when the message went, in the words of the visit message
-function Bill({ bill, kn }: { bill: SharedBill; kn: boolean }) {
-  const t = kn
+function Bill({ bill, language }: { bill: SharedBill; language: MessageLanguage }) {
+  const t = language === 'hi'
+    ? { title: 'बिल', charges: 'इलाज और शुल्क', charge: 'शुल्क', total: 'कुल', paid: 'भुगतान किया', cash: 'नकद', earlierDue: 'पिछली विज़िट का बकाया', earlierAdvance: 'पिछली विज़िट की अग्रिम राशि', due: 'बकाया राशि', advance: 'हमारे पास अग्रिम राशि', full: 'पूरा भुगतान हो गया' }
+    : language === 'kn'
     ? { title: 'ಬಿಲ್', charges: 'ಚಿಕಿತ್ಸೆ ಮತ್ತು ಶುಲ್ಕ', charge: 'ಶುಲ್ಕ', total: 'ಒಟ್ಟು', paid: 'ಪಾವತಿಸಿದ್ದು', cash: 'ನಗದು', earlierDue: 'ಇತರ ಭೇಟಿಗಳ ಬಾಕಿ', earlierAdvance: 'ಇತರ ಭೇಟಿಗಳ ಮುಂಗಡ', due: 'ಬಾಕಿ ಮೊತ್ತ', advance: 'ನಮ್ಮಲ್ಲಿರುವ ಮುಂಗಡ', full: 'ಪೂರ್ತಿ ಪಾವತಿಯಾಗಿದೆ' }
     : { title: 'Bill', charges: 'Treatment & charges', charge: 'Charge', total: 'Total', paid: 'Paid', cash: 'Cash', earlierDue: 'Due from other visits', earlierAdvance: 'Advance from other visits', due: 'Balance due', advance: 'Advance with us', full: 'Paid in full' }
   const amount = (n: number) => (n < 0 ? `−${formatRupees(-n)}` : formatRupees(n))
   const methods = bill.methods.map((m) => (m === 'Cash' ? t.cash : m)).join(' + ')
   const row = 'flex items-baseline justify-between gap-3 py-1.5'
   return (
-    <section aria-label={t.title} lang={kn ? 'kn' : 'en'} className="space-y-2 rounded-xl p-4 ring-1 ring-gray-200">
+    <section aria-label={t.title} lang={language} className="space-y-2 rounded-xl p-4 ring-1 ring-gray-200">
       <h2 className="font-semibold text-gray-900">{t.title}</h2>
       {bill.lines.length > 0 && (
         <div className="divide-y divide-gray-100 text-base">
@@ -125,22 +127,22 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
   const letterhead: Letterhead | null = clinic.dentist ? { clinic, dentist: clinic.dentist } : null
   const language = messageLanguage(shared.language)
   const kn = language === 'kn'
-  const date = kn ? kannadaDate(shared.visit_date, true) : formatDate(shared.visit_date)
+  const date = dateIn(language, shared.visit_date)
   const until = inIndia(shared.expires_at).date
   const bill = shared.photos.find(isSharedBill)
   const shown = shared.photos.filter((item) => !isSharedBill(item)) as Exclude<SharedItem, SharedBill>[]
   const labels = shown.map((p) => p.label)
   // "prescription, X-ray and bill", as the message said it
   const holds = linkWord(shared.photos.map((p) => p.label), language)
-  const save = kn ? 'ಉಳಿಸಿ' : 'Save'
+  const save = language === 'hi' ? 'सेव करें' : kn ? 'ಉಳಿಸಿ' : 'Save'
   // Two X-rays read "X-ray 1", "X-ray 2"
   const numbered = labels.map((label, i) => (labels.filter((l) => l === label).length > 1 ? `${label} ${labels.slice(0, i + 1).filter((l) => l === label).length}` : label))
   return (
     <Page>
       <ClinicHeader name={clinic.name} place={clinic.place} dentist={clinic.dentist} />
-      <div lang={kn ? 'kn' : 'en'} className="space-y-1">
-        <p className="text-base text-gray-700">{kn ? `ನಮಸ್ಕಾರ ${firstName(shared.first_name)} ಅವರೇ,` : `Hi ${firstName(shared.first_name)},`}</p>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">{kn ? `ನಿಮ್ಮ ${holds}` : `Your ${holds}`}</h1>
+      <div lang={language} className="space-y-1">
+        <p className="text-base text-gray-700">{messageHeader(shared.first_name, language)[0]}</p>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">{language === 'hi' ? holds : kn ? `ನಿಮ್ಮ ${holds}` : `Your ${holds}`}</h1>
         <p className="text-sm text-gray-600">{date}</p>
       </div>
       {shown.map((item, i) => (
@@ -168,9 +170,9 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
           )}
         </figure>
       ))}
-      {bill && <Bill bill={bill} kn={kn} />}
-      <p lang={kn ? 'kn' : 'en'} className="text-sm text-gray-600">
-        {kn ? `ಈ ಲಿಂಕ್ ${kannadaDate(until, true)} ರವರೆಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ.` : `This link works until ${formatDate(until)}.`} {questionsLine({ clinic }, language)}
+      {bill && <Bill bill={bill} language={language} />}
+      <p lang={language} className="text-sm text-gray-600">
+        {language === 'hi' ? `यह लिंक ${dateIn(language, until)} तक चलेगा।` : kn ? `ಈ ಲಿಂಕ್ ${kannadaDate(until, true)} ರವರೆಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ.` : `This link works until ${formatDate(until)}.`} {questionsLine({ clinic }, language)}
       </p>
     </Page>
   )

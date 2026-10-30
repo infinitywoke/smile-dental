@@ -4,7 +4,7 @@ import { getClinicId, getDoctor } from '@/lib/auth'
 import { clinicContext, type ClinicContext, type ClinicRow, type DentistRow } from '@/lib/clinic'
 import { createClient } from '@/lib/supabase/server'
 
-const CLINIC_COLUMNS = 'id, slug, name, place, place_kn, phone, whatsapp, email, address, short_address, maps_link, review_link, upi_id, upi_payee, logo, tally, chair_monitor'
+const CLINIC_COLUMNS = 'id, slug, name, place, place_kn, phone, whatsapp, email, address, short_address, maps_link, review_link, upi_id, upi_payee, logo, tally, chair_monitor, languages'
 const DENTIST_COLUMNS = 'id, name, user_id, active, short_name, short_name_kn, qualifications, registration, signature'
 
 // The clinic the signed-in person works in, and the dentist its messages and prescriptions are from (their

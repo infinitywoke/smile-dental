@@ -1,7 +1,7 @@
 import { reviewLinkOf, type ClinicContext } from '@/lib/clinic'
 import { formatRupees } from '@/lib/pricing'
 import { formatDate, todayInIndia } from '@/lib/dates'
-import { appointmentLines, kannadaDate, messageHeader, messageSignOff, questionsLine, shortLocation, type MessageLanguage } from '@/lib/whatsapp'
+import { appointmentLines, hindiDate, kannadaDate, messageHeader, messageSignOff, questionsLine, shortLocation, type MessageLanguage } from '@/lib/whatsapp'
 
 // Money is added in paise so 0.1 + 0.2 never shows as 0.30000000000000004
 export function sumAmounts(items: { amount: number }[]): number {
@@ -110,6 +110,7 @@ export function summarise(args: {
 export function photosWord(labels: string[], language: MessageLanguage = 'en'): string {
   const one = labels.length === 1
   if (language === 'kn') return one ? 'ನಿಮ್ಮ ಫೋಟೋ' : 'ನಿಮ್ಮ ಫೋಟೋಗಳು'
+  if (language === 'hi') return 'फ़ोटो'
   const all = (label: string) => labels.every((l) => l === label)
   return all('Prescription') ? (one ? 'prescription' : 'prescriptions') : all('X-ray') ? (one ? 'X-ray' : 'X-rays') : one ? 'photo' : 'photos'
 }
@@ -121,11 +122,11 @@ export function linkWord(labels: string[], language: MessageLanguage = 'en'): st
   const kn = language === 'kn'
   const photos = labels.filter((l) => l !== 'Prescription' && l !== 'Bill')
   const parts = [
-    labels.includes('Prescription') && (kn ? 'ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್' : 'prescription'),
-    photos.length > 0 && (kn ? (photos.length === 1 ? 'ಫೋಟೋ' : 'ಫೋಟೋಗಳು') : photosWord(photos)),
-    labels.includes('Bill') && (kn ? 'ಬಿಲ್' : 'bill'),
+    labels.includes('Prescription') && (language === 'hi' ? 'प्रिस्क्रिप्शन' : kn ? 'ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್' : 'prescription'),
+    photos.length > 0 && (language === 'hi' ? 'फ़ोटो' : kn ? (photos.length === 1 ? 'ಫೋಟೋ' : 'ಫೋಟೋಗಳು') : photosWord(photos)),
+    labels.includes('Bill') && (language === 'hi' ? 'बिल' : kn ? 'ಬಿಲ್' : 'bill'),
   ].filter((p): p is string => !!p)
-  const and = kn ? ' ಮತ್ತು ' : ' and '
+  const and = language === 'hi' ? ' और ' : kn ? ' ಮತ್ತು ' : ' and '
   return parts.length <= 1 ? (parts[0] ?? '') : `${parts.slice(0, -1).join(', ')}${and}${parts[parts.length - 1]}`
 }
 
@@ -149,7 +150,7 @@ export function visitMessage(ctx: ClinicContext, args: {
   const onTheDay = args.visitDate === today
   const out = [
     ...messageHeader(args.patientName, language),
-    kn
+    language === 'hi' ? `${onTheDay ? 'आज' : `${hindiDate(args.visitDate, true)} को`} आने के लिए धन्यवाद। आपसे मिलकर अच्छा लगा।` : kn
       ? `${onTheDay ? 'ಇಂದು' : `${kannadaDate(args.visitDate, true)} ರಂದು`} ನಮ್ಮಲ್ಲಿಗೆ ಬಂದಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.`
       : `Thank you for coming in ${onTheDay ? 'today' : `on ${formatDate(args.visitDate)}`}. It was good to see you.`,
   ]
@@ -158,19 +159,19 @@ export function visitMessage(ctx: ClinicContext, args: {
   const link = args.photoLink
   if (link && link.labels.length > 0) {
     const word = linkWord(link.labels, language)
-    const many = word.includes(kn ? ' ಮತ್ತು ' : ' and ') || /s$/.test(word)
-    out.push('', kn
+    const many = word.includes(' and ') || /s$/.test(word)
+    out.push('', language === 'hi' ? `${word} इस लिंक पर देखें _(लिंक 30 दिन तक चलेगा)_:` : kn
       ? `ನಿಮ್ಮ ${word} ಈ ಲಿಂಕ್‌ನಲ್ಲಿ ನೋಡಿ _(ಲಿಂಕ್ 30 ದಿನ ಕೆಲಸ ಮಾಡುತ್ತದೆ)_:`
       : `Your ${word} ${many ? 'are' : 'is'} here _(the link works for 30 days)_:`, link.url)
   }
 
   if (args.nextAppointment?.starts_at) {
-    out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Your next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), shortLocation(ctx, language))
+    out.push('', language === 'hi' ? '*आपकी अगली अपॉइंटमेंट*' : kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Your next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), shortLocation(ctx, language))
   }
 
   const reviewLink = reviewLinkOf(ctx.clinic)
   if (args.review && reviewLink) {
-    out.push('', kn
+    out.push('', language === 'hi' ? 'अगर आपके पास एक मिनट हो, तो Google पर एक छोटा सा रिव्यू लिख दें। इससे आस-पास के लोगों को क्लिनिक ढूँढने में मदद मिलती है:' : kn
       ? 'ಒಂದು ನಿಮಿಷ ಸಮಯವಿದ್ದರೆ, Google ನಲ್ಲಿ ಒಂದು ಚಿಕ್ಕ ವಿಮರ್ಶೆ (review) ಬರೆಯಿರಿ. ಇದರಿಂದ ಈ ಭಾಗದ ಇತರರಿಗೆ ಕ್ಲಿನಿಕ್ ಹುಡುಕಲು ಸಹಾಯವಾಗುತ್ತದೆ:'
       : 'If you have a minute, a short Google review helps other people in the area find the clinic:', reviewLink)
   }

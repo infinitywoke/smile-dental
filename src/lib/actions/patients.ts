@@ -6,6 +6,7 @@ import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { findPatientsByPhone, searchPatients } from '@/lib/data/patients'
 import { findOrCreateTodaysVisit } from '@/lib/data/visits'
+import { messageLanguage } from '@/lib/whatsapp'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { formatPhone } from '@/lib/phone'
 import { birthDateFrom, birthYearFromAge, parseAge, patientAge, titleCaseName } from '@/lib/patient-fields'
@@ -37,8 +38,8 @@ function readPatientForm(formData: FormData) {
     // They agree to the clinic keeping their records; and when they agreed, before this save
     consent: formData.get('consent') === 'yes',
     consentWas: text('consent_was'),
-    // The language of their WhatsApp messages, when the form asks ('kn' for Kannada, else English)
-    language: formData.has('language') ? (formData.get('language') === 'kn' ? 'kn' : null) : undefined,
+    // The language of their WhatsApp messages, when the form asks ('kn' or 'hi', else English)
+    language: formData.has('language') ? ({ en: null, kn: 'kn', hi: 'hi' } as const)[messageLanguage(String(formData.get('language')))] : undefined,
   }
 }
 

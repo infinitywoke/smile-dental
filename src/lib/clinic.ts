@@ -46,6 +46,8 @@ export type Clinic = {
   logo: string | null
   tally: ClinicTally
   chairMonitor: ChairMonitor | null
+  // The languages it writes to patients in ('en', 'kn', 'hi'), offered on the patient form
+  languages: string[]
 }
 
 export type ClinicDentist = {
@@ -90,6 +92,7 @@ export type ClinicRow = {
   logo: string | null
   tally: unknown
   chair_monitor: unknown
+  languages: string[] | null
 }
 export type DentistRow = {
   id: string
@@ -162,6 +165,7 @@ export function clinicContext(row: ClinicRow | null, dentists: DentistRow[], use
       logo: text(row.logo),
       tally: tallyOf(row.tally),
       chairMonitor: monitorOf(row.chair_monitor),
+      languages: row.languages ?? ['en'],
     },
     dentist: {
       id: mine.id,

@@ -19,7 +19,7 @@ export type Patient = {
   review_asked_at?: string | null
   // When they agreed to the clinic keeping their records (null: not asked yet, or withdrawn)
   consent_at?: string | null
-  // The language of their WhatsApp messages: 'kn' for Kannada, null for English
+  // The language of their WhatsApp messages: 'kn' for Kannada, 'hi' for Hindi, null for English
   language?: string | null
   created_at: string
   updated_at: string

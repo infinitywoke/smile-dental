@@ -22,6 +22,7 @@ export const SMILE_DENTAL: ClinicContext = {
     logo: '/images/logo.jpg',
     tally: { version: 'Tally.ERP 9', company: 'SMILE DENTAL0', cashLedger: 'Cash', bankLedger: 'Savings A/C', patientGroup: 'Direct Incomes', incomeLedger: '' },
     chairMonitor: { name: 'Intellicam', wifi: 'Q5Y422EW500-294', password: '12345678', address: 'http://192.168.1.1' },
+    languages: ['en', 'kn'],
   },
   dentist: {
     id: '00000000-0000-4000-8000-000000000002',
@@ -54,6 +55,7 @@ export const OTHER_CLINIC: ClinicContext = {
     logo: '/images/brightside-logo.png',
     tally: { version: 'TallyPrime', company: 'BRIGHTSIDE DENTAL', cashLedger: 'Cash', bankLedger: 'Axis Bank', patientGroup: 'Sundry Debtors', incomeLedger: 'Treatment Fees' },
     chairMonitor: null,
+    languages: ['en', 'kn', 'hi'],
   },
   dentist: {
     id: '00000000-0000-4000-8000-000000000012',

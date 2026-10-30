@@ -17,6 +17,8 @@ type Props = {
   // The patient's age in years (worked out on the server from the birth year or date of birth)
   age?: number | null
   submitLabel: string
+  // The languages the clinic writes to patients in
+  languages: string[]
 }
 
 // A half-typed form is kept while the screen is hidden (Android Back, another tab), so the doctor
@@ -54,8 +56,9 @@ export function PatientForm(props: Props) {
 }
 
 const HEARD_FROM = ['Friend / family', 'Google', 'Website', 'Walked past', 'Instagram', 'Doctor referral']
-// The language of their WhatsApp messages ('' is English)
-const LANGUAGES = [['', 'English'], ['kn', 'ಕನ್ನಡ']] as const
+// The language of their WhatsApp messages ('' is English): what the clinic offers (src/lib/clinic.ts), and
+// always the one already on their record
+const LANGUAGES = [['', 'English'], ['kn', 'ಕನ್ನಡ'], ['hi', 'हिन्दी']] as const
 
 const inputClass =
   'block min-h-12 w-full rounded-xl border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600'
@@ -69,6 +72,7 @@ function PatientFields({
   patient,
   age,
   submitLabel,
+  languages,
   setSaving,
   startFresh,
   takeId,
@@ -89,7 +93,7 @@ function PatientFields({
   const [address, setAddress] = useState(patient?.address ?? '')
   const [alerts, setAlerts] = useState(patient?.medical_alerts ?? '')
   const [heardFrom, setHeardFrom] = useState(patient?.heard_from ?? '')
-  const [language, setLanguage] = useState<string>(patient?.language === 'kn' ? 'kn' : '')
+  const [language, setLanguage] = useState<string>(patient?.language ?? '')
   const consentWas = patient?.consent_at ?? null
   const [agreed, setAgreed] = useState(Boolean(consentWas))
   const [lookup, setLookup] = useState<{ phone: string; matches: { id: string; name: string; age: number | null }[] }>({ phone: '', matches: [] })
@@ -257,7 +261,7 @@ function PatientFields({
       <div className="space-y-1.5">
         <p className={labelClass}>WhatsApp messages in</p>
         <div className="flex flex-wrap gap-2">
-          {LANGUAGES.map(([value, label]) => (
+          {LANGUAGES.filter(([value]) => !value || value === patient?.language || languages.includes(value)).map(([value, label]) => (
             <button key={value} type="button" aria-pressed={language === value} onClick={() => setLanguage(value)}
               className={`min-h-12 rounded-full px-4 text-base font-medium ring-1 ring-inset transition-colors ${
                 language === value ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'

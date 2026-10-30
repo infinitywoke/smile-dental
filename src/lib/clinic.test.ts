@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { visitMessage } from './billing'
 import { clinicContext, degreeOf, reviewLinkOf, type ClinicRow, type DentistRow } from './clinic'
 import { letterheadText } from './prescription-image'
-import { questionsLine, shortLocation, cancelledMessage, confirmationMessage, declineMessage, messageSignOff, missedMessage, movedMessage, recallMessage, reminderMessage, reviewMessage, runningLateMessage, type MessageLanguage } from './whatsapp'
+import { hindiDate, hindiTime, messageLanguage, questionsLine, shortLocation, cancelledMessage, confirmationMessage, declineMessage, messageSignOff, missedMessage, movedMessage, recallMessage, reminderMessage, reviewMessage, runningLateMessage, type MessageLanguage } from './whatsapp'
 import { tallyXml } from './tally'
 import { OTHER_CLINIC, SMILE_DENTAL } from './test-clinic'
 import { upiLink } from './upi'
@@ -10,7 +10,7 @@ import { upiLink } from './upi'
 const row: ClinicRow = {
   id: 'c1', slug: 'brightside-manipal', name: 'Brightside Dental', place: 'Manipal', place_kn: null, phone: '+91 9000000001',
   whatsapp: null, email: null, address: 'Lakeview Arcade, Manipal', short_address: null, maps_link: null, review_link: null,
-  upi_id: null, upi_payee: null, logo: null, tally: {}, chair_monitor: null,
+  upi_id: null, upi_payee: null, logo: null, tally: {}, chair_monitor: null, languages: ['en', 'kn'],
 }
 const dentist: DentistRow = {
   id: 'd1', name: 'Dr. Kavya Shenoy', user_id: null, active: true, short_name: null, short_name_kn: null,
@@ -69,11 +69,12 @@ const messages = (language: MessageLanguage): [string, string][] => [
 const ANOTHER_CLINIC = /Smile Dental|6361816711|Rahil|Katapadi|ರಾಹಿಲ್|ಕಟಪಾಡಿ|Zohara|Shirva/
 
 describe("another clinic's messages", () => {
-  for (const language of ['en', 'kn'] as const) {
+  for (const language of ['en', 'kn', 'hi'] as const) {
     it.each(messages(language))(`%s (${language}) names that clinic and its dentist, and nothing of Smile Dental's`, (_, text) => {
       expect(text).not.toMatch(ANOTHER_CLINIC)
       expect(text).toContain('*Dr. Kavya Shenoy*')
       expect(text).toContain(`Brightside Dental, ${language === 'kn' ? 'ಮಣಿಪಾಲ' : 'Manipal'}`)
+      if (language === 'hi') expect(text).toMatch(/^नमस्ते Prakash जी,\n/)
     })
   }
 
@@ -134,5 +135,44 @@ describe("another clinic's prescription, UPI code and Tally file", () => {
     expect(file).toContain('<SVCURRENTCOMPANY>BRIGHTSIDE DENTAL</SVCURRENTCOMPANY>')
     expect(file).toContain('<PARENT>Sundry Debtors</PARENT>')
     expect(file).not.toMatch(/SMILE|Direct Incomes/i)
+  })
+})
+
+describe('messages in Hindi', () => {
+  it('a patient set to Hindi gets Hindi, and anything unknown English', () => {
+    expect(messageLanguage('hi')).toBe('hi')
+    expect(messageLanguage('kn')).toBe('kn')
+    expect(messageLanguage('ta')).toBe('en')
+    expect(messageLanguage(null)).toBe('en')
+  })
+
+  it('writes the date and time the same way on every phone', () => {
+    expect(hindiDate('2026-10-15')).toBe('गुरुवार, 15 अक्टूबर')
+    expect(hindiDate('2026-10-15', true)).toBe('15 अक्टूबर 2026')
+    expect(hindiTime('09:30')).toBe('सुबह 9:30')
+    expect(hindiTime('14:30')).toBe('दोपहर 2:30')
+    expect(hindiTime('18:00')).toBe('शाम 6:00')
+    expect(hindiTime('20:00')).toBe('रात 8:00')
+    expect(hindiTime('12:00')).toBe('दोपहर 12:00')
+  })
+
+  it('reads in Hindi from the greeting to the sign-off, with the address as the signboard has it', () => {
+    const text = confirmationMessage(OTHER_CLINIC, { name: 'Prakash Shetty', startsAt: starts, language: 'hi' })
+    expect(text).toContain('Brightside Dental में आपकी अपॉइंटमेंट *पक्की हो गई है*।')
+    expect(text).toContain('तारीख: *गुरुवार, 15 अक्टूबर*')
+    expect(text).toContain('समय: *शाम 6:00*')
+    expect(text).toContain('पता: 2nd Floor, Lakeview Arcade')
+    expect(text).toContain('रास्ता: https://maps.app.goo.gl/BrightsideManipal')
+    expect(text).toContain('+91 9000000001 पर कॉल या WhatsApp करें')
+    expect(text).toContain('शुभकामनाओं सहित,')
+    expect(text).not.toMatch(/Hi |Take care|See you soon|[\u0C80-\u0CFF]/)
+  })
+
+  it('the bill link and review ask are in Hindi too', () => {
+    const text = visitMessage(OTHER_CLINIC, { patientName: 'Prakash', visitDate: '2026-10-15', today: '2026-10-15', language: 'hi', review: true, photoLink: { url: 'https://x/r/a', labels: ['Prescription', 'X-ray', 'Bill'] } })
+    expect(text).toContain('आज आने के लिए धन्यवाद।')
+    expect(text).toContain('प्रिस्क्रिप्शन, फ़ोटो और बिल इस लिंक पर देखें')
+    expect(text).toContain('रिव्यू')
+    expect(text).not.toMatch(/Thank you|[\u0C80-\u0CFF]/)
   })
 })

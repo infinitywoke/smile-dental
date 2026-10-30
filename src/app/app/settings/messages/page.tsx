@@ -26,6 +26,8 @@ function Formatted({ text }: { text: string }) {
 
 // Every message a patient gets, with made-up details, in either language, from the signed-in clinic. A clinic
 // without a review link has no review message to show.
+const LANGUAGES = [{ language: 'kn', name: 'Kannada', word: 'ಕನ್ನಡ' }, { language: 'hi', name: 'Hindi', word: 'हिन्दी' }] as const
+
 function samples(clinic: ClinicContext, language: MessageLanguage, day: string, earlier: string) {
   const name = 'Prakash Shetty'
   const startsAt = blockInstant(day, '18:00')
@@ -55,31 +57,35 @@ async function MessagesContent() {
   const today = todayInIndia()
   let day = addDays(today, 1)
   while (isClosedDay(day)) day = addDays(day, 1)
-  const kannada = samples(clinic, 'kn', day, addDays(today, -1))
   const english = samples(clinic, 'en', day, addDays(today, -1))
+  const shown = LANGUAGES.filter(({ language }) => clinic.clinic.languages.includes(language))
   return (
     <div className="space-y-5">
       <BackLink href="/app/settings" label="Settings" />
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Messages in Kannada</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          What a patient who prefers Kannada gets on WhatsApp, with made-up details. Set it on their record: New
-          patient or Edit, &ldquo;WhatsApp messages in&rdquo; ಕನ್ನಡ.
-        </p>
-      </div>
-      {kannada.map((message, i) => (
-        <section key={message.title} className="space-y-2">
-          <h2 className="text-sm font-semibold text-gray-700">{i + 1}. {message.title}</h2>
-          <div lang="kn" className="rounded-2xl rounded-tl-sm bg-white p-4 text-[15px] leading-relaxed text-gray-900 shadow-sm ring-1 ring-gray-200 [overflow-wrap:anywhere]">
-            <Formatted text={message.text} />
+      {shown.map(({ language, name, word }) => (
+        <Fragment key={language}>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Messages in {name}</h1>
+            <p className="mt-1 text-sm text-gray-600">
+              What a patient who prefers {name} gets on WhatsApp, with made-up details. Set it on their record: New
+              patient or Edit, &ldquo;WhatsApp messages in&rdquo; {word}.
+            </p>
           </div>
-          <details className="px-1">
-            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-blue-600">The English one</summary>
-            <div className="rounded-xl bg-gray-50 p-3 text-sm leading-relaxed text-gray-700 ring-1 ring-gray-200 [overflow-wrap:anywhere]">
-              <Formatted text={english[i].text} />
-            </div>
-          </details>
-        </section>
+          {samples(clinic, language, day, addDays(today, -1)).map((message, i) => (
+            <section key={message.title} className="space-y-2">
+              <h2 className="text-sm font-semibold text-gray-700">{i + 1}. {message.title}</h2>
+              <div lang={language} className="rounded-2xl rounded-tl-sm bg-white p-4 text-[15px] leading-relaxed text-gray-900 shadow-sm ring-1 ring-gray-200 [overflow-wrap:anywhere]">
+                <Formatted text={message.text} />
+              </div>
+              <details className="px-1">
+                <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-blue-600">The English one</summary>
+                <div className="rounded-xl bg-gray-50 p-3 text-sm leading-relaxed text-gray-700 ring-1 ring-gray-200 [overflow-wrap:anywhere]">
+                  <Formatted text={english[i].text} />
+                </div>
+              </details>
+            </section>
+          ))}
+        </Fragment>
       ))}
     </div>
   )
