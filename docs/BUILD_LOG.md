@@ -651,3 +651,4 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - all 126 rows with their owner's clinic, the 17 fill triggers on and no trigger off, and the 17 clinic links refusing a delete;
         - row security on; the website reads neither table and runs neither helper; signed-in people read but can't write.
     - The live price list is still empty (Rahil hasn't loaded the Treatments sheet), so the site uses the list in `src/config/site.ts`, as planned. The live homepage shows its prices.
+- 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.
