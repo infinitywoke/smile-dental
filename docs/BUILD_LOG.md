@@ -728,6 +728,20 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - the visit test's photo lands in the clinic's folder and its stray file in the old one, and deleting the visit clears both.
     - **Gates:** tsc, lint, unit 340, build, and the whole browser suite against the live database (119 passed, 4 skipped).
     - **Pushed 914a4af, live in about 30 s:** the website and `/book` answer 200, Clinic OS's `/login` 200, and the old address's `/` 308.
+- 2026-10-30 **The end-state plan, and the sprint** (owner: "Show me a detailed plan about the endstate… complete everything in one continuous sprint and use the right models"). The plan is `docs/build/PLAN-endstate.md`, with the owner's decisions:
+    - live changes go in, and get pushed, without asking each time: an allow rule in `D:\AG Projects\New Smile\.claude\settings.local.json` for `npx supabase db query --linked --project-ref pmuecirfwmtsvojxleoq --file supabase/*`, in its Bash and PowerShell forms;
+    - Phase 1 plus Phase 2's code, with a demo clinic (invented data) for showing prospects;
+    - English, Kannada and Hindi;
+    - whether patients may pick a dentist is a clinic setting (no at Smile Dental);
+    - a dentist is one patient at a time, unless a two-chairs-at-once booking is confirmed.
+- 2026-10-30 **Multi-clinic, slice 3a: the clinic's details in the database** (`supabase/multi-clinic-3-2026-10.sql`, folded into schema.sql; nothing reads them until 3b).
+    - **On `clinics`:** place (English and Kannada), phone, WhatsApp, email, the address in full and in one line, the map and review links, UPI ID and payee, logo, `tally` (version, company, ledgers, group) and `chair_monitor` (name, Wi-Fi, password, address).
+    - **On `dentists`:** short name (English and Kannada), qualifications, registration number and signature.
+    - **Smile Dental Clinic's** are filled in exactly as `src/config/site.ts` has them, and Dr. Rahil's likewise.
+    - **The test account's clinic** ("New clinic") is a copy of them, in this file only, so the browser tests read the messages Rahil's patients get.
+    - **Who may change them:** members read them and can't change them; the website reads none.
+    - **Tests:** `supabase/tests/details.check.mjs` (9).
+    - **Applied live,** the first change let through by the allow rule. A read-only check found both clinics with the details and their dentists with theirs.
 - 2026-10-30 **Alerts: everything that needs the dentist, in one place** (owner: "a notifications button to check all notifications and get a short summary of the issue - when the doctor clicks, I want them to be directed to what action needs to be taken").
     - **The button:** Alerts, with a bell, on the bottom bar between Patients and Practice.
         - It carries how many need a decision now, in red ("9+" past nine), read aloud as "Alerts, 2 need you".

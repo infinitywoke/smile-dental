@@ -2455,3 +2455,63 @@ create unique index if not exists treatment_materials_once_per_clinic
   on public.treatment_materials (clinic_id, treatment_slug, charge_description, item_id);
 create unique index if not exists stock_items_clinic_name on public.stock_items (clinic_id, lower(name)) where not archived;
 create unique index if not exists price_list_once_per_clinic on public.price_list (clinic_id, treatment, detail);
+
+-- Multi-clinic, slice 3a (30 Oct 2026, supabase/multi-clinic-3-2026-10.sql): the clinic's details (place, phone, address,
+-- links, UPI, logo, Tally, chair monitor) and each dentist's (short names, qualifications, registration, signature)
+-- in the database, Smile Dental Clinic's filled in. Clinic OS reads them from slice 3b.
+
+-- The clinic's details --------------------------------------------------------------------------------------
+alter table public.clinics
+  add column if not exists place text check (char_length(place) <= 60),
+  add column if not exists place_kn text check (char_length(place_kn) <= 60),
+  add column if not exists phone text check (char_length(phone) <= 30),
+  add column if not exists whatsapp text check (char_length(whatsapp) <= 30),
+  add column if not exists email text check (char_length(email) <= 120),
+  add column if not exists address text check (char_length(address) <= 300),
+  add column if not exists short_address text check (char_length(short_address) <= 120),
+  add column if not exists maps_link text check (maps_link ~ '^https://' and char_length(maps_link) <= 300),
+  add column if not exists review_link text check (review_link ~ '^https://' and char_length(review_link) <= 300),
+  add column if not exists upi_id text check (char_length(upi_id) <= 100),
+  add column if not exists upi_payee text check (char_length(upi_payee) <= 100),
+  add column if not exists logo text check (char_length(logo) <= 300),
+  -- {version, company, cashLedger, bankLedger, patientGroup, incomeLedger}: what Send to Tally starts from
+  add column if not exists tally jsonb not null default '{}'::jsonb,
+  -- {name, wifi, password, address}: the chair's camera monitor, where a clinic has one
+  add column if not exists chair_monitor jsonb;
+
+-- A dentist's details (a visiting specialist's too) ---------------------------------------------------------
+alter table public.dentists
+  add column if not exists short_name text check (char_length(short_name) <= 60),
+  add column if not exists short_name_kn text check (char_length(short_name_kn) <= 60),
+  add column if not exists qualifications text check (char_length(qualifications) <= 200),
+  add column if not exists registration text check (char_length(registration) <= 60),
+  add column if not exists signature text check (char_length(signature) <= 300);
+
+-- Smile Dental Clinic, as src/config/site.ts has it (each value verified with the owner) ---------------------
+update public.clinics set
+  place = 'Katapadi',
+  place_kn = 'ಕಟಪಾಡಿ',
+  phone = '+91 6361816711',
+  whatsapp = '+91 6361816711',
+  email = 'smiledental8925@gmail.com',
+  address = '1st Floor, YM Zohara Building, Shirva Rd, near Bank of Baroda (formerly Vijaya Bank), Yenna Gudde, Katapadi - 574105',
+  short_address = '1st Floor, YM Zohara Building, Shirva Road, Katapadi',
+  maps_link = 'https://maps.app.goo.gl/b8YHvgUQt4hPuCQL6',
+  review_link = 'https://g.page/r/CUdtAiciUfvKEBM/review',
+  upi_id = 'rahil.yusuf.k-1@okhdfcbank',
+  upi_payee = 'Smile Dental Clinic',
+  logo = '/images/logo.jpg',
+  tally = jsonb_build_object('version', 'Tally.ERP 9', 'company', 'SMILE DENTAL0', 'cashLedger', 'Cash',
+                             'bankLedger', 'Savings A/C', 'patientGroup', 'Direct Incomes', 'incomeLedger', ''),
+  chair_monitor = jsonb_build_object('name', 'Intellicam', 'wifi', 'Q5Y422EW500-294', 'password', '12345678',
+                                     'address', 'http://192.168.1.1')
+where slug = 'smile-dental-katapadi' and phone is null;
+
+update public.dentists d set
+  short_name = 'Dr. Rahil',
+  short_name_kn = 'ಡಾ. ರಾಹಿಲ್',
+  qualifications = 'BDS, November 2020 - Yenapoya Deemed to be University',
+  registration = '51950-A',
+  signature = '/images/signature.png'
+from public.clinics c
+where c.id = d.clinic_id and c.slug = 'smile-dental-katapadi' and d.name = 'Dr. Rahil Yusuf' and d.short_name is null;
