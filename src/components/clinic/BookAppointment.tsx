@@ -23,6 +23,9 @@ type Props = {
   notice?: ReactNode
   // How long the appointment is, in minutes
   minutes?: number
+  // The clinic's dentists, when there is more than one to choose from, and who is chosen first
+  dentists?: { id: string; name: string; visiting: boolean }[]
+  dentistId?: string | null
 }
 
 const inputClass =
@@ -30,7 +33,7 @@ const inputClass =
 
 // Phone booking from the calendar: pick a patient already in the app, or add a new one with just a
 // name and number. A new patient's number is looked up first, so a known patient is never doubled.
-export function BookAppointment({ startsAt, when, patients: initialPatients, backTo, backLabel = 'Today', only, notice, minutes = DEFAULT_LENGTH }: Props) {
+export function BookAppointment({ startsAt, when, patients: initialPatients, backTo, backLabel = 'Today', only, notice, dentists, dentistId, minutes = DEFAULT_LENGTH }: Props) {
   const [mode, setMode] = useState<'existing' | 'new'>(only || initialPatients.length > 0 ? 'existing' : 'new')
   const [patientId, setPatientId] = useState<string | null>(only?.id ?? null)
   const [reason, setReason] = useState('')
@@ -40,6 +43,9 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
   const [query, setQuery] = useState('')
   const [patients, setPatients] = useState(initialPatients)
   const [error, setError] = useState<string | null>(null)
+  const [dentist, setDentist] = useState<string | null>(dentistId ?? dentists?.[0]?.id ?? null)
+  // The dentist already has someone: asked once, so two chairs at once is never a slip
+  const [busy, setBusy] = useState<string | null>(null)
   const [done, setDone] = useState<{ whatsappUrl?: string; patientId?: string } | null>(null)
   // New patient: the number typed already belongs to these patients (nothing was saved yet)
   const [samePhone, setSamePhone] = useState<{ id: string; name: string; age: number | null }[] | null>(null)
@@ -61,19 +67,22 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
 
   function run(work: () => ReturnType<typeof bookNewPatient>) {
     setError(null)
+    setBusy(null)
     startTransition(async () => {
       const result = await work()
-      if (result.error) setError(result.error)
+      if (result.dentistBusy) setBusy(result.dentistBusy)
+      else if (result.error) setError(result.error)
       else if (result.matches) setSamePhone(result.matches)
       else setDone({ whatsappUrl: result.whatsappUrl, patientId: result.patientId })
     })
   }
 
-  function submit() {
+  function submit(twoChairs = false) {
+    const place = { dentistId: dentist, twoChairs }
     run(() =>
       mode === 'existing'
-        ? bookAppointment(patientId ?? '', startsAt, reason, minutes)
-        : bookNewPatient({ name, phone, gender, reason }, startsAt, false, minutes),
+        ? bookAppointment(patientId ?? '', startsAt, reason, minutes, place)
+        : bookNewPatient({ name, phone, gender, reason }, startsAt, false, minutes, place),
     )
   }
 
@@ -154,6 +163,20 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
         </div>
       )}
 
+      {dentists && dentists.length > 1 && (
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold text-gray-700">Who will see them?</p>
+          <div className="flex flex-wrap gap-2">
+            {dentists.map((d) => (
+              <button key={d.id} type="button" aria-pressed={dentist === d.id} onClick={() => { setDentist(d.id); setBusy(null) }}
+                className={`min-h-12 rounded-full px-4 text-base font-medium ring-1 ring-inset ${dentist === d.id ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-gray-700 ring-gray-300'}`}>
+                {d.name}{d.visiting ? ' (visiting)' : ''}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-1.5">
         <label htmlFor="reason" className="text-sm font-semibold text-gray-700">Reason (optional)</label>
         <input id="reason" value={reason} onChange={(e) => setReason(e.target.value)} autoComplete="off" className={inputClass} placeholder="Check-up, tooth pain…" />
@@ -166,25 +189,39 @@ export function BookAppointment({ startsAt, when, patients: initialPatients, bac
         </div>
       )}
 
-      {mode === 'new' && samePhone ? (
+      {busy ? (
+        // Never booked by accident: the overlap is refused first, and only this answer books it
+        <div role="alert" className="space-y-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
+          <p className="text-base font-semibold text-amber-900">{busy} at this time.</p>
+          <p className="text-sm text-amber-900">Book this patient too, in another chair, or choose another time or dentist.</p>
+          <button type="button" disabled={pending} onClick={() => submit(true)}
+            className="min-h-12 w-full rounded-full bg-blue-600 px-5 py-3 text-base font-semibold text-white disabled:opacity-60">
+            Yes, two chairs at once
+          </button>
+          <button type="button" disabled={pending} onClick={() => setBusy(null)}
+            className="min-h-12 w-full rounded-full bg-white px-5 py-3 text-base font-semibold text-gray-900 ring-1 ring-gray-300 disabled:opacity-60">
+            No, go back
+          </button>
+        </div>
+      ) : mode === 'new' && samePhone ? (
         // Family members share phones: book the person already in the app, or add someone new
         <div className="space-y-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
           <p className="text-sm font-semibold text-amber-900">
             This number belongs to {samePhone.length === 1 ? samePhone[0].name : `${samePhone.length} patients`}.
           </p>
           {samePhone.map((m) => (
-            <button key={m.id} type="button" disabled={pending} onClick={() => run(() => bookAppointment(m.id, startsAt, reason, minutes))}
+            <button key={m.id} type="button" disabled={pending} onClick={() => run(() => bookAppointment(m.id, startsAt, reason, minutes, { dentistId: dentist }))}
               className="min-h-12 w-full rounded-full bg-blue-600 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
               Book {m.name}{m.age !== null ? ` (${m.age} yrs)` : ''}
             </button>
           ))}
-          <button type="button" disabled={pending} onClick={() => run(() => bookNewPatient({ name, phone, gender, reason }, startsAt, true, minutes))}
+          <button type="button" disabled={pending} onClick={() => run(() => bookNewPatient({ name, phone, gender, reason }, startsAt, true, minutes, { dentistId: dentist }))}
             className="min-h-12 w-full rounded-full bg-white px-5 py-3 text-base font-semibold text-gray-900 ring-1 ring-gray-300 disabled:opacity-60">
             Someone new: {name.trim()}
           </button>
         </div>
       ) : (
-        <button type="button" onClick={submit} disabled={!ready || pending}
+        <button type="button" onClick={() => submit()} disabled={!ready || pending}
           className="min-h-12 w-full rounded-full bg-blue-600 px-5 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
           {pending ? 'Booking…' : 'Book appointment'}
         </button>

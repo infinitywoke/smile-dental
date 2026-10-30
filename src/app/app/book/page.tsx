@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getPatient, searchPatients } from '@/lib/data/patients'
 import { getDaySchedule, type DaySchedule } from '@/lib/data/appointments'
+import { getTeam } from '@/lib/data/team'
 import { todayInIndia } from '@/lib/dates'
 import { patientAge } from '@/lib/patient-fields'
 import { ALL_BLOCKS, DEFAULT_LENGTH, addDays, clinicStartOf, endOf, formatBlock, formatDay, formatWhen, lengthFrom, lengthLabel } from '@/lib/schedule'
@@ -39,7 +40,7 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
     const start = new Date(slot.iso)
     const { date, time } = slot
 
-    const schedule = await getDaySchedule(date, minutes)
+    const [schedule, team] = await Promise.all([getDaySchedule(date, minutes), getTeam()])
     const block = schedule.blocks.find((b) => b.time === time)
     const when = `${formatWhen(start)} – ${formatBlock(endOf(time, minutes))} (${lengthLabel(minutes)})`
     const backTo = `/app?d=${date}`
@@ -73,6 +74,8 @@ async function BookContent({ searchParams }: PageProps<'/app/book'>) {
         </div>
 
         <BookAppointment
+          dentists={team.dentists}
+          dentistId={team.myDentistId}
           startsAt={start.toISOString()}
           when={when}
           backTo={known ? `/app/patients/${known.id}` : backTo}

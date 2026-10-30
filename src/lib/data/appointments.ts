@@ -44,10 +44,13 @@ export type AppointmentRow = {
   status: string
   // The visit started from this appointment, if any
   visit_id: string | null
+  // Where it is: shown when the clinic has more than one chair or dentist
+  chair: { name: string } | null
+  dentist: { name: string; short_name: string | null } | null
   patient: { id: string; name: string; phone: string | null; medical_alerts: string | null; language: string | null }
 }
 
-const APPOINTMENT_SELECT = 'id, patient_id, starts_at, duration_min, reason, status, visit_id, patient:patients!inner (id, name, phone, medical_alerts, language)'
+const APPOINTMENT_SELECT = 'id, patient_id, starts_at, duration_min, reason, status, visit_id, chair:chairs (name), dentist:dentists (name, short_name), patient:patients!inner (id, name, phone, medical_alerts, language)'
 
 function dayRange(date: string) {
   const start = new Date(blockInstant(date, '00:00'))
@@ -64,7 +67,7 @@ export async function getDaySchedule(date: string, length: number = DEFAULT_LENG
   const { start, end } = dayRange(date)
   const iso = { from: start.toISOString(), to: end.toISOString() }
 
-  const [appointments, timeOff, requests] = await Promise.all([
+  const [appointments, timeOff, requests, chairs] = await Promise.all([
     supabase
       .from('appointments')
       .select(APPOINTMENT_SELECT)
@@ -78,6 +81,7 @@ export async function getDaySchedule(date: string, length: number = DEFAULT_LENG
       .eq('status', 'new')
       .gte('requested_start', iso.from)
       .lt('requested_start', iso.to),
+    supabase.from('chairs').select('id', { count: 'exact', head: true }).eq('active', true),
   ])
   if (appointments.error) throw appointments.error
   if (timeOff.error) throw timeOff.error
@@ -87,16 +91,20 @@ export async function getDaySchedule(date: string, length: number = DEFAULT_LENG
   const rows = appointments.data as unknown as AppointmentRow[]
   const overlaps = (aStart: number, aEnd: number, bStart: number, bEnd: number) => aStart < bEnd && bStart < aEnd
 
+  // A time is taken once every chair is (with one chair, by the first appointment there)
+  const chairsInUse = Math.max(chairs.count ?? 1, 1)
+
   // What a stretch of time holds, from the first thing found: an appointment, a request, time off, the past
   const stateOf = (time: string, minutes: number): DayBlock => {
     const instant = blockInstant(date, time)
     const s = new Date(instant).getTime()
     const e = s + minutes * MINUTE
     const block: DayBlock = { time, instant, state: 'free' }
-    const appt = rows.find((a) => {
+    const there = rows.filter((a) => {
       const as = new Date(a.starts_at).getTime()
       return overlaps(as, as + a.duration_min * MINUTE, s, e)
     })
+    const appt = there.length >= chairsInUse ? there[0] : undefined
     if (appt) {
       return { ...block, state: 'booked', appointmentId: appt.id, patientId: appt.patient_id, patientName: appt.patient.name, reason: appt.reason }
     }

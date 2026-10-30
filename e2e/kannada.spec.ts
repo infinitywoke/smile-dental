@@ -17,7 +17,7 @@ test.afterAll(async () => {
 test('Settings shows every patient message in Kannada, with the English one beside it', async ({ page }) => {
   await signIn(page)
   await page.goto('/app/settings')
-  await visible(page.getByRole('link', { name: 'Messages in Kannada' })).click()
+  await visible(page.getByRole('link', { name: 'Messages in other languages' })).click()
   await expect(page).toHaveURL(/\/app\/settings\/messages$/)
   await expect(visible(page.getByRole('heading', { level: 2 }))).toHaveCount(10)
   await expect(visible(page.getByText('ಖಚಿತವಾಗಿದೆ')).first()).toBeVisible()

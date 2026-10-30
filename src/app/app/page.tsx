@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { AlertTriangle, Camera, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
 import { getClinic } from '@/lib/data/clinic'
+import { getTeam, hasOneOfEach } from '@/lib/data/team'
 import { getVisitsOn } from '@/lib/data/visits'
 import { getDues, type Due } from '@/lib/data/dues'
 import { getAppointmentsOn, getDaySchedule, getPendingRequests } from '@/lib/data/appointments'
@@ -63,6 +64,8 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     // Whose name and phone the messages below carry
     getClinic(),
   ])
+  // With one chair and one dentist there is nothing to say about where an appointment is
+  const oneOfEach = hasOneOfEach(await getTeam())
   // A booked appointment whose time is over and that has no visit: the patient may not have come
   const now = new Date().getTime()
   const over = (startsAt: string, minutes: number) => new Date(startsAt).getTime() + minutes * 60_000 < now
@@ -219,7 +222,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
                     </span>
                     <span className="truncate text-sm text-gray-500">
                       <span className="hud-mono font-semibold text-gray-900">{formatTimeOf(row.appointment.starts_at)}</span>
-                      {[row.appointment.reason, row.appointment.duration_min !== DEFAULT_LENGTH && lengthLabel(row.appointment.duration_min)].filter(Boolean).map((part) => ` · ${part}`).join('')}
+                      {[!oneOfEach && row.appointment.chair?.name, !oneOfEach && (row.appointment.dentist?.short_name ?? row.appointment.dentist?.name), row.appointment.reason, row.appointment.duration_min !== DEFAULT_LENGTH && lengthLabel(row.appointment.duration_min)].filter(Boolean).map((part) => ` · ${part}`).join('')}
                     </span>
                   </Link>
                   {/* Start (today), and once the time is over, "Didn't come" under it */}

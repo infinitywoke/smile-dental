@@ -16,6 +16,8 @@ import { getBusyCounts, getDaySchedule, getDaysOff, type DaySchedule } from '@/l
 type Result = { error?: string }
 type WithWhatsapp = Result & {
   whatsappUrl?: string
+  // The dentist already has someone then: who, so the screen can ask whether two chairs at once is meant
+  dentistBusy?: string
   appointmentId?: string
   patientId?: string
   // The time actually booked (a retry can find the request booked at another time)
@@ -152,14 +154,32 @@ export async function declineBookingRequest(requestId: string): Promise<WithWhat
   return { declined: true, whatsappUrl: whatsappLink(data.phone, declineMessage(clinic, { name: data.name })) }
 }
 
+// "Dr. Kavya already has Asha Rao": what the dentist is booked for at that time
+async function busyWith(dentistId: string, startsAt: string, minutes: number): Promise<string> {
+  const supabase = await createClient()
+  const end = new Date(new Date(startsAt).getTime() + minutes * 60_000).toISOString()
+  const { data } = await supabase
+    .from('appointments')
+    .select('starts_at, duration_min, patient:patients!inner (name), dentist:dentists!inner (name, short_name)')
+    .eq('dentist_id', dentistId).eq('status', 'booked').lt('starts_at', end)
+    .gte('starts_at', new Date(new Date(startsAt).getTime() - 4 * 60 * 60_000).toISOString())
+    .order('starts_at', { ascending: false })
+  const rows = (data ?? []) as unknown as { starts_at: string; duration_min: number; patient: { name: string }; dentist: { name: string; short_name: string | null } }[]
+  const found = rows.find((a) => new Date(a.starts_at).getTime() + a.duration_min * 60_000 > new Date(startsAt).getTime())
+  return found ? `${found.dentist.short_name ?? found.dentist.name} already has ${found.patient.name}` : 'This dentist already has a patient'
+}
+
 // Phone booking from the calendar for a patient already in the app
 export async function bookAppointment(
   patientId: string,
   startsAt: string,
   reason: string,
   minutes: number = DEFAULT_LENGTH,
+  // Who sees them (none: the database picks a free dentist), and a deliberate second chair at once
+  place: { dentistId?: string | null; twoChairs?: boolean } = {},
 ): Promise<WithWhatsapp> {
   await getDoctor()
+  if (place.dentistId && !UUID.test(place.dentistId)) return { error: 'Something went wrong. Please try again.' }
   if (!UUID.test(patientId)) return { error: 'Something went wrong. Please try again.' }
   const block = startFor(startsAt, minutes)
   if (!block) return { error: DOESNT_FIT(minutes) }
@@ -179,6 +199,8 @@ export async function bookAppointment(
       duration_min: minutes,
       reason: reason.trim(),
       status: 'booked',
+      ...(place.dentistId ? { dentist_id: place.dentistId } : {}),
+      two_chairs: place.twoChairs === true,
     })
     .select('id')
     .single()
@@ -188,7 +210,13 @@ export async function bookAppointment(
     const { data: own } = error.code === '23P01'
       ? await supabase.from('appointments').select('id').eq('patient_id', patientId).eq('starts_at', block.iso).eq('status', 'booked').maybeSingle()
       : { data: null }
-    if (!own) return { error: messageOf(error, 'Could not book the appointment. Please try again.') }
+    if (!own) {
+      if (error.message.includes('appointments_dentist_free') && place.dentistId) {
+        const busy = await busyWith(place.dentistId, block.iso, minutes)
+        return { error: `${busy} at this time.`, dentistBusy: busy }
+      }
+      return { error: messageOf(error, 'Could not book the appointment. Please try again.') }
+    }
     appointmentId = own.id
   }
 
@@ -209,6 +237,7 @@ export async function bookNewPatient(
   startsAt: string,
   someoneNew = false,
   minutes: number = DEFAULT_LENGTH,
+  place: { dentistId?: string | null; twoChairs?: boolean } = {},
 ): Promise<WithWhatsapp> {
   await getDoctor()
   const name = input.name.trim()
@@ -233,7 +262,7 @@ export async function bookNewPatient(
     .single()
   if (error) return { error: 'Could not save the patient. Please try again.' }
 
-  const booked = await bookAppointment(patient.id, block.iso, input.reason, minutes)
+  const booked = await bookAppointment(patient.id, block.iso, input.reason, minutes, place)
   if (booked.error) {
     // Don't leave a patient with no appointment behind
     await supabase.from('patients').delete().eq('id', patient.id)
