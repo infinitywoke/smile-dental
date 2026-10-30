@@ -33,8 +33,16 @@ Supabase Free.
         - the 17 tables' rules go by the row's clinic, and a new row names its maker; the cross-table checks
           compare clinics;
         - files: the clinic's folder or a member's; request voice notes by the request's clinic;
-        - by clinic too: confirming a request, loading the price list (and the list the website reads), the
-          time-off check on appointments, a charge's materials, and no two booked appointments overlapping;
+        - by clinic too: confirming a request, loading the price list (and the list the website reads), and a
+          charge's materials;
+        - **chairs and dentists** (owner: "more than one dentist and more than one chair that can be occupied at
+          the same time"):
+            - an appointment is in a chair, with a dentist (a visiting specialist needs no login);
+            - a chair, a dentist and a patient each have one booked appointment at a time;
+            - time off is a dentist's, or the whole clinic's (everything until now is the whole clinic's);
+            - each clinic starts with Chair 1 and its owner as dentist;
+            - an appointment that names neither gets the booking person's dentist and the first free chair, and a
+              moved one changes chair if its own is taken;
         - clinic keys beside the per-person ones (Tally settings, materials, stock names, price-list options);
         - `clinic_id` is required; a login with records can't be deleted (it deleted them); the clinic is
           filled in first (trigger `0_fill_clinic`, since a table's triggers fire in name order);
@@ -85,6 +93,12 @@ Supabase Free.
     - A set-up script makes the clinic, invites the dentist and fills the settings.
 6. **Hours, closed days, holidays and message languages per clinic,** in the app and in SQL, with the test that
    keeps the two in step.
+7. **Chairs and dentists in the app and on the website** (the database has them from slice 2a):
+    - the clinic's settings list its chairs and dentists, including visiting specialists and the days they come;
+    - booking picks the dentist (the person booking, by default), the calendar shows each chair, and time off
+      can be one dentist's;
+    - the website's free times count chairs and dentists: a time is free while a chair and a dentist are, and a
+      patient may pick a specialist.
 
 After that: the booking API v1 and component, the website template on Cloudflare Pages, integration adapters,
 feature switches, and the admin console.

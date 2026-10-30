@@ -30,6 +30,8 @@ const D = '44444444-4444-4444-4444-444444444444' // a login made later, in no cl
 const PA = 'aaaaaaaa-0000-0000-0000-000000000001'
 const VA = 'aaaaaaaa-0000-0000-0000-000000000002'
 const RA = 'aaaaaaaa-0000-0000-0000-000000000003' // a website request to Dr. Rahil's clinic
+const PA2 = 'aaaaaaaa-0000-0000-0000-000000000004'
+const PA3 = 'aaaaaaaa-0000-0000-0000-000000000005'
 const PB = 'bbbbbbbb-0000-0000-0000-000000000001'
 const VB = 'bbbbbbbb-0000-0000-0000-000000000002'
 
@@ -102,6 +104,13 @@ const fill = (db) => db.exec(`
   const cascading = await rowsOf(db, `select t.relname from pg_constraint k join pg_class t on t.oid = k.conrelid
     where k.contype = 'f' and k.confrelid = 'auth.users'::regclass and k.confdeltype <> 'r' and t.relname = any($1)`, [TABLES])
   check("no clinic table's records go when the login that made them does", cascading.length === 0, JSON.stringify(cascading))
+  const places = await rowsOf(db, `select c.slug,
+      (select string_agg(h.name, ',') from public.chairs h where h.clinic_id = c.id) chairs,
+      (select string_agg(d.name || ':' || coalesce(d.user_id::text, ''), ',') from public.dentists d where d.clinic_id = c.id) dentists
+    from public.clinics c order by c.slug`)
+  check('every clinic starts with Chair 1 and its owner as its dentist (Smile Dental Clinic: Dr. Rahil Yusuf)',
+    places.length === 2 && places.every((p) => p.chairs === 'Chair 1')
+      && places.find((p) => p.slug === 'smile-dental-katapadi')?.dentists === `Dr. Rahil Yusuf:${A}`, JSON.stringify(places))
 }
 
 // 2. The database as it was (the live one, slice 1 in), with rows and files, then the change file twice
@@ -130,6 +139,9 @@ check('each login sees exactly what it saw, table by table and file by file', JS
 check('Dr. Rahil still sees his patient, photo, recording, bill and voice note',
   after[A].patients === 1 && after[A]['visit-photos'] === 1 && after[A]['visit-audio'] === 1 && after[A]['cost-bills'] === 1 && after[A]['request-voice'] === 1,
   JSON.stringify(after[A]))
+check("Dr. Rahil's appointment is in Chair 1, with him (and otherwise unchanged: the guard checked)",
+  JSON.stringify(await one(db, `select h.name chair, d.name dentist from public.appointments a join public.chairs h on h.id = a.chair_id
+    join public.dentists d on d.id = a.dentist_id where a.owner_id = '${A}'`)) === JSON.stringify({ chair: 'Chair 1', dentist: 'Dr. Rahil Yusuf' }))
 check('a login with records cannot be deleted', (await err(db, `delete from auth.users where id = '${A}'`)) !== null)
 check('…and nothing went with the attempt', (await count(db, `select 1 from public.patients where owner_id = '${A}'`)) === 1)
 
@@ -168,6 +180,47 @@ check("the assistant uploads to the clinic's folder or their own", (await upload
 check("…not into Dr. Rahil's folder or another clinic's", (await upload(`${A}/${VA}/c2.jpg`)) !== null && (await upload(`${B}/${VB}/c4.jpg`)) !== null)
 check("a photo's row may point at a file in a member's folder", (await err(db, `insert into public.visit_photos (visit_id, storage_path) values ('${VA}', '${C}/${VA}/c3.jpg')`)) === null)
 check("…but not at another visit's folder", (await err(db, `insert into public.visit_photos (visit_id, storage_path) values ('${VA}', '${C}/${VB}/x.jpg')`)) !== null)
+
+// More chairs and dentists: the clinic adds Chair 2, a visiting orthodontist and a visiting surgeon (no logins)
+await db.exec('reset role')
+await db.exec(`insert into public.chairs (clinic_id, name) values ('${clinicA}', 'Chair 2');
+  insert into public.dentists (clinic_id, name) values ('${clinicA}', 'Dr. Visiting Orthodontist'), ('${clinicA}', 'Dr. Visiting Surgeon');
+  insert into public.patients (id, owner_id, name) values ('${PA2}', '${A}', 'Meera Shetty'), ('${PA3}', '${A}', 'Kiran Pai');`)
+const idOf = async (table, name) => (await one(db, `select id::text i from public.${table} where name = '${name}' and clinic_id = '${clinicA}'`)).i
+const [RAHIL, ORTHO, SURGEON] = [await idOf('dentists', 'Dr. Rahil Yusuf'), await idOf('dentists', 'Dr. Visiting Orthodontist'), await idOf('dentists', 'Dr. Visiting Surgeon')]
+const [CHAIR1, CHAIR2] = [await idOf('chairs', 'Chair 1'), await idOf('chairs', 'Chair 2')]
+await db.exec(`insert into public.time_off (owner_id, dentist_id, starts_at, ends_at) values ('${A}', '${RAHIL}', '2027-01-07T03:00:00Z', '2027-01-07T12:00:00Z')`)
+await as(db, C)
+const book = (patient, dentist, at, chair) => err(db, `insert into public.appointments (patient_id, dentist_id, starts_at, duration_min, status${chair ? ', chair_id' : ''})
+  values ('${patient}', '${dentist}', '${at}', 30, 'booked'${chair ? `, '${chair}'` : ''})`)
+const chairOf = async (patient, at) => (await one(db, `select h.name from public.appointments a join public.chairs h on h.id = a.chair_id
+  where a.patient_id = '${patient}' and a.starts_at = '${at}' and a.status = 'booked'`))?.name
+const T = '2027-01-04T04:00:00Z' // Dr. Rahil is booked then, in Chair 1
+const U = '2027-01-04T05:00:00Z'
+const placed = await book(PA2, ORTHO, T)
+check("another dentist is booked at Dr. Rahil's time, into the free chair", placed === null && (await chairOf(PA2, T)) === 'Chair 2', placed)
+const third = await book(PA3, SURGEON, T)
+check('…but not a third at once: both chairs are taken', /appointments_chair_free/.test(third ?? ''), third)
+await book(PA2, RAHIL, U)
+const twice = await book(PA3, RAHIL, U)
+check('a dentist is in one chair at a time (Chair 2 is free, Dr. Rahil is not)', /appointments_dentist_free/.test(twice ?? ''), twice)
+const both = await book(PA2, SURGEON, U)
+check('…and so is a patient', /appointments_patient_free/.test(both ?? ''), both)
+check("Dr. Rahil's own time off leaves the others bookable", (await book(PA3, ORTHO, '2027-01-07T05:00:00Z')) === null)
+check('…and blocks him alone', (await book(PA, RAHIL, '2027-01-07T06:00:00Z'))?.includes('blocked off'))
+await book(PA3, SURGEON, '2027-01-08T04:00:00Z', CHAIR2)
+const moved = await err(db, `update public.appointments set starts_at = '2027-01-08T04:00:00Z' where patient_id = '${PA2}' and starts_at = '${T}'`)
+check('moved to a time when its chair is taken, an appointment changes to the free chair', moved === null && (await chairOf(PA2, '2027-01-08T04:00:00Z')) === 'Chair 1', moved)
+check("members read the clinic's chairs and dentists, and can't add them (the operator does, for now)",
+  (await count(db, 'select 1 from public.chairs')) === 2 && (await count(db, 'select 1 from public.dentists')) === 3
+    && (await err(db, `insert into public.chairs (clinic_id, name) values ('${clinicA}', 'Chair 3')`)) !== null)
+await as(db, B)
+check("another clinic sees only its own chair, and can't book into this clinic's",
+  (await count(db, 'select 1 from public.chairs')) === 1
+    && (await err(db, `insert into public.appointments (patient_id, chair_id, starts_at, duration_min, status) values ('${PB}', '${CHAIR1}', '2027-01-09T04:00:00Z', 30, 'booked')`)) !== null)
+await as(db, '')
+check('the website (anon) reads no chairs or dentists', (await err(db, 'select * from public.chairs')) !== null && (await err(db, 'select * from public.dentists')) !== null)
+await as(db, C)
 
 // The other clinic sees none of it, and can't reach into it
 await as(db, B)

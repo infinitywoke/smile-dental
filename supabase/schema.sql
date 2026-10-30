@@ -310,15 +310,18 @@ create or replace trigger appointments_set_updated_at
   before update on public.appointments
   for each row execute function public.set_updated_at();
 
--- No double booking: the database refuses overlapping booked appointments
+-- No double booking: the database refuses overlapping booked appointments (multi-clinic slice 2a, at the
+-- end, makes it one per chair and one per dentist; this one is not brought back once that is in)
 do $$
 begin
-  alter table public.appointments
-    add constraint appointments_no_overlap
-    exclude using gist (
-      owner_id with =,
-      tstzrange(starts_at, public.appointment_end(starts_at, duration_min)) with &&
-    ) where (status = 'booked');
+  if not exists (select 1 from pg_constraint where conname = 'appointments_chair_free') then
+    alter table public.appointments
+      add constraint appointments_no_overlap
+      exclude using gist (
+        owner_id with =,
+        tstzrange(starts_at, public.appointment_end(starts_at, duration_min)) with &&
+      ) where (status = 'booked');
+  end if;
 exception when duplicate_object or duplicate_table then null;
 end;
 $$;
@@ -1880,7 +1883,8 @@ $$;
 
 -- Multi-clinic, slice 2a (30 Oct 2026, supabase/multi-clinic-2-2026-10.sql): access by clinic. Members read and write
 -- their clinic's rows and files; a new row is its maker's; records outlive their maker; the clinic is filled in
--- first. The website's public functions and the notifications still go through app_config's login (slice 4).
+-- first; appointments are in a chair with a dentist, one at a time each. The website's public functions and the
+-- notifications still go through app_config's login (slice 4).
 
 -- The clinic's own folder, or a member's: is this folder one of the signed-in person's clinic? -------------
 create or replace function public.is_clinic_folder(p_folder text)
@@ -2109,24 +2113,178 @@ create policy "Clinic deletes request voice notes" on storage.objects
     select 1 from public.booking_requests b
     where b.id::text = split_part(storage.objects.name, '.', 1) and b.clinic_id = (select public.my_clinic_id())));
 
--- No two booked appointments overlap in a clinic (it was per login) -------------------------------------------
+-- The clinic's chairs and dentists -----------------------------------------------------------------------------
+-- A dentist needs no login (a visiting specialist); one with a login is linked to it. One that no longer comes,
+-- or a chair out of use, is made inactive rather than deleted: appointments keep pointing at them. Set up by the
+-- operator for now (the clinic's settings will list them).
+create table if not exists public.chairs (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics (id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 60),
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (id, clinic_id)
+);
+
+create table if not exists public.dentists (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics (id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 100),
+  user_id uuid references auth.users (id) on delete set null,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (id, clinic_id)
+);
+create unique index if not exists dentists_one_per_login on public.dentists (clinic_id, user_id) where user_id is not null;
+
+alter table public.chairs enable row level security;
+alter table public.dentists enable row level security;
+drop policy if exists "Members read their clinic's chairs" on public.chairs;
+create policy "Members read their clinic's chairs" on public.chairs
+  for select to authenticated
+  using (clinic_id = (select public.my_clinic_id()));
+drop policy if exists "Members read their clinic's dentists" on public.dentists;
+create policy "Members read their clinic's dentists" on public.dentists
+  for select to authenticated
+  using (clinic_id = (select public.my_clinic_id()));
+revoke all on public.chairs, public.dentists from anon, authenticated;
+grant select on public.chairs, public.dentists to authenticated;
+
+-- Every clinic starts with Chair 1 and its owner as its dentist (Smile Dental Clinic's: Dr. Rahil Yusuf)
+insert into public.chairs (clinic_id, name)
+select c.id, 'Chair 1' from public.clinics c
+where not exists (select 1 from public.chairs h where h.clinic_id = c.id);
+
+insert into public.dentists (clinic_id, name, user_id)
+select m.clinic_id, case when m.user_id = cfg.owner_id then 'Dr. Rahil Yusuf' else 'Dentist' end, m.user_id
+from public.clinic_members m
+left join (select a.clinic_owner_id as owner_id from public.app_config a where a.id) cfg on true
+where m.role = 'owner'
+  and not exists (select 1 from public.dentists d where d.clinic_id = m.clinic_id);
+
+-- An appointment's chair and dentist (time off may be one dentist's; without one, it is the whole clinic's).
+-- Existing appointments get the clinic's chair and dentist with the table's own triggers off (no new
+-- updated_at, no re-check of an old time).
+alter table public.appointments add column if not exists chair_id uuid;
+alter table public.appointments add column if not exists dentist_id uuid;
+alter table public.time_off add column if not exists dentist_id uuid;
+
+alter table public.appointments disable trigger user;
+update public.appointments a
+set chair_id = coalesce(a.chair_id, (select c.id from public.chairs c where c.clinic_id = a.clinic_id order by c.created_at, c.id limit 1)),
+    dentist_id = coalesce(a.dentist_id, (select d.id from public.dentists d where d.clinic_id = a.clinic_id
+                                         order by (d.user_id is not distinct from a.owner_id) desc, d.created_at, d.id limit 1))
+where a.chair_id is null or a.dentist_id is null;
+alter table public.appointments enable trigger user;
+
+alter table public.appointments alter column chair_id set not null;
+alter table public.appointments alter column dentist_id set not null;
+create index if not exists appointments_chair_idx on public.appointments (chair_id);
+create index if not exists appointments_dentist_idx on public.appointments (dentist_id);
+create index if not exists time_off_dentist_idx on public.time_off (dentist_id);
+
+-- The chair and the dentist are the appointment's clinic's (whoever writes it)
 do $$
 begin
-  if exists (select 1 from pg_constraint k where k.conrelid = 'public.appointments'::regclass
-             and k.conname = 'appointments_no_overlap' and pg_get_constraintdef(k.oid) like '%owner_id%') then
-    alter table public.appointments drop constraint appointments_no_overlap;
-  end if;
+  alter table public.appointments add constraint appointments_chair_in_clinic
+    foreign key (chair_id, clinic_id) references public.chairs (id, clinic_id);
+exception when duplicate_object then null;
+end;
+$$;
+do $$
+begin
+  alter table public.appointments add constraint appointments_dentist_in_clinic
+    foreign key (dentist_id, clinic_id) references public.dentists (id, clinic_id);
+exception when duplicate_object then null;
+end;
+$$;
+do $$
+begin
+  alter table public.time_off add constraint time_off_dentist_in_clinic
+    foreign key (dentist_id, clinic_id) references public.dentists (id, clinic_id);
+exception when duplicate_object then null;
+end;
+$$;
+
+-- A chair holds one booked appointment at a time, and so does a dentist (this was one per login)
+alter table public.appointments drop constraint if exists appointments_no_overlap;
+do $$
+begin
   alter table public.appointments
-    add constraint appointments_no_overlap
+    add constraint appointments_chair_free
     exclude using gist (
-      clinic_id with =,
+      chair_id with =,
+      tstzrange(starts_at, public.appointment_end(starts_at, duration_min)) with &&
+    ) where (status = 'booked');
+exception when duplicate_object or duplicate_table then null;
+end;
+$$;
+do $$
+begin
+  alter table public.appointments
+    add constraint appointments_dentist_free
+    exclude using gist (
+      dentist_id with =,
+      tstzrange(starts_at, public.appointment_end(starts_at, duration_min)) with &&
+    ) where (status = 'booked');
+exception when duplicate_object or duplicate_table then null;
+end;
+$$;
+-- …and a patient is in one chair at a time
+do $$
+begin
+  alter table public.appointments
+    add constraint appointments_patient_free
+    exclude using gist (
+      patient_id with =,
       tstzrange(starts_at, public.appointment_end(starts_at, duration_min)) with &&
     ) where (status = 'booked');
 exception when duplicate_object or duplicate_table then null;
 end;
 $$;
 
--- An appointment can't be in the clinic's time off (the clinic is filled in before this runs)
+-- An appointment that names no dentist gets the booking person's (else the clinic's first); one that names no
+-- chair gets the first chair free at its time (else the first, and the rule above refuses the taken time).
+-- Moved to a time when its chair is taken, it changes to a free one.
+create or replace function public.fill_appointment_place()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_range tstzrange := tstzrange(new.starts_at, public.appointment_end(new.starts_at, new.duration_min));
+begin
+  if new.dentist_id is null then
+    select d.id into new.dentist_id from public.dentists d
+    where d.clinic_id = new.clinic_id and d.active
+    order by (d.user_id is not distinct from new.owner_id) desc, d.created_at, d.id
+    limit 1;
+  end if;
+  if new.chair_id is null
+     or (tg_op = 'UPDATE' and new.status = 'booked' and new.chair_id is not distinct from old.chair_id
+         and exists (select 1 from public.appointments a
+                     where a.chair_id = new.chair_id and a.id <> new.id and a.status = 'booked'
+                       and tstzrange(a.starts_at, public.appointment_end(a.starts_at, a.duration_min)) && v_range)) then
+    select c.id into new.chair_id from public.chairs c
+    where c.clinic_id = new.clinic_id and c.active
+    order by exists (select 1 from public.appointments a
+                     where a.chair_id = c.id and a.id is distinct from new.id and a.status = 'booked'
+                       and tstzrange(a.starts_at, public.appointment_end(a.starts_at, a.duration_min)) && v_range),
+             c.created_at, c.id
+    limit 1;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.fill_appointment_place() from public, anon, authenticated;
+
+-- After the clinic is filled in ("0_…") and before the time check ("appointments_…"): triggers fire in name order
+create or replace trigger "1_fill_chair_and_dentist"
+  before insert or update of starts_at, duration_min, status, chair_id on public.appointments
+  for each row execute function public.fill_appointment_place();
+
+-- An appointment can't be in the clinic's time off, or its dentist's (its clinic and dentist are filled in
+-- before this runs)
 create or replace function public.check_appointment_time()
 returns trigger
 language plpgsql
@@ -2140,6 +2298,7 @@ begin
     end if;
     if exists (select 1 from public.time_off t
                where t.clinic_id = new.clinic_id
+                 and (t.dentist_id is null or t.dentist_id = new.dentist_id)
                  and tstzrange(t.starts_at, t.ends_at)
                      && tstzrange(new.starts_at, public.appointment_end(new.starts_at, new.duration_min))) then
       raise exception 'That time is blocked off in your calendar.';
@@ -2167,7 +2326,8 @@ begin
 end;
 $$;
 
--- Confirming a website request: the clinic's request, time off and patient (as before, by login)
+-- Confirming a website request: the clinic's request, its time off and patient (it was by login). A dentist's
+-- own time off is checked when the appointment is made, after its dentist is known.
 create or replace function public.confirm_booking_request(
   p_request uuid,
   p_starts_at timestamptz,
@@ -2205,7 +2365,7 @@ begin
     raise exception 'That time has already passed.';
   end if;
   if exists (select 1 from public.time_off t
-             where t.clinic_id = r.clinic_id
+             where t.clinic_id = r.clinic_id and t.dentist_id is null
                and tstzrange(t.starts_at, t.ends_at) && tstzrange(p_starts_at, public.appointment_end(p_starts_at, p_minutes))) then
     raise exception 'That time is blocked off in your calendar.';
   end if;
