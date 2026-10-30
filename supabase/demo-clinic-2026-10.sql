@@ -19,7 +19,7 @@ select public.setup_clinic($json$
   "chairs": ["Chair 1", "Chair 2"],
   "dentists": [
     { "name": "Dr. Kavya Shenoy", "email": "demo@brightside.example", "shortName": "Dr. Kavya", "shortNameKn": "ಡಾ. ಕಾವ್ಯಾ", "qualifications": "BDS, MDS", "registration": "12345-A" },
-    { "name": "Dr. Arun Pai", "shortName": "Dr. Arun", "qualifications": "BDS, MDS (Orthodontics)" }
+    { "name": "Dr. Arun Pai", "shortName": "Dr. Arun", "qualifications": "BDS, MDS (Orthodontics)", "visiting": true }
   ],
   "members": [{ "email": "demo@brightside.example", "role": "owner" }]
 }
