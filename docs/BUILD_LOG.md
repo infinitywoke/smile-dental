@@ -827,18 +827,19 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - **Hindi messages** are live (f9112af), offered only where `clinics.languages` includes `hi`, so Smile Dental's form is unchanged.
         - **Sign-in by membership** is live (a9ee650): `ALLOWED_EMAIL` is gone. Checked first: 2 logins, both members, Dr. Rahil the owner of Smile Dental, sign-ups off.
         - **The website template** is done: `src/config/sites/smile-dental.ts` and `brightside.ts`, picked by `NEXT_PUBLIC_SITE`. Smile Dental's build was compared with the live site, and all six pages match exactly, as do the Markdown copies. A guard test fails on a clinic's words in the template. The demo says on every page that it is invented, and stays out of search engines.
-        - **Slice 7, chairs and dentists:** the database part is live (`supabase/multi-clinic-7-2026-10.sql`), and the app part is on `main` once the browser suite passes.
+        - **Slice 7, chairs and dentists:** the database part is live (`supabase/multi-clinic-7-2026-10.sql`), and the app part is live (0733966).
             - **Clinic settings** (`/app/settings/clinic`): the owner adds and removes chairs and dentists, including visiting specialists. Dentists are for booking only; a login is linked by the operator.
             - **Booking** asks who sees the patient when there is more than one dentist. A dentist already busy is refused, naming who they have, and only "Yes, two chairs at once" books it. Never three, and a chair or a patient stays one at a time.
             - **Today** shows the chair and dentist once a clinic has more than one.
             - **The website's free times** count free chairs and the clinic's own dentists; visiting specialists open none.
             - **Checked on the live database:** Smile Dental's free times are the same through the old and new functions (429), with no appointment marked.
             - **Left for later:** time off for one dentist is honoured by the database but has no screen yet; moving an appointment onto a busy dentist is refused with no two-chairs offer; `clinics.patients_pick_dentist` is stored, with no picker on the website yet.
+        - **Booking API v1** is live (0b703d0): free times, prices and requests by clinic slug, from any address, documented at `/api/v1/openapi.json`. The website's own form shares the same code (`src/lib/booking-request.ts`). Tested live: it answers with Smile Dental's real free times and prices.
     - **The demo clinic's name:** "Brightside Dental", not "Bright Smile Dental", which contains "Smile Dental". Slug `demo-brightside`.
     - **Then, in order:**
         1. **Owner steps for the demo** (`docs/build/DEMO-SETUP.md`): make the login, then run `supabase/demo-clinic-2026-10.sql`, then a second Vercel project for its website. With the login made and before the set-up runs, check that a login with no clinic is refused at sign-in.
         6. **Slice 6:** hours and closed days per clinic, and the clinic's message languages.
-        7. **Slice 2c** (the per-person keys go), then the rest of Phase 2: Booking API v1, operator console, integrations, product address.
+        7. **Slice 2c** (the per-person keys go), then the rest of Phase 2: operator console (needs the service-role key, or stays SQL), integrations behind switches, product address.
         8. **Slice 4's clean-up, moved last:** dropping the versions without a slug, `notify_new_request`, `notify_due`, `app_config_clinic_slug()` and `app_config`. Nothing depends on them once slice 4's app is live, and removing them means rewriting most of `booking.check.mjs`, so it waits until the demo is ready.
     - **Database checks:** `supabase/tests/*.check.mjs`, 409 in 15 files. They need `@electric-sql/pglite` installed in a scratch folder: copy the files there and run `node X.check.mjs "D:/AG Projects/New Smile/smile-dental-website"`.
     - **Still with the owner:**
