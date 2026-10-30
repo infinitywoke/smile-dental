@@ -759,4 +759,5 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **Gates:**
         - tsc, lint, unit 349, build;
         - the whole browser suite against the live database: 119 passed, 4 skipped, and the Tally race above, fixed, with all 3 Tally tests then passing.
+    - **Pushed 1d9f986, live in about 60 s:** the website and Clinic OS's sign-in answer 200, and `/app/alerts` sends someone signed out to sign in and back (307 to `/login?next=/app/alerts`).
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.
