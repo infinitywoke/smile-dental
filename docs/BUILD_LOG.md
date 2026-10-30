@@ -670,4 +670,12 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **Left in Cloudflare, on purpose:** the domain is DNS only (grey cloud, as Vercel recommends), so Cloudflare's proxy features never see the traffic. These are Markdown for Agents, AI Crawl Control blocking, Always Use HTTPS, SSL mode and Redirects for AI Training. The site now does the same itself; Vercel already sends HTTP to HTTPS (308, HSTS), compresses and caches. When the website moves to Cloudflare Pages they come with it.
     - **Not done yet:** MCP and A2A agent cards, an API catalog, OAuth discovery, WebMCP and agent payments (x402 and others). They describe tools an agent can call, and the booking API on the roadmap is where they start.
     - **Tests:** `agent-pages.test.ts` (7), structured data (+1), redirects (the new files), the website browser tests (14, one new). Gates: tsc, lint, unit 337, build (76 pages). The local production build was checked for every address, Markdown when asked, the font preloads kept, canonical tags and the booking action.
+    - **Pushed a0489ca, live in about 60 s, and checked on the live site:**
+        - every address answers with its type, and an unknown treatment's copy is a 404;
+        - `/` and `/book` asked for Markdown send their copies, while a browser still gets the page with its booking card;
+        - both `Link` headers arrive (the copy and `llms.txt`, and Next's font preloads);
+        - a copy carries `Vary: Accept`, its canonical page and the Content Signals;
+        - robots.txt has 16 user-agent lines, and both groups keep `/r/` out;
+        - on Clinic OS's address, `/llms.txt` and `/index.md` answer 308 to the domain.
+    - **Owner:** re-scan in Cloudflare's Agent Readiness (or isitagentready.com). Two defaults to confirm or change: AI training allowed (`ai-train=yes`, from Cloudflare's suggestion), and `security.txt`'s contact is the clinic's email rather than the owner's.
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.
