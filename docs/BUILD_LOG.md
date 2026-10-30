@@ -791,3 +791,65 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - the whole browser suite against the live database: 119 passed, 4 skipped, and the Tally race above, fixed, with all 3 Tally tests then passing.
     - **Pushed 1d9f986, live in about 60 s:** the website and Clinic OS's sign-in answer 200, and `/app/alerts` sends someone signed out to sign in and back (307 to `/login?next=/app/alerts`).
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.
+- 2026-10-30 **Multi-clinic, slice 5's database part: setting a clinic up in one call, and the demo clinic** (`supabase/multi-clinic-5-2026-10.sql`, folded into schema.sql).
+    - **`setup_clinic(setup)`:** the operator's one call. From one description (slug, name, place, phone, address, links, UPI, logo, Tally, chair monitor, chairs, dentists, members by email), it makes the clinic, or updates it by its slug.
+        - A member's login must exist first (Supabase: Authentication, Add user). Otherwise it stops and names whose is missing.
+        - Running it twice changes nothing twice: chairs and dentists by name, members by login.
+        - A dentist with an email is linked to that login.
+    - **`seed_demo_clinic(slug)`:** fills a clinic whose slug starts `demo-` with invented records, dated from today so a demo always looks current:
+        - ten invented patients (phones 9000000001–10);
+        - today's times already over seen, billed, paid and sent, and the rest booked;
+        - four bookings on the next open day, to remind;
+        - earlier visits billed, one still owing;
+        - a website request waiting;
+        - stock with one item running low;
+        - a price list of its own.
+    - **Run again, it starts over.** It touches the demo clinic's records only (its chairs, dentists and members stay), and refuses any other slug.
+    - **Who can run them:** both are the operator's only. Nobody signed in can run them, and nor can the website.
+    - **Tests:**
+        - `supabase/tests/setup.check.mjs` (13): set up twice; a missing login named; the demo filled, started over and never another clinic's; Smile Dental's own patient, visit, payment and appointment untouched; the demo login sees its clinic only; nobody signed in, nor the website, can run either.
+        - All database checks: 15 files, 409 passed.
+    - **Applied live.** A read-only check found both functions, run as their owner, with no execute rights for anon or signed-in users. Nothing has been set up or filled yet: that needs the demo login (below).
+- 2026-10-30 **Resume here** (owner: "save all progress made so that we can continue from where we left off"; "Stop using agents").
+    - **How to work:**
+        - Build directly, with no builder or reviewer agents, one step at a time, keeping this block current.
+        - Standing approval (owner, 30 Oct): each slice's guarded live change goes through once its gates pass, using `npx supabase db query --linked --project-ref pmuecirfwmtsvojxleoq --file supabase/<file>.sql` (allowed in `.claude/settings.local.json`). Then push to `main`.
+        - Read-only live checks go in `supabase/.temp/` (git-ignored) and run with the same command.
+        - Plan and order: `docs/build/PLAN-endstate.md` ("Order, revised for the demos"). Detail: `PLAN-multi-clinic.md`.
+    - **Live:**
+        - slices 1, 2a, 2b and 3a, plus the database parts of 3b, 4 and 5;
+        - Alerts;
+        - the website ready for AI agents.
+    - **Uncommitted at this point: slice 3b's app part** (spec `docs/build/SPEC-3b-clinic-details.md`).
+        - A Sonnet builder started before the owner's "no agents" was finishing it in `src/`.
+        - The new files are `src/lib/clinic.ts`, `src/lib/data/clinic.ts`, `src/lib/test-clinic.ts` and `src/lib/website-whatsapp.ts`; many others are changed.
+        - Next session: `git status` and `git diff`; check them against the spec (Smile Dental's messages byte-identical, no fallback to Smile Dental's details, the guard test `src/lib/clinic-os-details.test.ts`); finish what's missing; then the gates (`npx vitest run`, `npx tsc --noEmit`, `npx eslint`, `npx next build`), the whole browser suite, commit, push and check the deploy.
+    - **Then, in order:**
+        1. **Hindi messages,** brought forward from slice 6: `patients.language` takes `'hi'` (a guarded change) and the Hindi WhatsApp strings next to the Kannada ones. Hindi needs a native speaker's check before patients see it.
+        2. **Slice 4's app part,** per `docs/build/SPEC-4-public-by-slug.md`. Then slice 4's clean-up change, which drops:
+            - the versions without a slug, `notify_new_request` and `notify_due`;
+            - `app_config_clinic_slug()`, and `app_config` with its policy.
+
+           `booking.check.mjs` goes back to expecting one website booking function.
+        3. **Slice 5's app part:**
+            - sign-in by membership instead of `ALLOWED_EMAIL` (`getDoctor`, the login action, the proxy);
+            - the demo clinic: a set-up description (slug `demo-…`, invented details like "Bright Smile Dental", Manipal) run through `setup_clinic`, then `seed_demo_clinic`.
+            - **Owner step:** make the demo login in Supabase (Authentication, Add user). There is no service-role key in `.env.local`, so it can't be made from here.
+        4. **Phase 2's website template:** the demo clinic's own website, booking into its Clinic OS through its slug.
+        5. **Slice 7: chairs and dentists in the app:**
+            - a Clinic settings screen;
+            - booking picks the dentist;
+            - Today by chair;
+            - time off for one dentist;
+            - free times counting chairs and dentists;
+            - the clinic setting "patients may pick a dentist" (default no);
+            - a deliberate two-chairs-at-once booking that needs an explicit yes.
+        6. **Slice 6:** hours and closed days per clinic, and the clinic's message languages.
+        7. **Slice 2c** (the per-person keys go), then the rest of Phase 2: Booking API v1, operator console, integrations, product address.
+    - **Database checks:** `supabase/tests/*.check.mjs`, 409 in 15 files. They need `@electric-sql/pglite` installed in a scratch folder: copy the files there and run `node X.check.mjs "D:/AG Projects/New Smile/smile-dental-website"`.
+    - **Still with the owner:**
+        - the demo login;
+        - confirming the 3 Tally ledger matches, and a test month import;
+        - the Google Business Profile links;
+        - Rahil checking the Kannada words;
+        - a native Hindi speaker for the Hindi messages.

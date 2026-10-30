@@ -94,6 +94,15 @@ Every clinic has:
 6. **5, sign-in by membership and the set-up script:** last, as the switch that lets clinic no. 2 in.
 7. **Phase 2:** the booking API, then the website template, operator console, integrations and product address.
 
+### Order, revised for the demos (30 Oct)
+- The owner will be showing prospective clinics what the package can do, soon. What shows is a second clinic
+  with its own login, website and booking, so slice 5 (with the demo clinic) and Phase 2's website template come
+  right after 3b and 4.
+- Then slice 7 (chairs and dentists in the app).
+- Then slice 6. The demo clinic can keep the standard hours, so hours per clinic can wait, but slice 6's Hindi
+  messages come forward, right after 3b.
+- Then 2c and the rest of Phase 2.
+
 ### One continuous sprint
 - No stops between slices: a short progress line at each gate, and the build log updated after every slice, so
   any interruption (session, usage) resumes exactly there.
