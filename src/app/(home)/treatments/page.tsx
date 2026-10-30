@@ -1,3 +1,4 @@
+import { siteConfig } from '@/config/site'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { ChevronRight } from 'lucide-react'
@@ -9,9 +10,9 @@ import { JsonLd } from '@/components/home/JsonLd'
 import { PageHead } from '@/components/home/PageHead'
 
 export const metadata: Metadata = {
-  title: 'Treatments and prices · Smile Dental Clinic, Katapadi',
+  title: `Treatments and prices · ${siteConfig.name}, ${siteConfig.place}`,
   description:
-    "Every treatment at Smile Dental Clinic in Katapadi, Udupi, with the clinic's own prices: check-ups, cleaning, fillings, root canals, crowns, braces, tooth removal and dentures.",
+    `Every treatment at ${siteConfig.name} in ${siteConfig.area}, with the clinic's own prices: check-ups, cleaning, fillings, root canals, crowns, braces, tooth removal and dentures.`,
   alternates: { canonical: '/treatments', types: { 'text/markdown': '/treatments.md' } },
 }
 
@@ -24,7 +25,7 @@ export default async function TreatmentsPage() {
     <>
       <JsonLd data={priceListJsonLd(list)} />
       <PageHead eyebrow="Treatments and prices" title="Every treatment, with the price."
-        lead="The clinic's own price list. Some prices depend on the material or on how much work a tooth needs: Dr. Rahil examines first, and explains the options and the cost before any treatment." />
+        lead={`The clinic's own price list. Some prices depend on the material or on how much work a tooth needs: ${siteConfig.dentist.short} examines first, and explains the options and the cost before any treatment.`} />
 
       <section className="h-section mist first">
         <div className="h-wrap h-price-grid">

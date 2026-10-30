@@ -18,14 +18,14 @@ export async function Booking({ searchParams }: { searchParams?: Promise<Record<
   const reason = searchParams ? reasonFromLink((await searchParams).reason) : null
   const [slots, pause, list] = await Promise.all([getOpenSlots(), getBookingPause(siteConfig.clinicSlug), getWebsiteTreatments()])
   if (pause.until) return <BookingPaused />
-  return <BookingCard slots={slots} today={todayInIndia()} promise={confirmationPromise(new Date())} initialReason={reason} services={homeServicesFor(list)} />
+  return <BookingCard slots={slots} today={todayInIndia()} promise={confirmationPromise(new Date(), siteConfig.dentist.short)} initialReason={reason} services={homeServicesFor(list)} />
 }
 
 function BookingPaused() {
   return (
     <div id="book" className="h-card">
       <h2 className="h-serif h-card-title">Book an appointment</h2>
-      <p className="h-callout">Online booking is paused right now. Please call or WhatsApp the clinic, and Dr. Rahil will find you a time.</p>
+      <p className="h-callout">Online booking is paused right now. Please call or WhatsApp the clinic, and {siteConfig.dentist.short} will find you a time.</p>
       <a href={TEL} className="h-btn navy wide h-gap"><Phone className="h-icon" aria-hidden="true" /> Call {PHONE_SHOWN}</a>
       <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="h-btn amber wide h-gap"><MessageCircle className="h-icon" aria-hidden="true" /> WhatsApp the clinic</a>
     </div>
@@ -46,9 +46,9 @@ export function HowBooking() {
     <div className="h-how">
       <p className="h-how-title">How booking works</p>
       <ol>
-        <li><span>1</span><p><b>Pick a free time</b> from Dr. Rahil&apos;s own calendar.</p></li>
+        <li><span>1</span><p><b>Pick a free time</b> from {siteConfig.dentist.short}&apos;s own calendar.</p></li>
         <li><span>2</span><p><b>WhatsApp opens</b> with your request written. Tap Send.</p></li>
-        <li><span>3</span><p><b>Dr. Rahil confirms</b> your time on WhatsApp.</p></li>
+        <li><span>3</span><p><b>{siteConfig.dentist.short} confirms</b> your time on WhatsApp.</p></li>
       </ol>
     </div>
   )

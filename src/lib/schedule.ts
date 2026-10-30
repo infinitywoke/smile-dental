@@ -172,10 +172,10 @@ export function isOnlineBookable(date: string, hhmm: string, now: Date): boolean
 
 // What to tell the patient about the confirmation time. At night nobody is reading
 // WhatsApp, so promising 15 minutes would be a lie.
-export function confirmationPromise(now: Date): string {
+export function confirmationPromise(now: Date, dentist: string): string {
   const { time } = inIndia(now)
-  if (time >= '21:00' || time < '06:00') return 'Dr. Rahil will confirm your appointment on WhatsApp after 6 AM.'
-  return 'Dr. Rahil will confirm your appointment on WhatsApp in under 15 minutes.'
+  if (time >= '21:00' || time < '06:00') return `${dentist} will confirm your appointment on WhatsApp after 6 AM.`
+  return `${dentist} will confirm your appointment on WhatsApp in under 15 minutes.`
 }
 
 // Day and date for headings, "Thu, 15 Oct"

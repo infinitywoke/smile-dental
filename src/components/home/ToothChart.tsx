@@ -1,5 +1,6 @@
 'use client'
 
+import { siteConfig } from '@/config/site'
 import { useState } from 'react'
 import type { toothAreas } from '@/config/site'
 import { bookFor } from './book-events'
@@ -61,7 +62,7 @@ export function ToothChart({ areas }: { areas: typeof toothAreas }) {
         <p className="h-eyebrow">Not sure what you need?</p>
         <h2 className="h-serif h-h2">Show us where it hurts.</h2>
         <p className="h-lead">
-          Tap a tooth or an area to see what it usually needs and what it costs. Dr. Rahil examines first and
+          Tap a tooth or an area to see what it usually needs and what it costs. {siteConfig.dentist.short} examines first and
           explains the options before any treatment.
         </p>
         <div className="h-card-sm" aria-live="polite">

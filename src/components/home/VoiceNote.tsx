@@ -1,5 +1,6 @@
 'use client'
 
+import { siteConfig } from '@/config/site'
 import { Mic, RotateCcw, Square, Trash2 } from 'lucide-react'
 import { clock, useVoiceRecorder } from '@/components/site/voice-recorder'
 
@@ -8,7 +9,7 @@ export function VoiceNote({ onChange }: { onChange: (note: Blob | null) => void 
   const { state, start, stop, remove } = useVoiceRecorder(onChange)
 
   if (state.kind === 'blocked') {
-    return <p className="h-note">The microphone is blocked in this browser. You can send Dr. Rahil a voice note on WhatsApp after you tap Send instead.</p>
+    return <p className="h-note">The microphone is blocked in this browser. You can send {siteConfig.dentist.short} a voice note on WhatsApp after you tap Send instead.</p>
   }
   if (state.kind === 'recording') {
     return (

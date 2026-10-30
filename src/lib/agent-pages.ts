@@ -16,7 +16,7 @@ import { clinicWhatsappLink } from '@/lib/website-whatsapp'
 
 const site = siteConfig.url
 const hours = OPEN_SESSIONS.map(([from, until]) => `${formatBlock(from)} – ${formatBlock(until)}`).join(' and ')
-const PRICES_NOTE = "The clinic's own prices. Dr. Rahil examines first, and explains the options and the cost before any treatment."
+const PRICES_NOTE = `The clinic's own prices. ${siteConfig.dentist.short} examines first, and explains the options and the cost before any treatment.`
 
 export const markdownPath = (path: string) => (path === '/' ? '/index.md' : `${path}.md`)
 
@@ -44,7 +44,7 @@ const priceLines = (t: Treatment) => (t.pricing ?? []).map((p) => `- ${p.detail}
 
 function visitDetails(): string[] {
   return [
-    `- **Dentist:** ${siteConfig.dentist.name}, BDS (Yenepoya Deemed to be University, 2020), with 5 years of practice in India and the Middle East. He sees every patient himself.`,
+    `- **Dentist:** ${siteConfig.dentist.name}, ${siteConfig.dentist.summary}`,
     `- **Address:** ${siteConfig.address}, Udupi, Karnataka, India ([Google Maps](${siteConfig.directionsLink}))`,
     `- **Open:** ${hours}, every day except Friday (open on Sundays)`,
     `- **Phone and WhatsApp:** ${siteConfig.phone}`,
@@ -58,11 +58,11 @@ function howBookingWorks(): string[] {
   const reasons = bookingReasons.map((r) => r.label.toLowerCase()).join(', ')
   return [
     `1. Open ${site}/book and say what the visit is for: ${reasons}.`,
-    "2. Pick a day, then a free time, from Dr. Rahil's own calendar. Online times go four weeks ahead.",
+    `2. Pick a day, then a free time, from ${siteConfig.dentist.short}'s own calendar. Online times go four weeks ahead.`,
     "3. Give the patient's name and WhatsApp number. Booking for someone else? Use their number: the confirmation goes to it.",
-    '4. Send the request. It is saved for the clinic, and WhatsApp opens with it written: send it there too, and Dr. Rahil confirms the time on WhatsApp.',
+    `4. Send the request. It is saved for the clinic, and WhatsApp opens with it written: send it there too, and ${siteConfig.dentist.short} confirms the time on WhatsApp.`,
     '',
-    `No time that suits, or online booking paused? WhatsApp or call the clinic on ${siteConfig.phone}, and Dr. Rahil will find a time.`,
+    `No time that suits, or online booking paused? WhatsApp or call the clinic on ${siteConfig.phone}, and ${siteConfig.dentist.short} will find a time.`,
   ]
 }
 
@@ -99,11 +99,9 @@ function notSure(list: Treatment[]): string[] {
 
 function dentist(): string[] {
   return [
-    `**${siteConfig.dentist.name}, BDS.** He takes the time to understand each patient's needs and explains treatment options in a simple and reassuring way.`,
+    `**${siteConfig.dentist.name}, ${siteConfig.dentist.degree}.** ${siteConfig.dentist.quote}`,
     '',
-    '- BDS from Yenepoya (Deemed to be University), 2020',
-    '- 5 years of practice in India and the Middle East',
-    '- Sees every patient himself, from the first check-up to the last sitting',
+    ...siteConfig.dentist.points.map((point) => `- ${point}`),
     '',
   ]
 }
@@ -112,9 +110,9 @@ const questions = () => faqs.filter((f) => f.isVerified).flatMap((f) => [`### ${
 
 export function homeMarkdown(list: Treatment[]): string {
   return [
-    `# ${siteConfig.name}, Katapadi, Udupi`,
+    `# ${siteConfig.name}, ${siteConfig.area}`,
     '',
-    '> A dentist who takes the time to explain: check-ups, cleaning, fillings, root canals, crowns, braces and dentures on Shirva Road, Katapadi.',
+    `> A dentist who takes the time to explain: check-ups, cleaning, fillings, root canals, crowns, braces and dentures on ${siteConfig.street}, ${siteConfig.place}.`,
     '',
     ...visitDetails(),
     '',
@@ -144,9 +142,9 @@ export function homeMarkdown(list: Treatment[]): string {
 
 export function bookMarkdown(): string {
   return [
-    `# Book an appointment at ${siteConfig.name}, Katapadi`,
+    `# Book an appointment at ${siteConfig.name}, ${siteConfig.place}`,
     '',
-    "> Pick a free time from Dr. Rahil Yusuf's calendar. No account needed; the clinic confirms your time on WhatsApp.",
+    `> Pick a free time from ${siteConfig.dentist.name}'s calendar. No account needed; the clinic confirms your time on WhatsApp.`,
     '',
     '## How booking works',
     '',
@@ -161,7 +159,7 @@ export function bookMarkdown(): string {
 
 export function treatmentsMarkdown(list: Treatment[]): string {
   return [
-    `# Treatments and prices at ${siteConfig.name}, Katapadi`,
+    `# Treatments and prices at ${siteConfig.name}, ${siteConfig.place}`,
     '',
     `> Every treatment, with the price. ${PRICES_NOTE}`,
     '',
@@ -176,7 +174,7 @@ export function treatmentMarkdown(t: Treatment, list: Treatment[]): string {
     `# ${t.name}`,
     '',
     ...(t.shortDescription ? [`> ${t.shortDescription}`, ''] : []),
-    `At ${siteConfig.name}, Katapadi, Udupi, with ${siteConfig.dentist.name}, BDS.`,
+    `At ${siteConfig.name}, ${siteConfig.area}, with ${siteConfig.dentist.name}, ${siteConfig.dentist.degree}.`,
     '',
     '## Prices',
     '',
@@ -187,7 +185,7 @@ export function treatmentMarkdown(t: Treatment, list: Treatment[]): string {
     '',
     '## Book a visit',
     '',
-    `[Book an appointment](${site}/book?reason=${reason}): pick a free time from Dr. Rahil's calendar, and the clinic confirms it on WhatsApp. Or [ask about it on WhatsApp](${clinicWhatsappLink(`Hello, I have a question about ${t.name}.`)}).`,
+    `[Book an appointment](${site}/book?reason=${reason}): pick a free time from ${siteConfig.dentist.short}'s calendar, and the clinic confirms it on WhatsApp. Or [ask about it on WhatsApp](${clinicWhatsappLink(`Hello, I have a question about ${t.name}.`)}).`,
     ...(related.length > 0 ? ['', '## See also', '', ...related.map((r) => `- [${r.name}](${site}/treatments/${r.slug})`)] : []),
     '',
   ].join('\n')
@@ -206,9 +204,9 @@ export function pageMarkdown(path: string, list: Treatment[]): string | null {
 export function llmsTxt(list: Treatment[]): string {
   const md = (path: string) => `${site}${markdownPath(path)}`
   return [
-    `# ${siteConfig.name}, Katapadi`,
+    `# ${siteConfig.name}, ${siteConfig.place}`,
     '',
-    `> Dental clinic in Katapadi, Udupi (Karnataka, India), run by ${siteConfig.dentist.name}, BDS. Open ${hours}, every day except Friday. Book online at ${site}/book; the clinic confirms the time on WhatsApp.`,
+    `> Dental clinic in ${siteConfig.area} (Karnataka, India), run by ${siteConfig.dentist.name}, ${siteConfig.dentist.degree}. Open ${hours}, every day except Friday. Book online at ${site}/book; the clinic confirms the time on WhatsApp.`,
     '',
     ...visitDetails(),
     '',
@@ -237,7 +235,7 @@ export function llmsTxt(list: Treatment[]): string {
 
 export function llmsFullTxt(list: Treatment[]): string {
   return [
-    `# ${siteConfig.name}, Katapadi, Udupi`,
+    `# ${siteConfig.name}, ${siteConfig.area}`,
     '',
     `> Everything on ${site} in one file: the clinic, how to book, every treatment with its prices, the dentist and common questions.`,
     '',

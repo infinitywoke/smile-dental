@@ -21,7 +21,7 @@ export function SiteFooter() {
       <div className="h-wrap h-split">
         <div className="h-col" style={{ flex: '1 1 380px' }}>
           <p className="h-eyebrow amber">Visit</p>
-          <h2 className="h-serif h-h2 light">Find us on Shirva Road.</h2>
+          <h2 className="h-serif h-h2 light">Find us on {siteConfig.street}.</h2>
           <p className="h-visit-address">{siteConfig.address}</p>
           <OpenStatus />
           <dl className="h-hours">
@@ -39,12 +39,12 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="h-col h-map-frame" style={{ flex: '1.2 1 420px' }}>
-          <iframe src={siteConfig.mapEmbedLink} title="Map of Smile Dental Clinic, Katapadi" className="h-map"
+          <iframe src={siteConfig.mapEmbedLink} title={`Map of ${siteConfig.name}, ${siteConfig.place}`} className="h-map"
             loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
         </div>
       </div>
       <p className="h-wrap h-footer-line">
-        © <Year /> {siteConfig.name}, Katapadi · <Link href="/treatments">Treatments and prices</Link> ·{' '}
+        © <Year /> {siteConfig.name}, {siteConfig.place} · <Link href="/treatments">Treatments and prices</Link> ·{' '}
         <Link href="/privacy">Privacy</Link> · <Link href="/app">Clinic login</Link>
       </p>
     </footer>

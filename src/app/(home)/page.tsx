@@ -17,7 +17,7 @@ import { Waves } from '@/components/home/Waves'
 
 // The homepage (website D): booking first, then the treatments and prices, the tooth chart, the dentist and questions
 export const metadata: Metadata = {
-  title: 'Smile Dental Clinic, Katapadi, Udupi · Dr. Rahil Yusuf, BDS',
+  title: `${siteConfig.name}, ${siteConfig.area} · ${siteConfig.dentist.name}, ${siteConfig.dentist.degree}`,
   description: siteConfig.description,
   alternates: { canonical: '/', types: { 'text/markdown': '/index.md' } },
 }
@@ -36,7 +36,7 @@ export default async function HomePage() {
           <div className="h-hero-text">
             <h1 className="h-serif h-h1">A dentist who takes the time to <em>explain</em>.</h1>
             <p className="h-hero-lead">
-              Check-ups, cleaning, fillings, root canals, crowns, braces and dentures on Shirva Road, Katapadi. Every
+              Check-ups, cleaning, fillings, root canals, crowns, braces and dentures on {siteConfig.street}, {siteConfig.place}. Every
               price is on this page.
             </p>
             {/* Dr. Rahil, signed under the headline: his photo in a three-part ring, his years as a level */}
@@ -50,11 +50,11 @@ export default async function HomePage() {
                 </svg>
                 <Image src={siteConfig.dentist.portraitPhoto} alt={siteConfig.dentist.name} width={64} height={64}
                   className="h-byline-img" priority />
-                <span className="h-level" aria-label="5 years of practice"><b>5</b><small>yrs</small></span>
+                <span className="h-level" aria-label={`${siteConfig.dentist.years} years of practice`}><b>{siteConfig.dentist.years}</b><small>yrs</small></span>
               </div>
               <div className="h-byline-text">
-                <p className="h-byline-name">{siteConfig.dentist.name}, BDS</p>
-                <p className="h-byline-meta">Yenepoya, 2020 · India and the Middle East<br />Sees every patient himself</p>
+                <p className="h-byline-name">{siteConfig.dentist.name}, {siteConfig.dentist.degree}</p>
+                <p className="h-byline-meta">{siteConfig.dentist.byline[0]}<br />{siteConfig.dentist.byline[1]}</p>
               </div>
             </div>
             <OpenStatus />
@@ -116,17 +116,14 @@ export default async function HomePage() {
           </div>
           <div className="h-col" style={{ flex: '1 1 460px' }}>
             <p className="h-eyebrow">Your dentist</p>
-            <h2 className="h-serif h-h2">{siteConfig.dentist.name}, BDS</h2>
+            <h2 className="h-serif h-h2">{siteConfig.dentist.name}, {siteConfig.dentist.degree}</h2>
             <p className="h-serif h-quote">
-              He takes the time to understand each patient&apos;s needs and explains treatment options in a simple and
-              reassuring way.
+              {siteConfig.dentist.quote}
             </p>
             <ul className="h-checks">
-              <li><Check aria-hidden="true" />BDS from Yenepoya (Deemed to be University), 2020</li>
-              <li><Check aria-hidden="true" />5 years of practice in India and the Middle East</li>
-              <li><Check aria-hidden="true" />Sees every patient himself, from the first check-up to the last sitting</li>
+              {siteConfig.dentist.points.map((point) => <li key={point}><Check aria-hidden="true" />{point}</li>)}
             </ul>
-            <a href="#book" className="h-btn amber">Book with Dr. Rahil</a>
+            <a href="#book" className="h-btn amber">Book with {siteConfig.dentist.short}</a>
           </div>
         </div>
       </section>

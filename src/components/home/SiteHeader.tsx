@@ -35,17 +35,18 @@ export function SiteHeader() {
 
   return (
     <header className={`h-header${scrolled || open ? ' solid' : ''}`}>
+      {siteConfig.demo && <p className="h-demo-note">Demo website: this clinic, its dentists and its prices are invented.</p>}
       <div className="h-wrap h-header-row">
         <NavLink href={links.home} className="h-brand" onClick={close}>
           <Image src={siteConfig.media.logo} alt={`${siteConfig.name} logo`} width={44} height={44} className="h-brand-logo" priority />
           <span className="h-brand-text">
             <span className="h-brand-name">{siteConfig.name}</span>
-            <span className="h-brand-place">Katapadi, Udupi</span>
+            <span className="h-brand-place">{siteConfig.area}</span>
           </span>
         </NavLink>
         <nav aria-label="Main" className="h-nav">
           <NavLink href={links.treatments} className="h-btn small glass h-desk">Treatments and prices</NavLink>
-          <NavLink href={links.doctor} className="h-btn small glass h-desk">Dr. Rahil</NavLink>
+          <NavLink href={links.doctor} className="h-btn small glass h-desk">{siteConfig.dentist.short}</NavLink>
           <a href={siteConfig.directionsLink} target="_blank" rel="noopener noreferrer" className="h-btn small glass h-desk">Get directions</a>
           <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="h-btn small glass h-desk">WhatsApp the clinic</a>
           <a href={TEL} className="h-btn small glass icon" aria-label={`Call the clinic, ${PHONE_SHOWN}`}>
@@ -63,7 +64,7 @@ export function SiteHeader() {
           <div className="h-wrap h-sheet-list">
             <BookButton className="h-sheet-link primary" onClick={close} />
             <NavLink href={links.treatments} className="h-sheet-link" onClick={close}>Treatments and prices</NavLink>
-            <NavLink href={links.doctor} className="h-sheet-link" onClick={close}>Dr. Rahil</NavLink>
+            <NavLink href={links.doctor} className="h-sheet-link" onClick={close}>{siteConfig.dentist.short}</NavLink>
             <a href={siteConfig.directionsLink} target="_blank" rel="noopener noreferrer" className="h-sheet-link" onClick={close}>Get directions</a>
             <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="h-sheet-link" onClick={close}>WhatsApp the clinic</a>
             <a href={TEL} className="h-sheet-link" onClick={close}>Call {PHONE_SHOWN}</a>

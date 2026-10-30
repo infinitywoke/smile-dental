@@ -823,20 +823,13 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **Done since this block was written:**
         - **Slice 3b's app part** is live (1477170): Clinic OS reads every clinic detail from the database. The builder's work was reviewed and finished by hand. Review found two more Smile Dental leftovers, both fixed: the voice-notes prompt named Dr. Rahil and Katapadi, and sign-in fell back to the name "Dr. Rahil". The guard test `src/lib/clinic-os-details.test.ts` now fails on any read of a clinic detail from `siteConfig` in Clinic OS, and `src/lib/clinic.test.ts` proves a second clinic's messages, prescription, UPI code and Tally file carry only its own details.
         - **Message languages' database part** is live (`supabase/multi-clinic-6a-2026-10.sql`): `patients.language` takes `'hi'`, and `clinics.languages` is what a clinic offers. Smile Dental stays on English and Kannada, so its patient form doesn't change until a native speaker has checked the Hindi. `setup_clinic` takes `languages`, and the demo clinic's patients include one in Kannada and one in Hindi.
-    - **In progress:** slice 4's app part, uncommitted in `src/` and `e2e/`, with the whole browser suite to pass before pushing:
-        - the website names its clinic (`siteConfig.clinicSlug`);
-        - `getWebsiteTreatments()` and `getClinicTreatments()` replace `getTreatments()`, and only the website's own clinic falls back to the list in the app (`listFor`);
-        - notifications go through `notify_new_request_all` and `notify_due_all`;
-        - `e2e/global-setup.ts` loads a price list into the test clinic, which now needs its own.
+        - **Slice 4's app part** is live (3d3f848): the website names its clinic, notifications reach every member, and only the website's own clinic falls back to the list in the app. `e2e/global-setup.ts` gives the test clinic a price list.
+        - **Hindi messages** are live (f9112af), offered only where `clinics.languages` includes `hi`, so Smile Dental's form is unchanged.
+        - **Sign-in by membership** is live (a9ee650): `ALLOWED_EMAIL` is gone. Checked first: 2 logins, both members, Dr. Rahil the owner of Smile Dental, sign-ups off.
+        - **The website template** is done: `src/config/sites/smile-dental.ts` and `brightside.ts`, picked by `NEXT_PUBLIC_SITE`. Smile Dental's build was compared with the live site, and all six pages match exactly, as do the Markdown copies. A guard test fails on a clinic's words in the template. The demo says on every page that it is invented, and stays out of search engines.
     - **The demo clinic's name:** "Brightside Dental", not "Bright Smile Dental", which contains "Smile Dental". Slug `demo-brightside`.
     - **Then, in order:**
-        1. **Finish slice 4's app part** (above): commit, push, check the deploy.
-        2. **Hindi messages:** the wording is written in a script from the 30 Oct session; if that is gone, add a Hindi branch in front of each Kannada one in `src/lib/whatsapp.ts`, `src/lib/billing.ts` and `src/app/r/[token]/page.tsx`, then offer it on `PatientForm` only where `clinic.languages` includes `hi`. A native speaker checks it before real patients see it.
-        3. **Slice 5's app part:**
-            - sign-in by membership instead of `ALLOWED_EMAIL` (`getDoctor`, the login action, the proxy);
-            - the demo clinic: a set-up description (slug `demo-…`, invented details like "Bright Smile Dental", Manipal) run through `setup_clinic`, then `seed_demo_clinic`.
-            - **Owner step:** make the demo login in Supabase (Authentication, Add user). There is no service-role key in `.env.local`, so it can't be made from here.
-        4. **Phase 2's website template:** the demo clinic's own website, booking into its Clinic OS through its slug.
+        1. **Owner steps for the demo** (`docs/build/DEMO-SETUP.md`): make the login, then run `supabase/demo-clinic-2026-10.sql`, then a second Vercel project for its website. With the login made and before the set-up runs, check that a login with no clinic is refused at sign-in.
         5. **Slice 7: chairs and dentists in the app:**
             - a Clinic settings screen;
             - booking picks the dentist;

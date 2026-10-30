@@ -12,9 +12,9 @@ const CLINIC_ID = `${siteConfig.url}/#clinic`
 const address = {
   '@type': 'PostalAddress',
   streetAddress: siteConfig.address,
-  addressLocality: 'Katapadi',
-  addressRegion: 'Karnataka',
-  postalCode: '574105',
+  addressLocality: siteConfig.postal.locality,
+  addressRegion: siteConfig.postal.region,
+  postalCode: siteConfig.postal.code,
   addressCountry: 'IN',
 }
 
@@ -79,7 +79,7 @@ export function clinicJsonLd(list: Treatment[] = treatments) {
       opens,
       closes,
     })),
-    employee: { '@type': 'Person', name: siteConfig.dentist.name, jobTitle: 'Dentist (BDS)' },
+    employee: { '@type': 'Person', name: siteConfig.dentist.name, jobTitle: `Dentist (${siteConfig.dentist.degree})` },
     // Where to book, for search engines and AI agents: the booking page
     potentialAction: {
       '@type': 'ReserveAction',
@@ -135,7 +135,7 @@ export function treatmentJsonLd(treatment: Treatment) {
     url: `${siteConfig.url}/treatments/${treatment.slug}`,
     ...(heading ? { category: heading.name } : {}),
     provider: { '@type': 'Dentist', '@id': CLINIC_ID, name: siteConfig.name, telephone: siteConfig.phone, address },
-    areaServed: { '@type': 'Place', name: 'Katapadi, Udupi' },
+    areaServed: { '@type': 'Place', name: siteConfig.area },
     offers: (treatment.pricing ?? []).map((option) => offerFor(treatment, option)),
   }
 }

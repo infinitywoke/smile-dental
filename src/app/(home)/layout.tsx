@@ -11,7 +11,7 @@ const display = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['n
 const body = Manrope({ subsets: ['latin'], variable: '--font-body' })
 
 // The pages' own addresses in their metadata (canonical, the Markdown copy) are on the clinic's domain
-export const metadata: Metadata = { metadataBase: new URL(siteConfig.url) }
+export const metadata: Metadata = { metadataBase: new URL(siteConfig.url), ...(siteConfig.demo ? { robots: { index: false, follow: false } } : {}) }
 
 // The website (D): its own fonts and styles, and on every page the header, the visit details at the
 // foot and the phone bar.

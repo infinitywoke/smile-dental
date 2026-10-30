@@ -4,7 +4,7 @@ import { PageHead } from '@/components/home/PageHead'
 import { PHONE_SHOWN, TEL } from '@/components/home/site-links'
 
 export const metadata: Metadata = {
-  title: 'Privacy policy · Smile Dental Clinic, Katapadi',
+  title: `Privacy policy · ${siteConfig.name}, ${siteConfig.place}`,
   description: `Privacy policy and patient data handling for ${siteConfig.name}.`,
   alternates: { canonical: '/privacy' },
 }

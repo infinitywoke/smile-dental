@@ -93,11 +93,11 @@ describe('online booking rules', () => {
 
 describe('confirmation promise', () => {
   it('promises 15 minutes in the day and "after 6 AM" at night', () => {
-    expect(confirmationPromise(at(WED, '10:00'))).toMatch(/under 15 minutes/)
-    expect(confirmationPromise(at(WED, '06:00'))).toMatch(/under 15 minutes/)
-    expect(confirmationPromise(at(WED, '20:59'))).toMatch(/under 15 minutes/)
-    expect(confirmationPromise(at(WED, '21:00'))).toMatch(/after 6 AM/)
-    expect(confirmationPromise(at(WED, '03:00'))).toMatch(/after 6 AM/)
+    expect(confirmationPromise(at(WED, '10:00'), 'Dr. Kavya')).toMatch(/under 15 minutes/)
+    expect(confirmationPromise(at(WED, '06:00'), 'Dr. Kavya')).toMatch(/under 15 minutes/)
+    expect(confirmationPromise(at(WED, '20:59'), 'Dr. Kavya')).toMatch(/under 15 minutes/)
+    expect(confirmationPromise(at(WED, '21:00'), 'Dr. Kavya')).toMatch(/after 6 AM/)
+    expect(confirmationPromise(at(WED, '03:00'), 'Dr. Kavya')).toMatch(/after 6 AM/)
   })
 })
 

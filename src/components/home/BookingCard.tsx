@@ -1,5 +1,6 @@
 'use client'
 
+import { siteConfig } from '@/config/site'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -144,7 +145,7 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
   const hint = choice.reason === 'toothache'
     ? earliest ? { text: `In pain? The earliest free time is ${when(earliest)}.`, offer: true } : { text: 'In pain? Call the clinic for the soonest time.', offer: false }
     : choice.reason === 'unsure'
-      ? { text: `No problem: Dr. Rahil examines first and explains the options. Consultation${checkupPrice ? ` ${checkupPrice}` : ''}.`, offer: false }
+      ? { text: `No problem: ${siteConfig.dentist.short} examines first and explains the options. Consultation${checkupPrice ? ` ${checkupPrice}` : ''}.`, offer: false }
       : service ? { text: service.price ? `${service.name} · ${service.price}` : service.name, offer: false } : null
 
   const reasonLabel = bookingReasons.find((r) => r.id === choice.reason)?.label ?? null
@@ -277,7 +278,7 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
         </p>
         {sent.url ? (
           <>
-            <p className="h-callout">WhatsApp should have opened with your request written. Just tap Send, and Dr. Rahil confirms your time on WhatsApp.</p>
+            <p className="h-callout">WhatsApp should have opened with your request written. Just tap Send, and {siteConfig.dentist.short} confirms your time on WhatsApp.</p>
             <a href={sent.url} className="h-btn navy wide"><MessageCircle className="h-icon" aria-hidden="true" /> WhatsApp didn&apos;t open? Tap here</a>
             <p className="h-hint">{promise}</p>
           </>
@@ -464,7 +465,7 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
               </div>
               {voiceVariant === 'page' && (
                 <div className="h-voice">
-                  <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell Dr. Rahil what&apos;s bothering you <small>(optional)</small></span></p>
+                  <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell {siteConfig.dentist.short} what&apos;s bothering you <small>(optional)</small></span></p>
                   <p className="h-hint">
                     Which tooth or side? Since when? Does it hurt with hot, cold or sweet things, when biting, or at night? Any
                     swelling? It helps him plan the right amount of time for you.
@@ -474,7 +475,7 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
               )}
               {voiceVariant === 'whatsapp' && (
                 <div className="h-voice">
-                  <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell Dr. Rahil what&apos;s bothering you, in a voice note</span></p>
+                  <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell {siteConfig.dentist.short} what&apos;s bothering you, in a voice note</span></p>
                   <p className="h-hint">
                     After you tap Send in WhatsApp, hold the microphone button and tell him: which tooth or side, since when, and
                     what makes it hurt (hot, cold, biting, at night, swelling). It helps him plan the right amount of time for you.

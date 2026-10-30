@@ -486,3 +486,5 @@
   .h-wave, .h-ring-arc, .h-status.open .h-status-dot { animation: none; }
   .h-btn, .h-tooth, .h-day, .h-chip, .h-mobile-bar { transition: none; }
 }
+
+.h-demo-note { margin: 0; padding: 6px 16px; background: #fef3c7; color: #78350f; font-size: 13px; line-height: 1.4; text-align: center; }
