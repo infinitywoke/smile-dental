@@ -203,10 +203,10 @@ export type MessageData = {
   photoLink: { url: string; labels: string[] } | null
 }
 
-// The address the doctor is using (the live site, or the test server), for links in messages
+// The address the doctor is using (Clinic OS's, or the test server), for links in messages
 async function siteOrigin(): Promise<string> {
   const origin = (await headers()).get('origin')
-  return origin && /^https?:\/\/[^/]+$/.test(origin) ? origin : siteConfig.url
+  return origin && /^https?:\/\/[^/]+$/.test(origin) ? origin : siteConfig.clinicOsUrl
 }
 
 const PHOTO_LINK_FAILED = 'Could not prepare the photo link. Please try again.'

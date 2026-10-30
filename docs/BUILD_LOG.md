@@ -582,3 +582,36 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - The offline test's "no link" check matched the new review link (`g.page/r/…`); it now looks only for the clinic's 32-character share link.
     - **Pushed 25 Oct (37863d0), live within 2 minutes.**
     - **Next:** import one real day into a backup copy of his company and compare it with his Day Book (`docs/TALLY.md`, "Still to do"); then on the Tally screen change the saved bank ledger (`Bank of Baroda` → `Savings A/C`) and upload his List of Accounts once.
+
+- 2026-10-30 **Owner's business plan:** paid websites for many dentists (the revenue), each with booking wired into Clinic OS, which stays the owner's product. Clinic OS becomes multi-tenant: the same basic features for every clinic, and hardware integrations per clinic. Memory: `business-model`.
+    - **Step 1 (now): Rahil's domain and website live.**
+        - The owner buys the `.com` at Cloudflare before 1 Nov, 09:30 IST (the price rises), adds it to the Vercel project and upgrades Vercel to Pro (required for commercial use).
+        - The orchestrator then:
+            - points `siteConfig.url` at the new domain;
+            - sends `/app`, `/login` and `/r/*` on the new domain to the Clinic OS address, so Rahil's installed app stays where it is;
+            - sends the old address's website pages to the new domain;
+            - builds the booking request's "Open in Clinic OS" link from the Clinic OS address (today it uses the page's own origin).
+        - Then the Google profile's website and appointment links change.
+    - **Planned order:**
+        1. **Tenancy foundation:** `clinics` and `clinic_members`, `clinic_id` on all 23 tables, settings from the database, invite-only sign-in, a set-up script. Clinic OS moves to the product domain; Rahil reinstalls once.
+        2. **Booking API v1** and a booking component; Rahil's site becomes the website template and moves to Cloudflare Pages.
+        3. **Integration adapters** (Tally and the Intellicam first), feature switches, an admin console.
+        4. **Pilot clinic no. 2.**
+    - **Owner, 30 Oct (later): stay on the existing free infrastructure while testing** (no paying customers yet).
+        - Clinic OS stays at https://smile-dental-hin3.vercel.app on Vercel Hobby, with Supabase Free; only the website moves to Rahil's domain. Vercel Pro isn't needed for step 1.
+        - Product name to be decided; "Clinic OS" until then. Suggested: Danta (getdanta.com and dantahq.com free) and NextSitting (nextsitting.in free).
+        - The owner is buying `smiledentalkatapady.com` at Cloudflare, adding it and `www` to the Vercel project with DNS only (grey cloud), and telling the orchestrator once Vercel shows a valid configuration.
+- 2026-10-30 **Rahil's domain is live: https://www.smiledentalkatapadi.com.**
+    - The owner bought `smiledentalkatapadi.com` at Cloudflare and added it to the Vercel project. Vercel made `www` the main address and sends the bare domain to it (308).
+    - Clinic OS stays at https://smile-dental-hin3.vercel.app. One deployment answers on both addresses, and each shows only its own part (`src/config/redirects.ts`, used by `next.config.ts`):
+        - on Clinic OS's address, the website's pages (`/`, `/book`, `/treatments`, `/treatments/:slug`, `/privacy`) go permanently to the domain, query included (the Google profile's `?utm_source=google` survives);
+        - on the domain, `/app`, `/login`, `/auth`, `/r` and `/api` go temporarily to Clinic OS (temporary because Clinic OS will move to a product address);
+        - a test server or a preview is untouched.
+    - Rahil's installed app, sign-in, notifications and the `/api/notify` scheduler are unchanged.
+    - **Code changes:**
+        - `siteConfig.url` is the domain (sitemap, robots, Google's data) and `siteConfig.clinicOsUrl` is the new Clinic OS address.
+        - A website request's "Open in Clinic OS" link goes straight to Clinic OS (`clinicOsOrigin()` in `site-links.ts`; it used the page's own origin, which on the domain would need a redirect).
+        - The fallback address for patients' `/r` links, and the Messages preview, use Clinic OS's address.
+        - `health.yml` checks the domain's `/` and `/book`, Clinic OS's `/login`, and that the old address's `/` answers 308.
+    - **DNS:** Vercel recommends replacing the bare domain's legacy A record (`76.76.21.21`, which still works) with a CNAME `@` to `ec3e0e0f4bb756f7.vercel-dns-017.com`, proxy off (Cloudflare flattens a CNAME at the root). The owner can change it any time.
+    - **Owner or Rahil to do:** the Google Business Profile website → https://www.smiledentalkatapadi.com, and the appointment link → https://www.smiledentalkatapadi.com/book?utm_source=google&utm_medium=business_profile.

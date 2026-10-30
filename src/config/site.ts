@@ -11,8 +11,12 @@ export const siteConfig = {
   // --- Clinic Identity ---
   name: "Smile Dental Clinic", // [VERIFIED]
   description: "Dental clinic in Katapadi, Udupi, run by Dr. Rahil Yusuf, BDS: check-ups, cleaning, fillings, root canals, crowns and braces.", // [VERIFIED facts]
-  // [VERIFIED] The live address. Switch to the clinic's own domain once it is connected in Vercel.
-  url: "https://smile-dental-hin3.vercel.app",
+  // [VERIFIED] The website's address: the clinic's own domain (bought 30 Oct 2026; Vercel made www the
+  // main address and sends smiledentalkatapadi.com to it)
+  url: "https://www.smiledentalkatapadi.com",
+  // [VERIFIED] Clinic OS's address. Clinic OS stays here for now (owner, 30 Oct 2026). One deployment
+  // answers on both addresses, and each shows only its own part (src/config/redirects.ts).
+  clinicOsUrl: "https://smile-dental-hin3.vercel.app",
   
   // --- Contact Information ---
   phone: "+91 6361816711", // [VERIFIED]

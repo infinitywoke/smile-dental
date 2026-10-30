@@ -1,4 +1,5 @@
-# Every morning: the website, the booking page and the sign-in page answer, and no Clinic OS screen
+# Every morning: the website and its booking page (on the clinic's domain), and Clinic OS's sign-in page
+# (on its own address) answer, and the old address still sends the website to the domain; and no Clinic OS screen
 # reported an error in the last day (src/lib/report-error.ts keeps them in app_errors: the screen, the
 # device and the error, nothing about a patient). Anything wrong fails the run, so GitHub emails the
 # owner; the run's log lists the errors.
@@ -17,17 +18,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      SITE: https://smile-dental-hin3.vercel.app
+      WEBSITE: https://www.smiledentalkatapadi.com
+      CLINIC_OS: https://smile-dental-hin3.vercel.app
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
       - name: The website, the booking page and the sign-in page answer
         run: |
           status=0
-          for path in / /book /login; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --retry 2 --retry-delay 20 --max-time 30 "$SITE$path") || code=000
-            echo "$path: $code"
-            if [ "$code" != 200 ]; then echo "::error::$SITE$path answered $code"; status=1; fi
-          done
+          check() {
+            code=$(curl -s -o /dev/null -w '%{http_code}' --retry 2 --retry-delay 20 --max-time 30 "$1") || code=000
+            echo "$1: $code"
+            if [ "$code" != "$2" ]; then echo "::error::$1 answered $code, not $2"; status=1; fi
+          }
+          check "$WEBSITE/" 200
+          check "$WEBSITE/book" 200
+          check "$CLINIC_OS/login" 200
+          check "$CLINIC_OS/" 308
           exit $status
 
       - name: No errors on Clinic OS screens in the last day

@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { siteConfig } from "./src/config/site";
+import { hostRedirects } from "./src/config/redirects";
 
 // The browser's own guards on every page, the website's and Clinic OS's: nothing loads from other sites
 // but Supabase (the data, photos and recordings), the chair monitor's photos and the Google map in the website's footer; no other
@@ -54,9 +55,11 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]
   },
-  // The old website's pages are sections of the homepage now; /preview was the new website before it went live
+  // Each of the two addresses shows only its own part (src/config/redirects.ts). The old website's pages
+  // are sections of the homepage now; /preview was the new website before it went live.
   async redirects() {
     return [
+      ...hostRedirects(),
       { source: '/about', destination: '/#doctor', permanent: true },
       { source: '/contact', destination: '/#visit', permanent: true },
       { source: '/faq', destination: '/#questions', permanent: true },

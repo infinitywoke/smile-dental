@@ -39,7 +39,7 @@ function samples(language: MessageLanguage, day: string, earlier: string) {
       visitDate: earlier,
       today: earlier,
       nextAppointment: { starts_at: startsAt },
-      photoLink: { url: `${siteConfig.url}/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345`, labels: ['Prescription', 'X-ray', 'Bill'] },
+      photoLink: { url: `${siteConfig.clinicOsUrl}/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345`, labels: ['Prescription', 'X-ray', 'Bill'] },
       language,
     }) },
     { title: 'Google review', text: reviewMessage({ name, language }) },

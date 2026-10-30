@@ -13,7 +13,7 @@ import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/whatsapp'
 import { SOURCE_KEY } from '@/components/site/SourceTracker'
 import { useVoiceVariant } from '@/components/site/voice-variant'
 import { BOOK_EVENT, takePendingBookFor, type BookFor } from './book-events'
-import { TEL } from './site-links'
+import { clinicOsOrigin, TEL } from './site-links'
 import { VoiceNote } from './VoiceNote'
 
 type Props = {
@@ -258,7 +258,7 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
         startsAt,
         reason: reasonText,
         // Opened by Dr. Rahil from the message, this records that it arrived (the time is held from then)
-        link: `${window.location.origin}/app/requests/${result.id}/received`,
+        link: `${clinicOsOrigin()}/app/requests/${result.id}/received`,
         voiceNote: voiceVariant === 'whatsapp' ? 'whatsapp' : voiceNote ? 'recorded' : null,
       }))
       setSent({ url, at: startsAt })
