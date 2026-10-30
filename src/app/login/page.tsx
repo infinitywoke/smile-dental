@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 const errorMessages: Record<string, string> = {
-  'not-allowed': 'This account is not allowed to use Clinic OS.',
+  'not-allowed': "This login isn't part of a clinic yet.",
   invalid: 'Wrong email or password. Please try again.',
 }
 

@@ -8,7 +8,7 @@ The *what* and *why* are in [PRODUCT.md](PRODUCT.md); coding rules are in [../AG
 |---|---|
 | **Website** | Live. Online booking: the visitor picks a free 40-minute time and sends phone, name, gender, age and a reason. |
 | **Hosting** | Vercel (`smile-dental-hin3.vercel.app`), auto-deploys `main` from the private GitHub repo `infinitywoke/smile-dental`. |
-| **Auth** | Supabase email + password, locked to `ALLOWED_EMAIL`; sign-ups disabled; the session lasts until Sign out. |
+| **Auth** | Supabase email + password, for members of a clinic (`clinic_members`); sign-ups disabled; the session lasts until Sign out. |
 | **Clinic OS** | Six screens: Today, Patients, New patient, Patient, Visit, Pick a time (see PRODUCT.md, "Screens and flow"). Visit page saves by itself; one WhatsApp message with the bill, next visit and prescription link. |
 | **Database** | One file, `supabase/schema.sql`. The live project reaches the same state by running `supabase/cleanup-2026-10.sql` once. `supabase/reset-all-data.sql` erases trial data once before go-live and is deleted afterwards. |
 | **Checks** | `npx tsc --noEmit`, `npm test`, `npm run lint`, `npm run build`, `npm run test:e2e` (four spec files, test login), `supabase/tests/booking.check.mjs` (PGlite), and the evidence tour in `tour/`. None use AI quota. |

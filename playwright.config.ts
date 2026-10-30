@@ -46,7 +46,6 @@ export default defineConfig({
           NEXT_PUBLIC_SUPABASE_URL: appEnv.NEXT_PUBLIC_SUPABASE_URL ?? '',
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: appEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
           // Only the test account may sign in to this server
-          ALLOWED_EMAIL: testLogin.email,
           E2E: '1',
           GEMINI_FAKE: '1',
         },

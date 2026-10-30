@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isAllowedEmail } from '@/lib/allowed-email'
 
 // Refreshes the Supabase session cookie and does a quick redirect check.
-// This is an optimistic check only; pages and actions re-verify with getDoctor().
+// This is an optimistic check only: pages and actions re-verify with getDoctor(), which also needs the login
+// to be a member of a clinic.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
 
@@ -28,7 +28,7 @@ export async function proxy(request: NextRequest) {
 
   // Checked with the project's public signing key: no call to Supabase Auth unless the session needs refreshing
   const { data } = await supabase.auth.getClaims()
-  const signedIn = !!data?.claims?.sub && isAllowedEmail(data.claims.email)
+  const signedIn = !!data?.claims?.sub
   const { pathname } = request.nextUrl
 
   if (pathname.startsWith('/app') && !signedIn) {
@@ -37,7 +37,8 @@ export async function proxy(request: NextRequest) {
     if (pathname !== '/app') login.searchParams.set('next', pathname + request.nextUrl.search)
     return NextResponse.redirect(login)
   }
-  if (pathname === '/login' && signedIn) {
+  // Not sent back from /login?error=…: getDoctor sends a login with no clinic there, and it would go round forever
+  if (pathname === '/login' && signedIn && !request.nextUrl.searchParams.has('error')) {
     return NextResponse.redirect(new URL('/app', request.url))
   }
 

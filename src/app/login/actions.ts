@@ -2,7 +2,6 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { isAllowedEmail } from '@/lib/allowed-email'
 import { logAccess } from '@/lib/data/access-log'
 
 // Only paths inside Clinic OS are allowed, so a sign-in link can't send the doctor elsewhere
@@ -16,17 +15,18 @@ export async function signIn(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
 
-  if (!isAllowedEmail(email)) {
-    redirect('/login?error=invalid')
-  }
-
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
     redirect('/login?error=invalid')
   }
-  // With the client that now holds the session (the request's cookies don't have it yet)
+  // Only a member of a clinic gets in (the client now holds the session; the request's cookies don't yet)
+  const { data: clinicId } = await supabase.rpc('my_clinic_id')
+  if (typeof clinicId !== 'string') {
+    await supabase.auth.signOut()
+    redirect('/login?error=not-allowed')
+  }
   await logAccess({ action: 'signed in' }, supabase)
   redirect(next)
 }
