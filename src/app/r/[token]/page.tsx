@@ -1,11 +1,12 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Download } from 'lucide-react'
-import { siteConfig } from '@/config/site'
 import { linkWord } from '@/lib/billing'
+import { degreeOf } from '@/lib/clinic'
 import { formatRupees } from '@/lib/pricing'
 import { formatDate } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
+import type { Letterhead } from '@/lib/prescription-image'
 import { createPublicClient } from '@/lib/supabase/public'
 import { isSharedBill, isSharedPrescription, type SharedBill, type SharedItem } from '@/lib/share-link'
 import { firstName, kannadaDate, messageLanguage, questionsLine } from '@/lib/whatsapp'
@@ -14,25 +15,37 @@ import { SharedPrescription } from '@/components/SharedPrescription'
 
 // The page a visit message's link opens (src/lib/actions/visits.ts makes the link): the typed
 // prescription on the letterhead, the ticked photos and the bill, for 30 days, to anyone with the link
-// and to no one else. Kept out of search engines.
+// and to no one else. Kept out of search engines. The page names the clinic and dentist the link is from
+// (shared_photos tells it), so its title names none.
 export const metadata: Metadata = {
-  title: `Your visit · ${siteConfig.name}`,
+  title: 'Your visit',
   robots: { index: false, follow: false },
 }
 
+// What a link says about its clinic (shared_photos), whoever opens it: only what the page prints. The
+// dentist is the one the prescription is from, if the clinic has one.
+type SharedClinic = {
+  name: string
+  place: string
+  phone: string
+  address: string
+  logo: string | null
+  dentist: { name: string; qualifications: string | null; registration: string | null; signature: string | null } | null
+}
 type Shared =
-  | { visit_date: string; first_name: string; language: string | null; expires_at: string; photos: SharedItem[] }
-  | { expired: true }
+  | { visit_date: string; first_name: string; language: string | null; expires_at: string; photos: SharedItem[]; clinic: SharedClinic }
+  // An expired link still says which clinic to call, and nothing more
+  | { expired: true; clinic: { name: string; place: string; phone: string } }
 
 // 32 random characters; anything else is not one of the clinic's links
 const CODE = /^[A-Za-z0-9_-]{32,128}$/
 
-function Clinic() {
-  const degree = siteConfig.dentist.qualifications.split(',')[0].trim()
+function ClinicHeader({ name, place, dentist }: { name: string; place: string; dentist?: SharedClinic['dentist'] }) {
+  const degree = dentist ? degreeOf(dentist) : ''
   return (
     <header className="border-b border-gray-200 pb-4">
-      <p className="text-lg font-extrabold text-gray-900">{siteConfig.name}</p>
-      <p className="text-sm text-gray-600">{siteConfig.dentist.name}, {degree} · Katapadi</p>
+      <p className="text-lg font-extrabold text-gray-900">{name}</p>
+      <p className="text-sm text-gray-600">{dentist ? `${dentist.name}${degree ? `, ${degree}` : ''} · ${place}` : place}</p>
     </header>
   )
 }
@@ -86,18 +99,30 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
   const { data } = CODE.test(token) ? await createPublicClient().rpc('shared_photos', { p_token: token }) : { data: null }
   const shared = data as Shared | null
 
-  if (!shared || 'expired' in shared) {
+  // An unknown link names no clinic and gives no phone number: whoever typed it may be a stranger
+  if (!shared) {
     return (
       <Page>
-        <Clinic />
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">{shared ? 'This link has expired' : "This link doesn't work"}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">This link doesn&apos;t work</h1>
+        <p className="text-base text-gray-700">Check that the whole link was copied, or ask the clinic that sent it for a new one.</p>
+      </Page>
+    )
+  }
+  if ('expired' in shared) {
+    return (
+      <Page>
+        <ClinicHeader name={shared.clinic.name} place={shared.clinic.place} />
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">This link has expired</h1>
         <p className="text-base text-gray-700">
-          {shared ? `These links work for 30 days. For your prescription, photos or bill, call or WhatsApp us on ${siteConfig.phone}.` : `Check that the whole link was copied. ${questionsLine()}`}
+          These links work for 30 days. For your prescription, photos or bill, call or WhatsApp us on {shared.clinic.phone}.
         </p>
       </Page>
     )
   }
 
+  const { clinic } = shared
+  // The prescription is drawn on the clinic's letterhead, signed by its dentist
+  const letterhead: Letterhead | null = clinic.dentist ? { clinic, dentist: clinic.dentist } : null
   const language = messageLanguage(shared.language)
   const kn = language === 'kn'
   const date = kn ? kannadaDate(shared.visit_date, true) : formatDate(shared.visit_date)
@@ -112,7 +137,7 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
   const numbered = labels.map((label, i) => (labels.filter((l) => l === label).length > 1 ? `${label} ${labels.slice(0, i + 1).filter((l) => l === label).length}` : label))
   return (
     <Page>
-      <Clinic />
+      <ClinicHeader name={clinic.name} place={clinic.place} dentist={clinic.dentist} />
       <div lang={kn ? 'kn' : 'en'} className="space-y-1">
         <p className="text-base text-gray-700">{kn ? `ನಮಸ್ಕಾರ ${firstName(shared.first_name)} ಅವರೇ,` : `Hi ${firstName(shared.first_name)},`}</p>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">{kn ? `ನಿಮ್ಮ ${holds}` : `Your ${holds}`}</h1>
@@ -122,9 +147,13 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
         <figure key={i} className="space-y-2">
           <figcaption className="font-semibold text-gray-900">{numbered[i]}</figcaption>
           {isSharedPrescription(item) ? (
-            <SharedPrescription
-              sheet={{ patient: item.patient ?? firstName(shared.first_name), age: item.age ?? null, date: formatDate(shared.visit_date), medicines: item.medicines, advice: item.advice }}
-              alt={numbered[i]} fileName={fileName(numbered[i], formatDate(shared.visit_date), 'jpg')} saveLabel={save} />
+            letterhead ? (
+              <SharedPrescription
+                sheet={{ patient: item.patient ?? firstName(shared.first_name), age: item.age ?? null, date: formatDate(shared.visit_date), medicines: item.medicines, advice: item.advice }}
+                letterhead={letterhead} alt={numbered[i]} fileName={fileName(numbered[i], formatDate(shared.visit_date), 'jpg')} saveLabel={save} />
+            ) : (
+              <p className="rounded-xl bg-gray-50 p-4 text-base text-gray-700 ring-1 ring-gray-200">This prescription can&apos;t be shown here. Please call {clinic.phone}.</p>
+            )
           ) : (
             <>
               <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
@@ -141,7 +170,7 @@ async function SharedPhotos({ params }: PageProps<'/r/[token]'>) {
       ))}
       {bill && <Bill bill={bill} kn={kn} />}
       <p lang={kn ? 'kn' : 'en'} className="text-sm text-gray-600">
-        {kn ? `ಈ ಲಿಂಕ್ ${kannadaDate(until, true)} ರವರೆಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ.` : `This link works until ${formatDate(until)}.`} {questionsLine(language)}
+        {kn ? `ಈ ಲಿಂಕ್ ${kannadaDate(until, true)} ರವರೆಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ.` : `This link works until ${formatDate(until)}.`} {questionsLine({ clinic }, language)}
       </p>
     </Page>
   )

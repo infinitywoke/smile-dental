@@ -3,6 +3,7 @@
 import { useEffect, useImperativeHandle, useState, type Ref } from 'react'
 import QRCode from 'qrcode'
 import { AlertCircle, Banknote, Check, QrCode } from 'lucide-react'
+import type { ClinicUpi } from '@/lib/clinic'
 import type { ShownBill } from '@/lib/offline/apply'
 import { useUndo } from './UndoBar'
 import { useSaves } from './Outbox'
@@ -25,6 +26,7 @@ export function PaymentCard({
   visitId,
   patientName,
   bill,
+  upi,
   save,
   onSaving,
   handle,
@@ -33,6 +35,8 @@ export function PaymentCard({
   patientName: string
   // With any payment still waiting on the phone to be saved (pending)
   bill: ShownBill
+  // Who the clinic's UPI QR pays; none, and there is no UPI button
+  upi: ClinicUpi | null
   save: Save
   // Told about a payment tapped here that the page doesn't have yet, so Delete visit counts it at once
   onSaving?: (payment: SavingPayment | null) => void
@@ -68,6 +72,7 @@ export function PaymentCard({
 
   // The full-screen UPI QR for the amount in the box, or the one given (typed notes are sent first)
   function openQr(value: number | null = parsed): boolean {
+    if (!upi) return false
     if (value === null || value <= 0) {
       setError('Please enter the amount received.')
       return false
@@ -170,23 +175,26 @@ export function PaymentCard({
                 className="block w-full rounded-xl border-0 px-4 py-3 text-xl font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600" />
             </div>
             {error && !qr.open && <ErrorLine message={error} />}
-            <div id="payment-actions" className="grid grid-cols-2 gap-3">
+            <div id="payment-actions" className={`grid gap-3 ${upi ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <button type="button" onClick={() => void receive('cash')} disabled={pending || !valid}
                 className="flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-2 text-[15px] font-bold text-white disabled:opacity-50">
                 <Banknote className="h-5 w-5 shrink-0" /> Cash received
               </button>
-              <button type="button" onClick={() => openQr()}
-                disabled={pending || !valid}
-                className="flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-white px-2 text-[15px] font-bold text-gray-900 ring-1 ring-inset ring-gray-300 disabled:opacity-50">
-                <QrCode className="h-5 w-5 shrink-0" /> UPI
-              </button>
+              {upi && (
+                <button type="button" onClick={() => openQr()}
+                  disabled={pending || !valid}
+                  className="flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-white px-2 text-[15px] font-bold text-gray-900 ring-1 ring-inset ring-gray-300 disabled:opacity-50">
+                  <QrCode className="h-5 w-5 shrink-0" /> UPI
+                </button>
+              )}
             </div>
           </>
         )}
       </div>
 
-      {qr.open && valid && (
+      {qr.open && valid && upi && (
         <UpiScreen
+          upi={upi}
           amount={parsed!}
           patientName={patientName}
           pending={pending}
@@ -206,6 +214,7 @@ export function PaymentCard({
 // The QR fills the screen so the patient can scan it; the doctor taps "Payment received" once
 // the money shows in his bank or UPI app.
 function UpiScreen({
+  upi,
   amount,
   patientName,
   pending,
@@ -213,6 +222,7 @@ function UpiScreen({
   onReceived,
   onClose,
 }: {
+  upi: ClinicUpi
   amount: number
   patientName: string
   pending: boolean
@@ -221,7 +231,7 @@ function UpiScreen({
   onClose: () => void
 }) {
   const [qr, setQr] = useState<string | null>(null)
-  const link = upiLink({ amount, note: `Dental ${patientName.trim().split(/\s+/)[0]}` })
+  const link = upiLink(upi, { amount, note: `Dental ${patientName.trim().split(/\s+/)[0]}` })
 
   useEffect(() => {
     let cancelled = false
@@ -255,7 +265,7 @@ function UpiScreen({
         ) : (
           <div className="aspect-square w-full max-w-sm rounded-xl bg-gray-100" />
         )}
-        <p className="text-base text-gray-600">Scan with GPay, PhonePe or Paytm to pay Smile Dental Clinic.</p>
+        <p className="text-base text-gray-600">Scan with GPay, PhonePe or Paytm to pay {upi.payee}.</p>
       </div>
     </FullScreen>
   )

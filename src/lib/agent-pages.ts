@@ -4,7 +4,7 @@ import { OPEN_SESSIONS } from '@/lib/clinic-hours'
 import { homeServicesFor, toothAreasFor, treatmentGroups } from '@/lib/price-list'
 import { formatRupees, parsePrice, priceForPatients } from '@/lib/pricing'
 import { formatBlock } from '@/lib/schedule'
-import { clinicWhatsappLink } from '@/lib/whatsapp'
+import { clinicWhatsappLink } from '@/lib/website-whatsapp'
 
 // The website for AI assistants and agents, in Markdown:
 // - /llms.txt says what the site is and where everything is (the llmstxt.org format);

@@ -1,6 +1,5 @@
 import { formatDate } from '@/lib/dates'
 import { inIndia } from '@/lib/schedule'
-import { PATIENT_GROUP } from '@/lib/tally-ledgers'
 
 // Send to Tally: payments as Tally receipt vouchers in Tally's XML import format, which TallyPrime and
 // Tally.ERP 9 both read (Import → Transactions). Each receipt takes the money into the cash ledger (cash)
@@ -9,7 +8,8 @@ import { PATIENT_GROUP } from '@/lib/tally-ledgers'
 // Tally refuses a file whose ledger names don't exist in the company, so the dentist types his cash and
 // bank names once, and a patient ledger Tally doesn't have yet is created at the top of the file.
 
-export type TallyLedgers = { cash: string; bank: string; income: string | null }
+// The ledgers a receipt debits and credits, and the group the patients' own ledgers sit under (any new one is made there)
+export type TallyLedgers = { cash: string; bank: string; income: string | null; patientGroup: string }
 // One receipt per payment, or one per day for each of cash and UPI
 export type TallyEntries = 'payment' | 'day'
 export type TallyPayment = {
@@ -101,7 +101,7 @@ export function tallyXml(payments: TallyPayment[], ledgers: TallyLedgers, entrie
     '      <NAME.LIST>',
     `       <NAME>${xml(name)}</NAME>`,
     '      </NAME.LIST>',
-    `      <PARENT>${xml(PATIENT_GROUP)}</PARENT>`,
+    `      <PARENT>${xml(ledgers.patientGroup)}</PARENT>`,
     '      <ISBILLWISEON>Yes</ISBILLWISEON>',
     '     </LEDGER>',
     '    </TALLYMESSAGE>',

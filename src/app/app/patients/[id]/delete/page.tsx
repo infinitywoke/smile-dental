@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { getClinic } from '@/lib/data/clinic'
 import { getPatient, getPatientFootprint } from '@/lib/data/patients'
 import { formatRupees } from '@/lib/pricing'
 import { formatWhen } from '@/lib/schedule'
@@ -11,9 +12,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 // Deleting a patient: everything that goes is listed, and the doctor's password confirms it
 async function DeletePatientContent({ params }: PageProps<'/app/patients/[id]/delete'>) {
   const { id } = await params
-  const [patient, footprint] = await Promise.all([getPatient(id), getPatientFootprint(id)])
+  const [patient, footprint, clinic] = await Promise.all([getPatient(id), getPatientFootprint(id), getClinic()])
   const next = footprint.coming[0]
-  const tellUrl = next && patient.phone ? whatsappLink(patient.phone, cancelledMessage({ name: patient.name, startsAt: next.starts_at, language: messageLanguage(patient.language) })) : null
+  const tellUrl = next && patient.phone ? whatsappLink(patient.phone, cancelledMessage(clinic, { name: patient.name, startsAt: next.starts_at, language: messageLanguage(patient.language) })) : null
 
   return (
     <div className="space-y-5">

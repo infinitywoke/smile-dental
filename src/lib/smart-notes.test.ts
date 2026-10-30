@@ -1,11 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
+import { OTHER_CLINIC, SMILE_DENTAL } from './test-clinic'
 
 vi.mock('server-only', () => ({}))
 const { checkAgainstTranscript, checkSorted, notesText, priceListWithIds, smartNotesInstructions } = await import('./smart-notes')
 
 describe('smart notes', () => {
+  it('the instructions say whose notes these are: the clinic it is given', () => {
+    expect(smartNotesInstructions(SMILE_DENTAL)).toContain('He is Dr. Rahil Yusuf (BDS), at a small dental\nclinic in Katapadi, India.')
+    const text = smartNotesInstructions(OTHER_CLINIC)
+    expect(text).toContain('He is Dr. Kavya Shenoy (BDS), at a small dental\nclinic in Manipal, India.')
+    expect(text).not.toMatch(/Rahil|Katapadi/)
+  })
+
   it('the instructions list price-list items by ID, names only (no prices), and ask for best guesses marked (?)', () => {
-    const text = smartNotesInstructions()
+    const text = smartNotesInstructions(SMILE_DENTAL)
     expect(text).toContain('"(?)"')
     expect(text).toContain('NOT_ON_LIST')
     expect(text).toContain('P1 | Consultation | Standard Consultation')
@@ -50,7 +58,7 @@ describe('smart notes', () => {
   })
 
   it('tells Gemini to keep only his corrected words and to spell his own medicines his way', () => {
-    const text = smartNotesInstructions(['Augmentin 625', 'Ketorol DT'])
+    const text = smartNotesInstructions(SMILE_DENTAL, ['Augmentin 625', 'Ketorol DT'])
     expect(text).toContain('keep only\n  the corrected version')
     expect(text).toContain('TRANSCRIPT')
     expect(text).toContain('- Augmentin 625\n- Ketorol DT')

@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { MessageCircle, Phone } from 'lucide-react'
 import { findAppointment, getBookingRequest, getDaySchedule } from '@/lib/data/appointments'
+import { getClinic } from '@/lib/data/clinic'
 import { findPatientsByPhone, likelyPatient } from '@/lib/data/patients'
 import { confirmationMessage, whatsappLink } from '@/lib/whatsapp'
 import { todayInIndia } from '@/lib/dates'
@@ -25,6 +26,7 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
     // Booked: the confirmation can be sent again, for the appointment's time as it is now
     const appointment = request.status === 'booked' ? await findAppointment(request.appointment_id) : null
     const booked = appointment?.status === 'booked' ? appointment.starts_at : null
+    const clinic = booked ? await getClinic() : null
     return (
       <div className="space-y-4">
         <BackLink href="/app" label="Today" />
@@ -35,8 +37,8 @@ async function RequestPageContent({ params, searchParams }: PageProps<'/app/requ
               ? `Booked for ${formatWhen(booked)}.`
               : `This request was ${request.status === 'booked' ? 'booked' : request.status === 'declined' ? 'declined' : 'handled'} already.`}
           </p>
-          {booked && appointment && (
-            <a href={whatsappLink(request.phone, confirmationMessage({ name: request.name, startsAt: appointment.starts_at }))}
+          {booked && appointment && clinic && (
+            <a href={whatsappLink(request.phone, confirmationMessage(clinic, { name: request.name, startsAt: appointment.starts_at }))}
               className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-base font-semibold text-white">
               <MessageCircle className="h-5 w-5" /> Send confirmation again
             </a>

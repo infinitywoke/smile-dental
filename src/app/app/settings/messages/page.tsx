@@ -1,7 +1,8 @@
 import { Fragment, Suspense } from 'react'
-import { getDoctor } from '@/lib/auth'
 import { siteConfig } from '@/config/site'
 import { visitMessage } from '@/lib/billing'
+import { reviewLinkOf, type ClinicContext } from '@/lib/clinic'
+import { getClinic } from '@/lib/data/clinic'
 import { todayInIndia } from '@/lib/dates'
 import { addDays, blockInstant, isClosedDay } from '@/lib/schedule'
 import {
@@ -23,18 +24,19 @@ function Formatted({ text }: { text: string }) {
   ))
 }
 
-// Every message a patient gets, with made-up details, in either language
-function samples(language: MessageLanguage, day: string, earlier: string) {
+// Every message a patient gets, with made-up details, in either language, from the signed-in clinic. A clinic
+// without a review link has no review message to show.
+function samples(clinic: ClinicContext, language: MessageLanguage, day: string, earlier: string) {
   const name = 'Prakash Shetty'
   const startsAt = blockInstant(day, '18:00')
   return [
-    { title: 'Appointment confirmed', text: confirmationMessage({ name, startsAt, language }) },
-    { title: 'Appointment moved', text: movedMessage({ name, startsAt, language }) },
-    { title: 'Appointment cancelled', text: cancelledMessage({ name, startsAt, language }) },
-    { title: 'Reminder, the day before', text: reminderMessage({ name, startsAt, tomorrow: true, language }) },
-    { title: 'Running late', text: runningLateMessage({ name, startsAt, minutes: 15, language }) },
-    { title: "Didn't come", text: missedMessage({ name, startsAt: blockInstant(earlier, '10:00'), language }) },
-    { title: 'After the visit: the link to the prescription, photos and bill, and the next visit', text: visitMessage({
+    { title: 'Appointment confirmed', text: confirmationMessage(clinic, { name, startsAt, language }) },
+    { title: 'Appointment moved', text: movedMessage(clinic, { name, startsAt, language }) },
+    { title: 'Appointment cancelled', text: cancelledMessage(clinic, { name, startsAt, language }) },
+    { title: 'Reminder, the day before', text: reminderMessage(clinic, { name, startsAt, tomorrow: true, language }) },
+    { title: 'Running late', text: runningLateMessage(clinic, { name, startsAt, minutes: 15, language }) },
+    { title: "Didn't come", text: missedMessage(clinic, { name, startsAt: blockInstant(earlier, '10:00'), language }) },
+    { title: 'After the visit: the link to the prescription, photos and bill, and the next visit', text: visitMessage(clinic, {
       patientName: name,
       visitDate: earlier,
       today: earlier,
@@ -42,19 +44,19 @@ function samples(language: MessageLanguage, day: string, earlier: string) {
       photoLink: { url: `${siteConfig.clinicOsUrl}/r/AbCdEfGhIjKlMnOpQrStUvWxYz012345`, labels: ['Prescription', 'X-ray', 'Bill'] },
       language,
     }) },
-    { title: 'Google review', text: reviewMessage({ name, language }) },
-    { title: 'Six-month check-up', text: recallMessage({ name, lastVisit: addDays(earlier, -183), language }) },
-    { title: "The time asked for can't be given", text: declineMessage({ name, language }) },
+    ...(reviewLinkOf(clinic.clinic) ? [{ title: 'Google review', text: reviewMessage(clinic, { name, language }) }] : []),
+    { title: 'Six-month check-up', text: recallMessage(clinic, { name, lastVisit: addDays(earlier, -183), language }) },
+    { title: "The time asked for can't be given", text: declineMessage(clinic, { name, language }) },
   ]
 }
 
 async function MessagesContent() {
-  await getDoctor()
+  const clinic = await getClinic()
   const today = todayInIndia()
   let day = addDays(today, 1)
   while (isClosedDay(day)) day = addDays(day, 1)
-  const kannada = samples('kn', day, addDays(today, -1))
-  const english = samples('en', day, addDays(today, -1))
+  const kannada = samples(clinic, 'kn', day, addDays(today, -1))
+  const english = samples(clinic, 'en', day, addDays(today, -1))
   return (
     <div className="space-y-5">
       <BackLink href="/app/settings" label="Settings" />

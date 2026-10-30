@@ -1,6 +1,6 @@
-import { siteConfig } from '@/config/site'
+import { reviewLinkOf, type Clinic, type ClinicContext } from '@/lib/clinic'
 import { formatDate } from '@/lib/dates'
-import { formatBlock, formatDay, inIndia, weekday } from '@/lib/schedule'
+import { formatBlock, inIndia, weekday } from '@/lib/schedule'
 
 // WhatsApp links open a chat with the text filled in; the sender taps Send.
 function digits(phone: string): string {
@@ -12,43 +12,12 @@ export function whatsappLink(phone: string, text: string): string {
   return `https://wa.me/${digits(phone)}?text=${encodeURIComponent(text)}`
 }
 
-export function clinicWhatsappLink(text: string): string {
-  return whatsappLink(siteConfig.whatsapp, text)
-}
-
-function when(startsAt: string): string {
-  const { date, time } = inIndia(startsAt)
-  return `${formatDay(date)} at ${formatBlock(time)}`
-}
-
-// Patient -> clinic: short and plain (it is for the clinic), with the private link that opens the
-// request in Clinic OS
-export function bookingRequestMessage(args: {
-  name: string
-  phone: string
-  startsAt: string
-  reason: string
-  link: string
-  // The voice note test: recorded on the page, or coming next on WhatsApp
-  voiceNote?: 'recorded' | 'whatsapp' | null
-}): string {
-  return [
-    '*Appointment request (website)*',
-    `Name: ${args.name}`,
-    `Phone: ${args.phone}`,
-    `Time: ${when(args.startsAt)}`,
-    ...(args.reason ? [`Reason: ${args.reason}`] : []),
-    ...(args.voiceNote === 'recorded' ? ['Voice note: open the request to listen'] : []),
-    ...(args.voiceNote === 'whatsapp' ? ["I'll send a voice note about my problem next."] : []),
-    '',
-    `Open in Clinic OS: ${args.link}`,
-  ].join('\n')
-}
-
 // ---- Clinic -> patient: every message is friendly and short, the same look in each: "Hi Asha," (no
-// clinic heading), warm plain words, and Dr. Rahil's name with the clinic at the end; no emojis (WhatsApp
+// clinic heading), warm plain words, and the dentist's name with the clinic at the end; no emojis (WhatsApp
 // styling only: *bold* for what matters, _italic_ for a note). The patient's first name is the only
-// thing about them in any message.
+// thing about them in any message. Each is written for the clinic it is given (src/lib/clinic.ts): its name,
+// town, phone, address and dentist, from the database. The website's own messages are in
+// src/lib/website-whatsapp.ts.
 
 // The language of a patient's messages: Kannada once it is set on their record (patients.language),
 // else English. Website requests are answered in English: who sent one isn't known yet.
@@ -72,8 +41,12 @@ export function kannadaTime(hhmm: string): string {
   return `${part} ${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')}`
 }
 
+// Only the phone, so the patient's link page (which is told just a few of the clinic's details) can write
+// the "any questions" line too
+type HasPhone = { clinic: Pick<Clinic, 'phone'> }
+
 // "call or WhatsApp us on +91 …"
-const CALL_US_KN = `${siteConfig.phone} ಗೆ ಕರೆ ಮಾಡಿ ಅಥವಾ WhatsApp ಮಾಡಿ`
+const callUsKn = ({ clinic }: HasPhone) => `${clinic.phone} ಗೆ ಕರೆ ಮಾಡಿ ಅಥವಾ WhatsApp ಮಾಡಿ`
 const APPOINTMENT_KN = 'ಅಪಾಯಿಂಟ್ಮೆಂಟ್'
 
 export const firstName = (name: string) => name.trim().split(/\s+/)[0]
@@ -83,11 +56,12 @@ export function messageHeader(name: string, language: MessageLanguage = 'en'): s
   return [language === 'kn' ? `ನಮಸ್ಕಾರ ${firstName(name)} ಅವರೇ,` : `Hi ${firstName(name)},`, '']
 }
 
-// "See you soon," before an appointment, else "Take care,"; then Dr. Rahil and the clinic
-export function messageSignOff(language: MessageLanguage = 'en', closing: 'soon' | 'care' = 'care'): string[] {
+// "See you soon," before an appointment, else "Take care,"; then the dentist and the clinic with its town
+// (in Kannada when the clinic has the town's Kannada name)
+export function messageSignOff({ clinic, dentist }: ClinicContext, language: MessageLanguage = 'en', closing: 'soon' | 'care' = 'care'): string[] {
   return language === 'kn'
-    ? ['', 'ಶುಭಾಶಯಗಳೊಂದಿಗೆ,', `*${siteConfig.dentist.name}*`, `${siteConfig.name}, ಕಟಪಾಡಿ`]
-    : ['', closing === 'soon' ? 'See you soon,' : 'Take care,', `*${siteConfig.dentist.name}*`, `${siteConfig.name}, Katapadi`]
+    ? ['', 'ಶುಭಾಶಯಗಳೊಂದಿಗೆ,', `*${dentist.name}*`, `${clinic.name}, ${clinic.placeKn ?? clinic.place}`]
+    : ['', closing === 'soon' ? 'See you soon,' : 'Take care,', `*${dentist.name}*`, `${clinic.name}, ${clinic.place}`]
 }
 
 // "Date: *Thursday, 15 October*" and "Time: *6:00 PM*"
@@ -100,92 +74,96 @@ export function appointmentLines(startsAt: string, language: MessageLanguage = '
 
 // The clinic in one short line (the full address goes in confirmations). The address itself is in
 // English in every message: it is what the signboard and Google Maps say.
-const SHORT_ADDRESS = '1st Floor, YM Zohara Building, Shirva Road, Katapadi'
 const addressLabel = (language: MessageLanguage) => (language === 'kn' ? 'ವಿಳಾಸ' : 'Address')
-export const shortLocation = (language: MessageLanguage = 'en') => `${addressLabel(language)}: ${SHORT_ADDRESS}`
+export const shortLocation = ({ clinic }: ClinicContext, language: MessageLanguage = 'en') => `${addressLabel(language)}: ${clinic.shortAddress ?? clinic.address}`
 
-export const QUESTIONS_LINE = `Any questions? Just call or WhatsApp us on ${siteConfig.phone}.`
-
-export const questionsLine = (language: MessageLanguage = 'en') => (language === 'kn' ? `ಏನಾದರೂ ಪ್ರಶ್ನೆಗಳಿದ್ದರೆ ${CALL_US_KN}.` : QUESTIONS_LINE)
+export const questionsLine = (ctx: HasPhone, language: MessageLanguage = 'en') =>
+  language === 'kn' ? `ಏನಾದರೂ ಪ್ರಶ್ನೆಗಳಿದ್ದರೆ ${callUsKn(ctx)}.` : `Any questions? Just call or WhatsApp us on ${ctx.clinic.phone}.`
 
 const arriveEarly = (language: MessageLanguage) => (language === 'kn' ? '_ದಯವಿಟ್ಟು 5 ನಿಮಿಷ ಮುಂಚಿತವಾಗಿ ಬನ್ನಿ._' : '_Please come 5 minutes early if you can._')
 
-// Day, time, address and directions, for a confirmed or moved appointment
-function appointmentBlock(startsAt: string, language: MessageLanguage): string[] {
+// Day, time, address and directions (when the clinic has a Maps link), for a confirmed or moved appointment
+function appointmentBlock(ctx: ClinicContext, startsAt: string, language: MessageLanguage): string[] {
+  const { clinic } = ctx
   const kn = language === 'kn'
   return [
     '',
     ...appointmentLines(startsAt, language),
     '',
-    `${addressLabel(language)}: ${siteConfig.address}`,
-    `${kn ? 'ದಾರಿ' : 'Directions'}: ${siteConfig.googleReviewsLink}`,
+    `${addressLabel(language)}: ${clinic.address}`,
+    ...(clinic.mapsLink ? [`${kn ? 'ದಾರಿ' : 'Directions'}: ${clinic.mapsLink}`] : []),
     '',
     arriveEarly(language),
-    kn ? `ಸಮಯ ಬದಲಿಸಲು ಅಥವಾ ರದ್ದುಗೊಳಿಸಲು ${CALL_US_KN}.` : `Need to change it? Just call or WhatsApp us on ${siteConfig.phone}.`,
+    kn ? `ಸಮಯ ಬದಲಿಸಲು ಅಥವಾ ರದ್ದುಗೊಳಿಸಲು ${callUsKn(ctx)}.` : `Need to change it? Just call or WhatsApp us on ${clinic.phone}.`,
   ]
 }
 
 type To = { name: string; language?: MessageLanguage }
 
-// Clinic -> patient, after Dr. Rahil saves
-export function confirmationMessage(args: To & { startsAt: string }): string {
+// Clinic -> patient, after the dentist saves
+export function confirmationMessage(ctx: ClinicContext, args: To & { startsAt: string }): string {
   const { language = 'en' } = args
+  const { clinic } = ctx
   return [
     ...messageHeader(args.name, language),
     language === 'kn'
-      ? `${siteConfig.name} ನಲ್ಲಿ ನಿಮ್ಮ ${APPOINTMENT_KN} *ಖಚಿತವಾಗಿದೆ*.`
-      : `Good news, your appointment at ${siteConfig.name} is *confirmed*.`,
-    ...appointmentBlock(args.startsAt, language),
-    ...messageSignOff(language, 'soon'),
+      ? `${clinic.name} ನಲ್ಲಿ ನಿಮ್ಮ ${APPOINTMENT_KN} *ಖಚಿತವಾಗಿದೆ*.`
+      : `Good news, your appointment at ${clinic.name} is *confirmed*.`,
+    ...appointmentBlock(ctx, args.startsAt, language),
+    ...messageSignOff(ctx, language, 'soon'),
   ].join('\n')
 }
 
 // Clinic -> patient, after an appointment is moved
-export function movedMessage(args: To & { startsAt: string }): string {
+export function movedMessage(ctx: ClinicContext, args: To & { startsAt: string }): string {
   const { language = 'en' } = args
+  const { clinic } = ctx
   return [
     ...messageHeader(args.name, language),
     language === 'kn'
-      ? `${siteConfig.name} ನಲ್ಲಿ ನಿಮ್ಮ ${APPOINTMENT_KN} ಅನ್ನು ಈ ಸಮಯಕ್ಕೆ ಬದಲಾಯಿಸಲಾಗಿದೆ:`
-      : `Your appointment at ${siteConfig.name} has moved. Here's the new time:`,
-    ...appointmentBlock(args.startsAt, language),
-    ...messageSignOff(language, 'soon'),
+      ? `${clinic.name} ನಲ್ಲಿ ನಿಮ್ಮ ${APPOINTMENT_KN} ಅನ್ನು ಈ ಸಮಯಕ್ಕೆ ಬದಲಾಯಿಸಲಾಗಿದೆ:`
+      : `Your appointment at ${clinic.name} has moved. Here's the new time:`,
+    ...appointmentBlock(ctx, args.startsAt, language),
+    ...messageSignOff(ctx, language, 'soon'),
   ].join('\n')
 }
 
 // Clinic -> patient, after an appointment is cancelled: which one, and how to book again
-export function cancelledMessage(args: To & { startsAt: string }): string {
+export function cancelledMessage(ctx: ClinicContext, args: To & { startsAt: string }): string {
   const { language = 'en' } = args
+  const { clinic } = ctx
   const kn = language === 'kn'
   return [
     ...messageHeader(args.name, language),
-    kn ? `${siteConfig.name} ನಲ್ಲಿ ನಿಮ್ಮ ಈ ${APPOINTMENT_KN} *ರದ್ದಾಗಿದೆ*:` : `Your appointment at ${siteConfig.name} is *cancelled*:`,
+    kn ? `${clinic.name} ನಲ್ಲಿ ನಿಮ್ಮ ಈ ${APPOINTMENT_KN} *ರದ್ದಾಗಿದೆ*:` : `Your appointment at ${clinic.name} is *cancelled*:`,
     '',
     ...appointmentLines(args.startsAt, language),
     '',
-    kn ? `ಹೊಸ ಸಮಯ ಬುಕ್ ಮಾಡಲು ${CALL_US_KN}.` : `Whenever you'd like a new time, just call or WhatsApp us on ${siteConfig.phone}.`,
-    ...messageSignOff(language),
+    kn ? `ಹೊಸ ಸಮಯ ಬುಕ್ ಮಾಡಲು ${callUsKn(ctx)}.` : `Whenever you'd like a new time, just call or WhatsApp us on ${clinic.phone}.`,
+    ...messageSignOff(ctx, language),
   ].join('\n')
 }
 
 // Clinic -> patient, when the requested time can't be given
-export function declineMessage(args: To): string {
+export function declineMessage(ctx: ClinicContext, args: To): string {
   const { language = 'en' } = args
+  const { clinic } = ctx
   const kn = language === 'kn'
   return [
     ...messageHeader(args.name, language),
-    kn ? `${siteConfig.name} ಅನ್ನು ಸಂಪರ್ಕಿಸಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for getting in touch with ${siteConfig.name}.`,
+    kn ? `${clinic.name} ಅನ್ನು ಸಂಪರ್ಕಿಸಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for getting in touch with ${clinic.name}.`,
     '',
     kn
-      ? `ಕ್ಷಮಿಸಿ, ನೀವು ಕೇಳಿದ ಸಮಯವನ್ನು ನಮಗೆ ಹೊಂದಿಸಲು ಆಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ${CALL_US_KN}, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಸಮಯವನ್ನು ಹುಡುಕೋಣ.`
-      : `Sorry, we couldn't fit the time you asked for. Just call or WhatsApp us on ${siteConfig.phone} and we'll find a time that suits you.`,
-    ...messageSignOff(language),
+      ? `ಕ್ಷಮಿಸಿ, ನೀವು ಕೇಳಿದ ಸಮಯವನ್ನು ನಮಗೆ ಹೊಂದಿಸಲು ಆಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ${callUsKn(ctx)}, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಸಮಯವನ್ನು ಹುಡುಕೋಣ.`
+      : `Sorry, we couldn't fit the time you asked for. Just call or WhatsApp us on ${clinic.phone} and we'll find a time that suits you.`,
+    ...messageSignOff(ctx, language),
   ].join('\n')
 }
 
 // Clinic -> patient, the day before (or before the weekend's Friday): the time, and how to change it
-export function reminderMessage(args: To & { startsAt: string; tomorrow: boolean }): string {
+export function reminderMessage(ctx: ClinicContext, args: To & { startsAt: string; tomorrow: boolean }): string {
   const { language = 'en' } = args
+  const { clinic } = ctx
   const kn = language === 'kn'
   return [
     ...messageHeader(args.name, language),
@@ -194,18 +172,18 @@ export function reminderMessage(args: To & { startsAt: string; tomorrow: boolean
       : `Just a friendly reminder of your appointment ${args.tomorrow ? 'tomorrow' : 'coming up'}:`,
     '',
     ...appointmentLines(args.startsAt, language),
-    shortLocation(language),
+    shortLocation(ctx, language),
     '',
     arriveEarly(language),
     kn
-      ? `ಬರಲು ಆಗದಿದ್ದರೆ ದಯವಿಟ್ಟು ${CALL_US_KN}, ಆ ಸಮಯವನ್ನು ಬೇರೆಯವರಿಗೆ ನೀಡುತ್ತೇವೆ.`
-      : `If you can't make it, please let us know on ${siteConfig.phone}, so we can give the time to someone else.`,
-    ...messageSignOff(language, 'soon'),
+      ? `ಬರಲು ಆಗದಿದ್ದರೆ ದಯವಿಟ್ಟು ${callUsKn(ctx)}, ಆ ಸಮಯವನ್ನು ಬೇರೆಯವರಿಗೆ ನೀಡುತ್ತೇವೆ.`
+      : `If you can't make it, please let us know on ${clinic.phone}, so we can give the time to someone else.`,
+    ...messageSignOff(ctx, language, 'soon'),
   ].join('\n')
 }
 
 // Clinic -> patient, after a missed appointment: kind, and an easy way back
-export function missedMessage(args: To & { startsAt: string }): string {
+export function missedMessage(ctx: ClinicContext, args: To & { startsAt: string }): string {
   const { language = 'en' } = args
   const { date } = inIndia(args.startsAt)
   const kn = language === 'kn'
@@ -216,32 +194,34 @@ export function missedMessage(args: To & { startsAt: string }): string {
       : `We missed you at your appointment on ${formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}. We hope all is well!`,
     '',
     kn ? 'ಈ ಸಂದೇಶಕ್ಕೆ ಉತ್ತರಿಸಿ, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಹೊಸ ಸಮಯವನ್ನು ನಿಗದಿಪಡಿಸುತ್ತೇವೆ.' : "Just reply to this message and we'll find a new time that suits you.",
-    ...messageSignOff(language),
+    ...messageSignOff(ctx, language),
   ].join('\n')
 }
 
-// Clinic -> patient, from the Cockpit's "Running late", to the patients still to come today
-export function runningLateMessage(args: To & { startsAt: string; minutes: number }): string {
+// Clinic -> patient, from the Cockpit's "Running late", to the patients still to come today. The dentist is
+// named by their short name ("Dr. Rahil"), else their whole name.
+export function runningLateMessage(ctx: ClinicContext, args: To & { startsAt: string; minutes: number }): string {
   const { language = 'en' } = args
+  const { clinic, dentist } = ctx
   const kn = language === 'kn'
   return [
     ...messageHeader(args.name, language),
     kn
-      ? `ಡಾ. ರಾಹಿಲ್ ಅವರು ಇಂದು ಸುಮಾರು ${args.minutes} ನಿಮಿಷ ತಡವಾಗಿದ್ದಾರೆ. ಕಾಯಿಸುತ್ತಿರುವುದಕ್ಕೆ ಕ್ಷಮಿಸಿ.`
-      : `Dr. Rahil is running about ${args.minutes} minutes late today. Sorry to keep you waiting!`,
+      ? `${dentist.shortNameKn ?? dentist.shortName ?? dentist.name} ಅವರು ಇಂದು ಸುಮಾರು ${args.minutes} ನಿಮಿಷ ತಡವಾಗಿದ್ದಾರೆ. ಕಾಯಿಸುತ್ತಿರುವುದಕ್ಕೆ ಕ್ಷಮಿಸಿ.`
+      : `${dentist.shortName ?? dentist.name} is running about ${args.minutes} minutes late today. Sorry to keep you waiting!`,
     '',
     kn ? `ನಿಮ್ಮ ${APPOINTMENT_KN}:` : 'Your appointment:',
     ...appointmentLines(args.startsAt, language),
     '',
     kn
-      ? `ನಿಮ್ಮ ಸಮಯಕ್ಕಿಂತ ಸುಮಾರು ${args.minutes} ನಿಮಿಷ ತಡವಾಗಿ ಬರಬಹುದು. ಅದು ಅನುಕೂಲವಾಗದಿದ್ದರೆ ${CALL_US_KN}.`
-      : `Feel free to come about ${args.minutes} minutes after your time. If that doesn't suit you, just call or WhatsApp us on ${siteConfig.phone}.`,
-    ...messageSignOff(language, 'soon'),
+      ? `ನಿಮ್ಮ ಸಮಯಕ್ಕಿಂತ ಸುಮಾರು ${args.minutes} ನಿಮಿಷ ತಡವಾಗಿ ಬರಬಹುದು. ಅದು ಅನುಕೂಲವಾಗದಿದ್ದರೆ ${callUsKn(ctx)}.`
+      : `Feel free to come about ${args.minutes} minutes after your time. If that doesn't suit you, just call or WhatsApp us on ${clinic.phone}.`,
+    ...messageSignOff(ctx, language, 'soon'),
   ].join('\n')
 }
 
 // Clinic -> patient, about six months after their last visit
-export function recallMessage(args: To & { lastVisit: string }): string {
+export function recallMessage(ctx: ClinicContext, args: To & { lastVisit: string }): string {
   const { language = 'en' } = args
   const kn = language === 'kn'
   return [
@@ -255,23 +235,26 @@ export function recallMessage(args: To & { lastVisit: string }): string {
       : 'A check-up and cleaning every six months keeps your teeth and gums healthy and catches small problems early.',
     '',
     kn ? 'ಈ ಸಂದೇಶಕ್ಕೆ ಉತ್ತರಿಸಿ, ನಿಮಗೆ ಅನುಕೂಲವಾದ ಸಮಯವನ್ನು ಬುಕ್ ಮಾಡುತ್ತೇವೆ.' : "Just reply to this message and we'll book a time that suits you.",
-    ...messageSignOff(language),
+    ...messageSignOff(ctx, language),
   ].join('\n')
 }
 
 // Clinic -> patient: a Google review request, the same words for every patient (Google does not allow
-// asking only happy patients, or offering anything in return)
-export function reviewMessage(args: To): string {
+// asking only happy patients, or offering anything in return). The link is the clinic's review link, else its
+// Maps page; a clinic with neither has nothing to ask for (Clinic OS doesn't offer it), and the words go alone.
+export function reviewMessage(ctx: ClinicContext, args: To): string {
   const { language = 'en' } = args
+  const { clinic } = ctx
   const kn = language === 'kn'
+  const link = reviewLinkOf(clinic)
   return [
     ...messageHeader(args.name, language),
-    kn ? `${siteConfig.name} ಗೆ ಭೇಟಿ ನೀಡಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for visiting ${siteConfig.name}!`,
+    kn ? `${clinic.name} ಗೆ ಭೇಟಿ ನೀಡಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.` : `Thank you for visiting ${clinic.name}!`,
     '',
     kn
       ? 'ಒಂದು ನಿಮಿಷ ಸಮಯವಿದ್ದರೆ, Google ನಲ್ಲಿ ಒಂದು ಚಿಕ್ಕ ವಿಮರ್ಶೆ (review) ಬರೆಯಿರಿ. ಇದರಿಂದ ಈ ಭಾಗದ ಇತರರಿಗೆ ಕ್ಲಿನಿಕ್ ಹುಡುಕಲು ಸಹಾಯವಾಗುತ್ತದೆ:'
       : 'If you have a minute, a short Google review helps other people in the area find the clinic:',
-    siteConfig.reviewRequestLink || siteConfig.googleReviewsLink,
-    ...messageSignOff(language),
+    ...(link ? [link] : []),
+    ...messageSignOff(ctx, language),
   ].join('\n')
 }

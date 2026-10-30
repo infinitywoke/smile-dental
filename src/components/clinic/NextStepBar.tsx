@@ -15,7 +15,8 @@ export function NextStepBar({ step, watch, onCash, onUpi, onSend }: {
   // Changes when the step's buttons may have been redrawn (a new payment, a send), to look for them again
   watch: string
   onCash: () => void
-  onUpi: () => void
+  // None for a clinic without a UPI QR
+  onUpi?: () => void
   onSend: () => void
 }) {
   const targetId = step.kind === 'collect' ? 'payment-actions' : 'send-action'
@@ -48,10 +49,12 @@ export function NextStepBar({ step, watch, onCash, onUpi, onSend }: {
             className="min-h-12 flex-1 rounded-xl bg-blue-600 px-3 text-[15px] font-bold text-white transition-transform active:scale-[0.98]">
             Cash received
           </button>
-          <button type="button" onClick={onUpi}
-            className="min-h-12 rounded-xl bg-white px-4 text-[15px] font-bold text-gray-900 ring-1 ring-gray-300">
-            UPI QR
-          </button>
+          {onUpi && (
+            <button type="button" onClick={onUpi}
+              className="min-h-12 rounded-xl bg-white px-4 text-[15px] font-bold text-gray-900 ring-1 ring-gray-300">
+              UPI QR
+            </button>
+          )}
         </div>
       ) : (
         <button type="button" onClick={onSend}

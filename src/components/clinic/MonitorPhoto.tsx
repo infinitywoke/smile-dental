@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, ExternalLink, Loader2, Monitor, QrCode } from 'lucide-react'
-import { siteConfig } from '@/config/site'
+import type { ChairMonitor } from '@/lib/clinic'
 import { monitorPhotoUrl, pullMonitorPhoto, waitForMonitorPhoto } from '@/lib/offline/monitor-photo'
 import { FullScreen, useBackToClose } from './FullScreen'
 
@@ -64,11 +64,11 @@ const button = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2
 
 // A photo from the chair monitor: scan the QR code it shows, and the photo is pulled into this visit
 // (src/lib/offline/monitor-photo.ts). Where Chrome or the monitor won't allow that, the share sheet brings it.
-export function MonitorPhoto({ visitId, onPhoto }: { visitId: string; onPhoto: (file: File) => void }) {
+// `monitor` is the clinic's own (its name, Wi-Fi and password); a clinic without one has no Monitor button.
+export function MonitorPhoto({ visitId, monitor, onPhoto }: { visitId: string; monitor: ChairMonitor; onPhoto: (file: File) => void }) {
   const sheet = useBackToClose()
   const [stage, setStage] = useState<Stage>({ at: 'scanning' })
   const [copied, setCopied] = useState(false)
-  const monitor = siteConfig.chairMonitor
 
   const open = () => {
     // If the photo has to come through the share sheet, it comes to this visit

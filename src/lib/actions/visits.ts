@@ -10,6 +10,7 @@ import { PHOTO_BUCKET } from '@/lib/visit-status'
 import { createClient } from '@/lib/supabase/server'
 import { SHARE_LINK_SECONDS, appointmentsOfVisit, findOrCreateTodaysVisit, indiaDayBounds } from '@/lib/data/visits'
 import { getVisitBill, type VisitBill } from '@/lib/data/billing'
+import { getClinic } from '@/lib/data/clinic'
 import { getNextVisitSuggestion } from '@/lib/data/next-visit'
 import { MAX_PHOTOS_TO_SEND, paymentsHeldMessage } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
@@ -131,6 +132,9 @@ export async function bookNextVisit(
     .eq('id', visitId)
     .maybeSingle()
   if (!visit) return { error: 'That visit was not found.' }
+  const patient = visit.patient as unknown as { name: string; phone: string | null; language: string | null }
+  // Once the visit's WhatsApp has gone the patient is told, in the clinic's words: read before anything is saved
+  const clinic = visit.closed_at && patient.phone ? await getClinic() : null
 
   const { data: existing } = await supabase
     .from('appointments')
@@ -162,10 +166,9 @@ export async function bookNextVisit(
   }
   refreshClinicScreens()
 
-  const patient = visit.patient as unknown as { name: string; phone: string | null; language: string | null }
-  if (!visit.closed_at || !patient.phone) return {}
+  if (!clinic || !patient.phone) return {}
   const to = { name: patient.name, startsAt: block.iso, language: messageLanguage(patient.language) }
-  const message = existing ? movedMessage(to) : confirmationMessage(to)
+  const message = existing ? movedMessage(clinic, to) : confirmationMessage(clinic, to)
   return { whatsappUrl: whatsappLink(patient.phone, message) }
 }
 
@@ -181,6 +184,9 @@ export async function removeNextVisit(visitId: string): Promise<Result & { whats
     .eq('id', visitId)
     .maybeSingle()
   if (!visit) return { error: 'That visit was not found.' }
+  const patient = visit.patient as unknown as { name: string; phone: string | null; language: string | null }
+  // Once the visit's WhatsApp has gone the patient is told, in the clinic's words: read before anything is cancelled
+  const clinic = visit.closed_at && patient.phone ? await getClinic() : null
   const { data: removed, error } = await supabase
     .from('appointments')
     .update({ status: 'cancelled' })
@@ -189,9 +195,8 @@ export async function removeNextVisit(visitId: string): Promise<Result & { whats
     .select('starts_at')
   if (error) return { error: 'Could not remove the next visit. Please try again.' }
   refreshClinicScreens()
-  const patient = visit.patient as unknown as { name: string; phone: string | null; language: string | null }
-  if (removed.length === 0 || !visit.closed_at || !patient.phone) return {}
-  return { whatsappUrl: whatsappLink(patient.phone, cancelledMessage({ name: patient.name, startsAt: removed[0].starts_at, language: messageLanguage(patient.language) })) }
+  if (removed.length === 0 || !clinic || !patient.phone) return {}
+  return { whatsappUrl: whatsappLink(patient.phone, cancelledMessage(clinic, { name: patient.name, startsAt: removed[0].starts_at, language: messageLanguage(patient.language) })) }
 }
 
 // What the WhatsApp message says, read fresh from the database at the tap

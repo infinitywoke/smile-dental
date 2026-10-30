@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Check, Download, Loader2 } from 'lucide-react'
-import { siteConfig } from '@/config/site'
 import { saveTallySettings } from '@/lib/actions/tally'
+import type { ClinicTally } from '@/lib/clinic'
 import type { TallyOverview, TallySettings } from '@/lib/data/tally'
 import { formatDate } from '@/lib/dates'
 import { formatRupees } from '@/lib/pricing'
@@ -20,7 +20,15 @@ const button = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2
 // Send to Tally: his ledger names once, then a file Tally imports in one step (Tally.ERP 9: Import of
 // Data → Vouchers; TallyPrime: Import → Transactions).
 // "New payments" holds only what no earlier file had, so nothing is imported twice.
-export function TallyPanel({ settings, overview, ledgers }: { settings: TallySettings | null; overview: TallyOverview; ledgers: { matched: number; unmatched: number } }) {
+// `tally` is the clinic's Tally as the database has it (its company, version and ledger names, which the form
+// starts from), and `place` is its town, for an example ledger name.
+export function TallyPanel({ settings, overview, ledgers, tally, place }: {
+  settings: TallySettings | null
+  overview: TallyOverview
+  ledgers: { matched: number; unmatched: number }
+  tally: ClinicTally
+  place: string
+}) {
   const router = useRouter()
   const [editing, setEditing] = useState(!settings)
   const [entries, setEntries] = useState(settings?.entries ?? 'payment')
@@ -90,7 +98,7 @@ export function TallyPanel({ settings, overview, ledgers }: { settings: TallySet
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Send to Tally</h1>
         <p className="mt-1 text-base text-gray-600">
-          A file Tally imports in one step, so payments are not typed twice. Download it on the computer with Tally (open Clinic OS there), then in Tally.ERP 9, with {siteConfig.tally.company || 'your company'} open: Gateway of Tally → Import of Data → Vouchers, and give the file&apos;s location (usually the Downloads folder).
+          A file Tally imports in one step, so payments are not typed twice. Download it on the computer with Tally (open Clinic OS there), then in {tally.version || 'Tally'}, with {tally.company || 'your company'} open: Gateway of Tally → Import of Data → Vouchers, and give the file&apos;s location (usually the Downloads folder).
         </p>
       </div>
 
@@ -102,11 +110,11 @@ export function TallyPanel({ settings, overview, ledgers }: { settings: TallySet
           </div>
           <label className="block space-y-1">
             <span className="text-sm font-semibold text-gray-700">Cash ledger</span>
-            <input name="cash" defaultValue={settings?.cash_ledger ?? (siteConfig.tally.cashLedger || 'Cash')} className={input} />
+            <input name="cash" defaultValue={settings?.cash_ledger ?? (tally.cashLedger || 'Cash')} className={input} />
           </label>
           <label className="block space-y-1">
             <span className="text-sm font-semibold text-gray-700">Bank ledger (where UPI payments arrive)</span>
-            <input name="bank" defaultValue={settings?.bank_ledger ?? siteConfig.tally.bankLedger} placeholder="For example: Bank of Baroda" className={input} />
+            <input name="bank" defaultValue={settings?.bank_ledger ?? tally.bankLedger} placeholder="For example: Bank of Baroda" className={input} />
           </label>
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold text-gray-700">Entries in Tally</legend>
@@ -122,7 +130,7 @@ export function TallyPanel({ settings, overview, ledgers }: { settings: TallySet
           {entries === 'day' && (
             <label className="block space-y-1">
               <span className="text-sm font-semibold text-gray-700">Income ledger (treatment fees)</span>
-              <input name="income" defaultValue={settings?.income_ledger ?? siteConfig.tally.incomeLedger} placeholder="For example: Professional Fees" className={input} />
+              <input name="income" defaultValue={settings?.income_ledger ?? tally.incomeLedger} placeholder="For example: Professional Fees" className={input} />
               <span className="block text-xs text-gray-500">The ledger inside Direct Incomes that fees go to, not Direct Incomes itself (that is a group).</span>
             </label>
           )}
@@ -175,7 +183,7 @@ export function TallyPanel({ settings, overview, ledgers }: { settings: TallySet
           {done && <p role="status" className="flex items-start gap-2 rounded-xl bg-green-50 p-3 text-sm text-green-800 ring-1 ring-green-200"><Check className="mt-0.5 h-4 w-4 shrink-0" /> {done}</p>}
           {error && <p role="alert" className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}</p>}
 
-          {settings.entries === 'payment' && <TallyLedgers matched={ledgers.matched} unmatched={ledgers.unmatched} />}
+          {settings.entries === 'payment' && !!tally.patientGroup && <TallyLedgers matched={ledgers.matched} unmatched={ledgers.unmatched} patientGroup={tally.patientGroup} place={place} />}
 
           {overview.months.length > 0 && (
             <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200" aria-label="A whole month">

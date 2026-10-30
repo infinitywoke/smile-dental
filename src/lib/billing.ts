@@ -1,4 +1,4 @@
-import { siteConfig } from '@/config/site'
+import { reviewLinkOf, type ClinicContext } from '@/lib/clinic'
 import { formatRupees } from '@/lib/pricing'
 import { formatDate, todayInIndia } from '@/lib/dates'
 import { appointmentLines, kannadaDate, messageHeader, messageSignOff, questionsLine, shortLocation, type MessageLanguage } from '@/lib/whatsapp'
@@ -131,9 +131,9 @@ export function linkWord(labels: string[], language: MessageLanguage = 'en'): st
 
 // The one WhatsApp message after a visit, friendly and short, for a phone: "Hi Asha," and thanks, one
 // short link to the prescription, photos and bill (a page that shows them for 30 days: no money in the
-// message itself), the next appointment, and the review once. First name only; nothing else about the
-// patient.
-export function visitMessage(args: {
+// message itself), the next appointment, and the review once (when the clinic has a link to ask for it).
+// First name only; nothing else about the patient. Written for the clinic it is given (src/lib/clinic.ts).
+export function visitMessage(ctx: ClinicContext, args: {
   patientName: string
   visitDate: string
   nextAppointment?: { starts_at: string } | null
@@ -165,16 +165,17 @@ export function visitMessage(args: {
   }
 
   if (args.nextAppointment?.starts_at) {
-    out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Your next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), shortLocation(language))
+    out.push('', kn ? '*ಮುಂದಿನ ಅಪಾಯಿಂಟ್ಮೆಂಟ್*' : '*Your next appointment*', ...appointmentLines(args.nextAppointment.starts_at, language), shortLocation(ctx, language))
   }
 
-  if (args.review) {
+  const reviewLink = reviewLinkOf(ctx.clinic)
+  if (args.review && reviewLink) {
     out.push('', kn
       ? 'ಒಂದು ನಿಮಿಷ ಸಮಯವಿದ್ದರೆ, Google ನಲ್ಲಿ ಒಂದು ಚಿಕ್ಕ ವಿಮರ್ಶೆ (review) ಬರೆಯಿರಿ. ಇದರಿಂದ ಈ ಭಾಗದ ಇತರರಿಗೆ ಕ್ಲಿನಿಕ್ ಹುಡುಕಲು ಸಹಾಯವಾಗುತ್ತದೆ:'
-      : 'If you have a minute, a short Google review helps other people in the area find the clinic:', siteConfig.reviewRequestLink || siteConfig.googleReviewsLink)
+      : 'If you have a minute, a short Google review helps other people in the area find the clinic:', reviewLink)
   }
 
-  out.push('', questionsLine(language), ...messageSignOff(language))
+  out.push('', questionsLine(ctx, language), ...messageSignOff(ctx, language))
   return out.join('\n')
 }
 

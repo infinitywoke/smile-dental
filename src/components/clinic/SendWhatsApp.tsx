@@ -6,6 +6,7 @@ import { AlertCircle, Check, Loader2, MessageCircle } from 'lucide-react'
 import type { VisitDetail, VisitPhoto } from '@/lib/data/types'
 import { prepareWhatsapp, type MessageData } from '@/lib/actions/visits'
 import { MAX_PHOTOS_TO_SEND, visitMessage } from '@/lib/billing'
+import { reviewLinkOf, type ClinicContext } from '@/lib/clinic'
 import type { ShownBill } from '@/lib/offline/apply'
 import { isNetworkError, readOutbox } from '@/lib/offline/outbox'
 import { messageLanguage, whatsappLink } from '@/lib/whatsapp'
@@ -51,6 +52,7 @@ export type SendHandle = { send: () => void; reset: () => void }
 // "WhatsApp sent" is recorded when the app has signal again. The link needs the server, so then a
 // prescription waits for the signal, and photos wait too (or he unticks them).
 export function SendWhatsApp({
+  clinic,
   visit,
   bill,
   nextAppointment,
@@ -62,6 +64,8 @@ export function SendWhatsApp({
   onSent,
   sends,
 }: {
+  // The clinic and dentist the message is from
+  clinic: ClinicContext
   visit: VisitDetail
   // The bill on show, with any charges and payments still waiting on the phone
   bill: ShownBill
@@ -93,8 +97,10 @@ export function SendWhatsApp({
   // Sent, but a charge or payment changed since (the database sets this): the patient's message is out of date
   const resend = sent && !!visit.resend_needed
   const phone = visit.patient.phone
-  // A Google review asked in the same message, once per patient (ticked unless he unticks it)
-  const reviewDue = !visit.patient.review_asked_at
+  // A Google review asked in the same message, once per patient (ticked unless he unticks it); only
+  // where the clinic has a link for patients to write it
+  const canAskReview = reviewLinkOf(clinic.clinic) !== null
+  const reviewDue = canAskReview && !visit.patient.review_asked_at
   const [askReview, setAskReview] = useState(true)
   const reviewInMessage = useRef(false)
   // Which WhatsApp opens, on Android (Settings, or the switch under Send)
@@ -126,7 +132,7 @@ export function SendWhatsApp({
     reviewInMessage.current = reviewDue && askReview
     return whatsappLink(
       phone!,
-      visitMessage({
+      visitMessage(clinic, {
         patientName: visit.patient.name,
         visitDate: visit.visit_date,
         nextAppointment: data.nextAppointment,
@@ -235,8 +241,8 @@ export function SendWhatsApp({
         </p>
       ) : null}
 
-      {sent && phone && (
-        <ReviewRequest patientId={visit.patient.id} name={visit.patient.name} phone={phone} askedAt={visit.patient.review_asked_at ?? null} language={messageLanguage(visit.patient.language)} />
+      {sent && phone && canAskReview && (
+        <ReviewRequest clinic={clinic} patientId={visit.patient.id} name={visit.patient.name} phone={phone} askedAt={visit.patient.review_asked_at ?? null} language={messageLanguage(visit.patient.language)} />
       )}
 
       {sending.state === 'ready' && (

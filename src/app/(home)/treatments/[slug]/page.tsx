@@ -5,7 +5,7 @@ import { getTreatments } from '@/lib/data/price-list'
 import { treatmentGroups } from '@/lib/price-list'
 import { priceForPatients } from '@/lib/pricing'
 import { treatmentJsonLd } from '@/lib/structured-data'
-import { clinicWhatsappLink } from '@/lib/whatsapp'
+import { clinicWhatsappLink } from '@/lib/website-whatsapp'
 import { JsonLd } from '@/components/home/JsonLd'
 import { PageHead } from '@/components/home/PageHead'
 

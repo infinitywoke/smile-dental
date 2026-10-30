@@ -3,7 +3,6 @@ import { cookies } from 'next/headers'
 import type { Metadata, Viewport } from 'next'
 import { Manrope } from 'next/font/google'
 import localFont from 'next/font/local'
-import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
 import { getStockAlerts } from '@/lib/data/stock'
 import { getAlertCount } from '@/lib/data/alerts'
@@ -24,7 +23,7 @@ const mono = localFont({ src: './fonts/jetbrains-mono.woff2', weight: '100 800',
 
 // The manifest is linked only here, so "Add to Home screen" installs Clinic OS, not the website.
 export const metadata: Metadata = {
-  title: `Clinic OS - ${siteConfig.name}`,
+  title: 'Clinic OS',
   robots: { index: false },
   manifest: '/clinic.webmanifest',
   appleWebApp: {

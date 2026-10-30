@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bookingRequestMessage, cancelledMessage, confirmationMessage, declineMessage, kannadaDate, kannadaTime, messageLanguage, missedMessage,
+  cancelledMessage, confirmationMessage, declineMessage, kannadaDate, kannadaTime, messageLanguage, missedMessage,
   movedMessage, recallMessage, reminderMessage, reviewMessage, runningLateMessage,
 } from './whatsapp'
 import { visitMessage } from './billing'
+import { SMILE_DENTAL } from './test-clinic'
 
 // Messages to a patient carry the patient's first name and nothing else that identifies them:
 // no gender, date of birth, address, phone number or medical alerts.
@@ -18,7 +19,7 @@ describe('messages to the patient', () => {
   const starts = '2026-10-15T12:30:00.000Z' // Thu 15 Oct, 6:00 PM in India
 
   it('confirmation: friendly, first name only, day and time in bold, address, directions, come early', () => {
-    const text = confirmationMessage({ name: 'Prakash Shetty', startsAt: starts })
+    const text = confirmationMessage(SMILE_DENTAL, { name: 'Prakash Shetty', startsAt: starts })
     expect(text.startsWith(`${HEADER}Good news, your appointment at Smile Dental Clinic is *confirmed*.`)).toBe(true)
     expect(text.endsWith(SEE_YOU)).toBe(true)
     expect(text).toContain('Date: *Thursday, 15 October*')
@@ -33,7 +34,7 @@ describe('messages to the patient', () => {
   })
 
   it('running late: how late, their time in bold, first name only', () => {
-    const text = runningLateMessage({ name: 'Prakash Shetty', startsAt: starts, minutes: 15 })
+    const text = runningLateMessage(SMILE_DENTAL, { name: 'Prakash Shetty', startsAt: starts, minutes: 15 })
     expect(text.startsWith(HEADER)).toBe(true)
     expect(text.endsWith(SEE_YOU)).toBe(true)
     expect(text).toContain('running about 15 minutes late today. Sorry to keep you waiting!')
@@ -44,7 +45,7 @@ describe('messages to the patient', () => {
   })
 
   it('moved gives the new time in bold, first name only', () => {
-    const text = movedMessage({ name: 'Prakash Shetty', startsAt: starts })
+    const text = movedMessage(SMILE_DENTAL, { name: 'Prakash Shetty', startsAt: starts })
     expect(text.startsWith(HEADER)).toBe(true)
     expect(text.endsWith(SEE_YOU)).toBe(true)
     expect(text).toContain("has moved. Here's the new time:")
@@ -57,7 +58,7 @@ describe('messages to the patient', () => {
   })
 
   it('cancelled names the day and time in bold, says how to book again, first name only', () => {
-    const text = cancelledMessage({ name: 'Prakash Shetty', startsAt: starts })
+    const text = cancelledMessage(SMILE_DENTAL, { name: 'Prakash Shetty', startsAt: starts })
     expect(text.startsWith(HEADER)).toBe(true)
     expect(text.endsWith(TAKE_CARE)).toBe(true)
     expect(text).toContain('is *cancelled*:')
@@ -74,10 +75,10 @@ describe('messages to the patient', () => {
   it('every message to a patient is friendly: "Hi", no clinic heading, a warm sign-off', () => {
     const name = 'Prakash Shetty'
     for (const text of [
-      confirmationMessage({ name, startsAt: starts }), movedMessage({ name, startsAt: starts }), cancelledMessage({ name, startsAt: starts }),
-      declineMessage({ name }), reminderMessage({ name, startsAt: starts, tomorrow: true }), missedMessage({ name, startsAt: starts }),
-      runningLateMessage({ name, startsAt: starts, minutes: 15 }), recallMessage({ name, lastVisit: '2026-04-11' }), reviewMessage({ name }),
-      visitMessage({ patientName: name, visitDate: '2026-10-11', nextAppointment: { starts_at: starts } }),
+      confirmationMessage(SMILE_DENTAL, { name, startsAt: starts }), movedMessage(SMILE_DENTAL, { name, startsAt: starts }), cancelledMessage(SMILE_DENTAL, { name, startsAt: starts }),
+      declineMessage(SMILE_DENTAL, { name }), reminderMessage(SMILE_DENTAL, { name, startsAt: starts, tomorrow: true }), missedMessage(SMILE_DENTAL, { name, startsAt: starts }),
+      runningLateMessage(SMILE_DENTAL, { name, startsAt: starts, minutes: 15 }), recallMessage(SMILE_DENTAL, { name, lastVisit: '2026-04-11' }), reviewMessage(SMILE_DENTAL, { name }),
+      visitMessage(SMILE_DENTAL, { patientName: name, visitDate: '2026-10-11', nextAppointment: { starts_at: starts } }),
     ]) {
       expect(text.startsWith(HEADER)).toBe(true)
       expect(text).not.toContain('*Smile Dental Clinic*')
@@ -86,13 +87,13 @@ describe('messages to the patient', () => {
       expect(text).not.toContain('Warm regards')
       expect(text.endsWith(SEE_YOU) || text.endsWith(TAKE_CARE)).toBe(true)
     }
-    expect(reminderMessage({ name, startsAt: starts, tomorrow: true })).toContain('Just a friendly reminder of your appointment tomorrow:')
-    expect(missedMessage({ name, startsAt: starts })).toContain("Just reply to this message and we'll find a new time")
-    expect(recallMessage({ name, lastVisit: '2026-04-11' })).toContain("so it's time for a check-up.")
+    expect(reminderMessage(SMILE_DENTAL, { name, startsAt: starts, tomorrow: true })).toContain('Just a friendly reminder of your appointment tomorrow:')
+    expect(missedMessage(SMILE_DENTAL, { name, startsAt: starts })).toContain("Just reply to this message and we'll find a new time")
+    expect(recallMessage(SMILE_DENTAL, { name, lastVisit: '2026-04-11' })).toContain("so it's time for a check-up.")
   })
 
   it('decline has the same greeting and sign-off, first name only', () => {
-    const text = declineMessage({ name: 'Prakash Shetty' })
+    const text = declineMessage(SMILE_DENTAL, { name: 'Prakash Shetty' })
     expect(text.startsWith(`${HEADER}Thank you for getting in touch with Smile Dental Clinic.`)).toBe(true)
     expect(text.endsWith(TAKE_CARE)).toBe(true)
     expect(text).toContain("couldn't fit the time you asked for")
@@ -101,7 +102,7 @@ describe('messages to the patient', () => {
   })
 
   it('the visit message is friendly: no clinic heading, the first name, the link and the next visit, nothing more about the patient', () => {
-    const text = visitMessage({
+    const text = visitMessage(SMILE_DENTAL, {
       patientName: 'Prakash Shetty',
       visitDate: '2026-10-11',
       nextAppointment: { starts_at: starts },
@@ -113,15 +114,6 @@ describe('messages to the patient', () => {
     expect(text.endsWith('\n\nTake care,\n*Dr. Rahil Yusuf*\nSmile Dental Clinic, Katapadi')).toBe(true)
     expect(text).not.toContain('Shetty')
     expect(text).not.toMatch(FORBIDDEN)
-  })
-})
-
-describe('the website request to the clinic', () => {
-  it('stays plain: no clinic header or sign-off', () => {
-    const text = bookingRequestMessage({ name: 'Prakash Shetty', phone: '9876543210', startsAt: '2026-10-15T12:30:00.000Z', reason: 'Pain', link: 'https://x/r' })
-    expect(text.startsWith('*Appointment request (website)*')).toBe(true)
-    expect(text).not.toContain('Warm regards')
-    expect(text).toContain('Open in Clinic OS: https://x/r')
   })
 })
 
@@ -142,7 +134,7 @@ describe('messages in Kannada', () => {
     expect(messageLanguage(null)).toBe('en')
     expect(messageLanguage(undefined)).toBe('en')
     expect(messageLanguage('fr')).toBe('en')
-    expect(confirmationMessage({ name: 'Prakash Shetty', startsAt: starts })).toBe(confirmationMessage({ name: 'Prakash Shetty', startsAt: starts, language: 'en' }))
+    expect(confirmationMessage(SMILE_DENTAL, { name: 'Prakash Shetty', startsAt: starts })).toBe(confirmationMessage(SMILE_DENTAL, { name: 'Prakash Shetty', startsAt: starts, language: 'en' }))
   })
 
   it.each([
@@ -167,7 +159,7 @@ describe('messages in Kannada', () => {
   })
 
   it('the confirmation: Kannada greeting (no clinic heading), day and time, first name only', () => {
-    const text = confirmationMessage({ name: 'Prakash Shetty', startsAt: starts, language: 'kn' })
+    const text = confirmationMessage(SMILE_DENTAL, { name: 'Prakash Shetty', startsAt: starts, language: 'kn' })
     expect(text.startsWith(KN_HEADER)).toBe(true)
     expect(text.endsWith(KN_SIGN_OFF)).toBe(true)
     expect(text).toContain('*ಖಚಿತವಾಗಿದೆ*')
@@ -180,16 +172,16 @@ describe('messages in Kannada', () => {
   it('every message is in Kannada all through, with the same look as the English one', () => {
     const name = 'Prakash Shetty'
     const messages = [
-      confirmationMessage({ name, startsAt: starts, language: 'kn' }),
-      movedMessage({ name, startsAt: starts, language: 'kn' }),
-      cancelledMessage({ name, startsAt: starts, language: 'kn' }),
-      declineMessage({ name, language: 'kn' }),
-      reminderMessage({ name, startsAt: starts, tomorrow: true, language: 'kn' }),
-      reminderMessage({ name, startsAt: starts, tomorrow: false, language: 'kn' }),
-      missedMessage({ name, startsAt: starts, language: 'kn' }),
-      runningLateMessage({ name, startsAt: starts, minutes: 15, language: 'kn' }),
-      recallMessage({ name, lastVisit: '2026-04-11', language: 'kn' }),
-      reviewMessage({ name, language: 'kn' }),
+      confirmationMessage(SMILE_DENTAL, { name, startsAt: starts, language: 'kn' }),
+      movedMessage(SMILE_DENTAL, { name, startsAt: starts, language: 'kn' }),
+      cancelledMessage(SMILE_DENTAL, { name, startsAt: starts, language: 'kn' }),
+      declineMessage(SMILE_DENTAL, { name, language: 'kn' }),
+      reminderMessage(SMILE_DENTAL, { name, startsAt: starts, tomorrow: true, language: 'kn' }),
+      reminderMessage(SMILE_DENTAL, { name, startsAt: starts, tomorrow: false, language: 'kn' }),
+      missedMessage(SMILE_DENTAL, { name, startsAt: starts, language: 'kn' }),
+      runningLateMessage(SMILE_DENTAL, { name, startsAt: starts, minutes: 15, language: 'kn' }),
+      recallMessage(SMILE_DENTAL, { name, lastVisit: '2026-04-11', language: 'kn' }),
+      reviewMessage(SMILE_DENTAL, { name, language: 'kn' }),
     ]
     for (const text of messages) {
       expect(text.startsWith(KN_HEADER)).toBe(true)
@@ -199,7 +191,7 @@ describe('messages in Kannada', () => {
       expect(text).not.toMatch(FORBIDDEN)
     }
     // After a visit: the same greeting, the money on the link's page only
-    const visit = visitMessage({
+    const visit = visitMessage(SMILE_DENTAL, {
       patientName: name,
       visitDate: '2026-10-11',
       today: '2026-10-12',
@@ -212,15 +204,15 @@ describe('messages in Kannada', () => {
     expect(visit.endsWith(KN_SIGN_OFF)).toBe(true)
     expect(englishLeft(visit)).toEqual([])
     expect(visit).not.toContain('₹')
-    expect(visitMessage({ patientName: name, visitDate: '2026-10-11', today: '2026-10-11', language: 'kn' })).toContain('\nಇಂದು ನಮ್ಮಲ್ಲಿಗೆ ಬಂದಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.')
+    expect(visitMessage(SMILE_DENTAL, { patientName: name, visitDate: '2026-10-11', today: '2026-10-11', language: 'kn' })).toContain('\nಇಂದು ನಮ್ಮಲ್ಲಿಗೆ ಬಂದಿದ್ದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು.')
     messages.push(visit)
     // Plain and professional: no emojis in any message, in either language
     for (const text of messages) expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)
     for (const text of [
-      confirmationMessage({ name, startsAt: starts }), movedMessage({ name, startsAt: starts }), cancelledMessage({ name, startsAt: starts }),
-      declineMessage({ name }), reminderMessage({ name, startsAt: starts, tomorrow: true }), missedMessage({ name, startsAt: starts }),
-      runningLateMessage({ name, startsAt: starts, minutes: 15 }), recallMessage({ name, lastVisit: '2026-04-11' }), reviewMessage({ name }),
-      visitMessage({ patientName: name, visitDate: '2026-10-11', nextAppointment: { starts_at: starts }, photoLink: { url: 'https://x/r/code', labels: ['Prescription'] } }),
+      confirmationMessage(SMILE_DENTAL, { name, startsAt: starts }), movedMessage(SMILE_DENTAL, { name, startsAt: starts }), cancelledMessage(SMILE_DENTAL, { name, startsAt: starts }),
+      declineMessage(SMILE_DENTAL, { name }), reminderMessage(SMILE_DENTAL, { name, startsAt: starts, tomorrow: true }), missedMessage(SMILE_DENTAL, { name, startsAt: starts }),
+      runningLateMessage(SMILE_DENTAL, { name, startsAt: starts, minutes: 15 }), recallMessage(SMILE_DENTAL, { name, lastVisit: '2026-04-11' }), reviewMessage(SMILE_DENTAL, { name }),
+      visitMessage(SMILE_DENTAL, { patientName: name, visitDate: '2026-10-11', nextAppointment: { starts_at: starts }, photoLink: { url: 'https://x/r/code', labels: ['Prescription'] } }),
     ]) expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)
     expect(messages[8]).toContain('(11 ಏಪ್ರಿಲ್ 2026)')
   })

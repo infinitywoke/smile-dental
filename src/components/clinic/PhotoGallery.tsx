@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { AlertCircle, Camera, Images, Loader2, Trash2, X } from 'lucide-react'
 import { addVisitPhoto, deleteVisitPhoto } from '@/lib/actions/visits'
+import type { ChairMonitor } from '@/lib/clinic'
 import type { VisitPhoto } from '@/lib/data/types'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImage } from '@/lib/resize-image'
@@ -36,6 +37,7 @@ export type UploadCounts = { uploading: number; failed: number }
 export function PhotoGallery({
   visitId,
   folder,
+  monitor,
   photos,
   kindOf,
   nameOf,
@@ -47,6 +49,8 @@ export function PhotoGallery({
   visitId: string
   // The clinic's folder: a visit's photos go in <folder>/<visit id>/
   folder: string
+  // The clinic's chair monitor, if it has one (photos can be pulled from it)
+  monitor: ChairMonitor | null
   photos: VisitPhoto[]
   kindOf: (photo: VisitPhoto) => PhotoKind | null
   // What a photo is called ("Prescription", or the name he typed for an Other one, else "Photo")
@@ -271,7 +275,7 @@ export function PhotoGallery({
           className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white px-3 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50">
           <Images className="h-4 w-4" aria-hidden="true" /> Gallery
         </button>
-        <MonitorPhoto visitId={visitId} onPhoto={(file) => addPhotos([file])} />
+        {monitor && <MonitorPhoto visitId={visitId} monitor={monitor} onPhoto={(file) => addPhotos([file])} />}
       </div>
 
       {viewer.open && viewing && <PhotoViewer key={viewing.id} photo={viewing} url={urlOf(viewing)} onClose={viewer.close} />}

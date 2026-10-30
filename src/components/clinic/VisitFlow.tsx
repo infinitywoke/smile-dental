@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AlertCircle, Cake, ChevronRight } from 'lucide-react'
+import type { ClinicContext } from '@/lib/clinic'
 import type { VisitPhoto } from '@/lib/data/types'
 import type { VisitBill } from '@/lib/data/billing'
 import type { VisitPageData } from '@/lib/data/visits'
@@ -34,6 +35,7 @@ import type { NoteSuggestions as Suggestions } from '@/lib/actions/smart-notes'
 
 // A visit is one page that saves by itself: notes, photos, bill, payment, next visit, WhatsApp.
 export function VisitFlow({
+  clinic,
   folder,
   visit,
   bill: serverBill,
@@ -42,6 +44,8 @@ export function VisitFlow({
   priceList,
   focus,
 }: {
+  // The clinic and its dentist: the letterhead, messages, UPI QR and chair monitor on this page are theirs
+  clinic: ClinicContext
   // The clinic's folder, where the visit's photos go
   folder: string
   visit: VisitPageData
@@ -208,10 +212,10 @@ export function VisitFlow({
         </details>
       )}
 
-      <PrescriptionCard notes={notesText} edit={editNotes} patientName={visit.patient.name} age={age} visitDate={visit.visit_date} medicines={medicines} />
+      <PrescriptionCard notes={notesText} edit={editNotes} letterhead={clinic} patientName={visit.patient.name} age={age} visitDate={visit.visit_date} medicines={medicines} />
 
       <div className="space-y-2">
-        <PhotoGallery visitId={visit.id} folder={folder} photos={visit.photos} kindOf={kindOf} nameOf={nameOf} onKind={markKind} onUploads={setUploads}
+        <PhotoGallery visitId={visit.id} folder={folder} monitor={clinic.clinic.chairMonitor} photos={visit.photos} kindOf={kindOf} nameOf={nameOf} onKind={markKind} onUploads={setUploads}
           sends={visit.patient.phone ? sends : undefined}
           onSends={(photo, send) => { setTicks((t) => ({ ...t, [photo.id]: send })); sendRef.current?.reset() }} />
         {kindError && (
@@ -234,6 +238,7 @@ export function VisitFlow({
               visitId={visit.id}
               patientName={visit.patient.name}
               bill={bill}
+              upi={clinic.clinic.upi}
               save={save}
               onSaving={setSavingPayment}
               handle={paymentRef}
@@ -251,7 +256,7 @@ export function VisitFlow({
       </div>
 
       <div id="visit-sent" className="scroll-mt-4">
-        <SendWhatsApp visit={visit} bill={bill} nextAppointment={next?.startsAt ?? null} sentWaiting={sentWaiting}
+        <SendWhatsApp clinic={clinic} visit={visit} bill={bill} nextAppointment={next?.startsAt ?? null} sentWaiting={sentWaiting}
           prescription={prescriptionLines(notesText).length > 0} uploads={uploads} whenSaved={whenSaved} handle={sendRef} onSent={() => setSentHere(true)} sends={sends} />
       </div>
 
@@ -261,7 +266,7 @@ export function VisitFlow({
         <NextStepBar key={nextStep.kind} step={nextStep} watch={`${bill.payments.length}-${bill.summary.due}-${visit.closed_at ?? ''}`}
           // What is due, as the bar says. A failed save shows on the payment card, so go there
           onCash={() => void paymentRef.current?.cash(dueNow).then((ok) => { if (!ok) showSection('payment', 'start') })}
-          onUpi={() => { if (!paymentRef.current?.upi(dueNow)) showSection('payment', 'start') }}
+          onUpi={clinic.clinic.upi ? () => { if (!paymentRef.current?.upi(dueNow)) showSection('payment', 'start') } : undefined}
           // WhatsApp opens at once, or the Send part says why it is waiting
           onSend={() => { sendRef.current?.send(); showSection('visit-sent', 'end') }} />
       )}

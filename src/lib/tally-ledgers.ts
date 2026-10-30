@@ -1,12 +1,9 @@
-import { siteConfig } from '@/config/site'
 import { patientAge } from '@/lib/patient-fields'
 
 // Each patient's own ledger in Tally. Dr. Rahil's books credit every receipt to the patient's ledger under
 // Direct Incomes, named name + age + place ("Asha 40 Katapadi", "Asha40Katapadi", "Asha 40 Udupi/Family":
 // the spacing varies). Old patients are matched from his List of Accounts; a patient with no ledger gets one
 // named the same way, created in the file that first needs it (docs/TALLY.md).
-
-export const PATIENT_GROUP = siteConfig.tally.patientGroup
 
 // Tally exports are UTF-16 (with a byte-order mark); a file saved another way is read as UTF-8
 export function decodeTallyFile(bytes: Uint8Array): string {
@@ -28,6 +25,12 @@ export function readLedgers(text: string): { name: string; group: string }[] {
     ledgers.push({ name: unescape(m[1]).trim(), group: unescape(parent).trim() })
   }
   return ledgers
+}
+
+// The names of the ledgers that sit under the patients' group (the clinic's own: the group is its Tally's, so
+// it is given), however the group's case is written
+export function patientLedgers(all: { name: string; group: string }[], patientGroup: string): string[] {
+  return all.filter((l) => l.group.toLowerCase() === patientGroup.toLowerCase()).map((l) => l.name)
 }
 
 // Letters only, lower case: what is left of a name whatever the spacing, case or punctuation

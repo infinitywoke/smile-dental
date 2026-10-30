@@ -1,7 +1,8 @@
-import { siteConfig } from '@/config/site'
+import { degreeOf, type Clinic, type ClinicDentist } from '@/lib/clinic'
 
 // The typed prescription on the clinic's letterhead, drawn as a JPEG: in the visit's preview and on the
-// page its WhatsApp link opens. It carries the patient's name and age, as a prescription does.
+// page its WhatsApp link opens. It carries the patient's name and age, as a prescription does. The
+// letterhead is the clinic's own and its dentist's, from the database (src/lib/clinic.ts).
 
 const W = 1080
 const MIN_H = 1528 // A-paper shape
@@ -18,6 +19,27 @@ export type PrescriptionSheet = {
   date: string // "15 Oct 2026"
   medicines: string[]
   advice: string
+}
+
+// What the letterhead says about the clinic and the dentist. The visit's preview has the whole clinic; the
+// patient's link page is told just these (shared_photos), so a clinic and its dentist can be passed as they are.
+export type Letterhead = {
+  clinic: Pick<Clinic, 'name' | 'phone' | 'address' | 'logo'>
+  dentist: Pick<ClinicDentist, 'name' | 'qualifications' | 'registration' | 'signature'>
+}
+
+// The words on the letterhead and under the signature, apart from drawing them
+export function letterheadText({ clinic, dentist }: Letterhead) {
+  const degree = degreeOf(dentist)
+  return {
+    clinic: clinic.name,
+    doctor: degree ? `${dentist.name}, ${degree}` : dentist.name,
+    registration: dentist.registration ? `Reg. No. ${dentist.registration}` : null,
+    phone: `Phone / WhatsApp: ${clinic.phone}`,
+    signedBy: dentist.name,
+    degree,
+    address: clinic.address,
+  }
 }
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
@@ -45,16 +67,19 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, width: number): strin
   return out
 }
 
-let logo: Promise<HTMLImageElement | null> | null = null
-let signature: Promise<HTMLImageElement | null> | null = null
+// Each picture is fetched once, by its path, so another clinic's logo is never shown for this one's
+const pictures = new Map<string, Promise<HTMLImageElement | null>>()
+function picture(src: string | null): Promise<HTMLImageElement | null> {
+  if (!src) return Promise.resolve(null)
+  if (!pictures.has(src)) pictures.set(src, loadImage(src))
+  return pictures.get(src)!
+}
 
-export async function drawPrescription(sheet: PrescriptionSheet): Promise<Blob> {
-  logo ??= loadImage(siteConfig.media.logo)
-  signature ??= siteConfig.dentist.signature ? loadImage(siteConfig.dentist.signature) : Promise.resolve(null)
-  const [logoImg, signatureImg] = await Promise.all([logo, signature])
+export async function drawPrescription(sheet: PrescriptionSheet, letterhead: Letterhead): Promise<Blob> {
+  const [logoImg, signatureImg] = await Promise.all([picture(letterhead.clinic.logo), picture(letterhead.dentist.signature)])
+  const head = letterheadText(letterhead)
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
-  const degree = siteConfig.dentist.qualifications.split(',')[0].trim()
   const textWidth = W - PAD * 2
 
   // Work out the height first: the sheet grows for a long prescription
@@ -90,18 +115,18 @@ export async function drawPrescription(sheet: PrescriptionSheet): Promise<Blob> 
     ctx.drawImage(logoImg, (logoImg.width - s) / 2, (logoImg.height - s) / 2, s, s, PAD, 62, logoSize, logoSize)
     ctx.restore()
   }
-  const left = PAD + logoSize + 36
+  // Without a logo the words start at the edge
+  const left = logoImg ? PAD + logoSize + 36 : PAD
   ctx.fillStyle = '#ffffff'
   ctx.textBaseline = 'alphabetic'
   ctx.font = `700 54px ${FONT}`
-  ctx.fillText(siteConfig.name, left, 118)
+  ctx.fillText(head.clinic, left, 118)
   ctx.font = `600 36px ${FONT}`
-  ctx.fillText(`${siteConfig.dentist.name}, ${degree}`, left, 170)
+  ctx.fillText(head.doctor, left, 170)
   ctx.font = `400 26px ${FONT}`
   ctx.fillStyle = '#c7d2fe'
-  const reg = siteConfig.dentist.registration
-  if (reg) ctx.fillText(`Reg. No. ${reg}`, left, 210)
-  ctx.fillText(`Phone / WhatsApp: ${siteConfig.phone}`, left, reg ? 248 : 214)
+  if (head.registration) ctx.fillText(head.registration, left, 210)
+  ctx.fillText(head.phone, left, head.registration ? 248 : 214)
 
   // Patient and date
   let y = HEADER_H + 80
@@ -152,7 +177,7 @@ export async function drawPrescription(sheet: PrescriptionSheet): Promise<Blob> 
     })
   }
 
-  // Signature: his own over the line, once the clinic has added it (siteConfig.dentist.signature)
+  // Signature: the dentist's own over the line, once it has been added
   const sigY = H - 200
   if (signatureImg && signatureImg.height > 0) {
     const ratio = signatureImg.width / signatureImg.height
@@ -164,10 +189,10 @@ export async function drawPrescription(sheet: PrescriptionSheet): Promise<Blob> 
   ctx.fillStyle = INK
   ctx.textAlign = 'right'
   ctx.font = `600 30px ${FONT}`
-  ctx.fillText(siteConfig.dentist.name, W - PAD, sigY + 44)
+  ctx.fillText(head.signedBy, W - PAD, sigY + 44)
   ctx.fillStyle = GREY
   ctx.font = `400 26px ${FONT}`
-  ctx.fillText(degree, W - PAD, sigY + 80)
+  ctx.fillText(head.degree, W - PAD, sigY + 80)
   ctx.textAlign = 'left'
 
   // Footer: address
@@ -175,7 +200,7 @@ export async function drawPrescription(sheet: PrescriptionSheet): Promise<Blob> 
   ctx.fillRect(0, H - 80, W, 80)
   ctx.fillStyle = '#ffffff'
   ctx.font = `400 22px ${FONT}`
-  const address = wrap(ctx, siteConfig.address, textWidth)
+  const address = wrap(ctx, head.address, textWidth)
   ctx.textAlign = 'center'
   address.slice(0, 2).forEach((line, i) => ctx.fillText(line, W / 2, H - (address.length > 1 ? 48 : 32) + i * 28))
   ctx.textAlign = 'left'

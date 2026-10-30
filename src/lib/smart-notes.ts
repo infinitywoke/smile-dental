@@ -1,9 +1,10 @@
 import 'server-only'
 import { treatments, type Treatment } from '@/config/site'
+import { degreeOf, type ClinicContext } from '@/lib/clinic'
 import { priceListOptions, type PriceListOption } from '@/lib/pricing'
 import { isLength } from '@/lib/schedule'
 
-// Dr. Rahil records his notes after a visit; Gemini writes them out and sorts them, and suggests charges
+// The dentist records their notes after a visit; Gemini writes them out and sorts them, and suggests charges
 // (by price-list item, never an amount) and a next visit (in how many days, how long). Only the
 // recording and these instructions are sent: never the patient's name, phone, address, age, gender,
 // medical alerts, history or bill. Nothing Gemini suggests is applied until he taps it.
@@ -38,7 +39,8 @@ export function priceListWithIds(list: Treatment[] = treatments): { id: string; 
 
 // medicines: the ones he has prescribed before (from his own notes), so a brand name he says is written
 // the way he writes it
-export function smartNotesInstructions(medicines: string[] = [], priceList: Treatment[] = treatments): string {
+export function smartNotesInstructions({ clinic, dentist }: ClinicContext, medicines: string[] = [], priceList: Treatment[] = treatments): string {
+  const degree = degreeOf(dentist)
   const list = priceListWithIds(priceList)
     .map(({ id, option }) => `${id} | ${option.treatment} | ${option.detail}`)
     .join('\n')
@@ -46,8 +48,8 @@ export function smartNotesInstructions(medicines: string[] = [], priceList: Trea
     ? `\n\nMEDICINES HE HAS PRESCRIBED BEFORE (when you hear one of these, spell it exactly like this):\n${medicines.map((m) => `- ${m}`).join('\n')}`
     : ''
   return `You turn a dentist's spoken notes from one patient visit into tidy clinical notes for his own
-records, plus suggestions he can accept or ignore. He is Dr. Rahil Yusuf (BDS), at a small dental
-clinic in Katapadi, India. He speaks Indian English and may mix in Kannada, Tulu, Konkani, Hindi
+records, plus suggestions he can accept or ignore. He is ${dentist.name}${degree ? ` (${degree})` : ''}, at a small dental
+clinic in ${clinic.place}, India. He speaks Indian English and may mix in Kannada, Tulu, Konkani, Hindi
 or Malayalam words. Write everything in English.
 
 First, TRANSCRIPT: every word he says, in the order he says it, as he says it (other languages in
@@ -228,7 +230,7 @@ function fakeAnswer(priceList: Treatment[]): unknown {
 }
 
 // priceList: the clinic's price list now (src/lib/data/price-list.ts), the same for the question and the answer
-export async function sortVisitRecording(audio: Blob, medicines: string[] = [], priceList: Treatment[] = treatments): Promise<SortedNotes> {
+export async function sortVisitRecording(ctx: ClinicContext, audio: Blob, medicines: string[] = [], priceList: Treatment[] = treatments): Promise<SortedNotes> {
   if (process.env.GEMINI_FAKE === '1') return checkAgainstTranscript(checkSorted(fakeAnswer(priceList), priceList))
   const keys = geminiKeys()
   if (keys.length === 0) throw new Error('Smart notes are not set up (no Gemini key).')
@@ -237,7 +239,7 @@ export async function sortVisitRecording(audio: Blob, medicines: string[] = [], 
 
   const data = Buffer.from(await audio.arrayBuffer()).toString('base64')
   const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: smartNotesInstructions(medicines, priceList) }] },
+    systemInstruction: { parts: [{ text: smartNotesInstructions(ctx, medicines, priceList) }] },
     contents: [{ role: 'user', parts: [{ inlineData: { mimeType: audio.type.split(';')[0] || 'audio/webm', data } }, { text: 'Here are the notes for this visit.' }] }],
     // Temperature 0: the same recording gives the same notes, with no invention for variety
     generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },

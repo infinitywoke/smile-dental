@@ -4,15 +4,15 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Check, Loader2, Upload } from 'lucide-react'
 import { matchTallyLedgers, saveTallyLedgers, type LedgerQuestion } from '@/lib/actions/tally'
-import { decodeTallyFile, PATIENT_GROUP, readLedgers } from '@/lib/tally-ledgers'
+import { decodeTallyFile, patientLedgers, readLedgers } from '@/lib/tally-ledgers'
 
 const select = 'block min-h-12 w-full rounded-xl border-0 px-3 text-base text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-600'
 const button = 'flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold disabled:opacity-60'
 
-// Patient ledgers: each payment goes to the patient's own ledger under Direct Incomes, as in his books.
+// Patient ledgers: each payment goes to the patient's own ledger under the group the clinic keeps them in, as in its books.
 // His List of Accounts, uploaded once, matches patients to the ledgers Tally already has (read here: only
 // the ledger names go to the server); a patient with none gets one made by Clinic OS in the next file.
-export function TallyLedgers({ matched, unmatched }: { matched: number; unmatched: number }) {
+export function TallyLedgers({ matched, unmatched, patientGroup, place }: { matched: number; unmatched: number; patientGroup: string; place: string }) {
   const router = useRouter()
   const [busy, setBusy] = useState<'read' | 'save' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -27,11 +27,11 @@ export function TallyLedgers({ matched, unmatched }: { matched: number; unmatche
     setQuestions(null)
     try {
       const all = readLedgers(decodeTallyFile(new Uint8Array(await file.arrayBuffer())))
-      const names = all.filter((l) => l.group.toLowerCase() === PATIENT_GROUP.toLowerCase()).map((l) => l.name)
+      const names = patientLedgers(all, patientGroup)
       if (names.length === 0) {
         setError(all.length === 0
           ? "That isn't Tally's List of Accounts. In Tally: Display → List of Accounts, then Alt+E (Export) as XML."
-          : `No ledgers under ${PATIENT_GROUP} in that file.`)
+          : `No ledgers under ${patientGroup} in that file.`)
         return
       }
       const result = await matchTallyLedgers(names)
@@ -74,8 +74,8 @@ export function TallyLedgers({ matched, unmatched }: { matched: number; unmatche
     <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200" aria-label="Patient ledgers">
       <h2 className="text-lg font-bold text-gray-900">Patient ledgers</h2>
       <p className="text-sm text-gray-600">
-        Each payment goes to the patient&apos;s own ledger under {PATIENT_GROUP}, as in your books. {matched} patient{matched === 1 ? '' : 's'} matched to a ledger in Tally
-        {unmatched > 0 ? `; ${unmatched} not yet (Clinic OS makes theirs, named like "Asha Rao 40 Katapadi", in the file that first needs it).` : '.'}
+        Each payment goes to the patient&apos;s own ledger under {patientGroup}, as in your books. {matched} patient{matched === 1 ? '' : 's'} matched to a ledger in Tally
+        {unmatched > 0 ? `; ${unmatched} not yet (Clinic OS makes theirs, named like "Asha Rao 40 ${place}", in the file that first needs it).` : '.'}
       </p>
       <label className={`${button} cursor-pointer bg-white text-gray-900 ring-1 ring-gray-300 ${busy ? 'pointer-events-none opacity-60' : ''}`}>
         {busy === 'read' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />} Match from your List of Accounts

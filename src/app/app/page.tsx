@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Camera, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getDoctor } from '@/lib/auth'
+import { getClinic } from '@/lib/data/clinic'
 import { getVisitsOn } from '@/lib/data/visits'
 import { getDues, type Due } from '@/lib/data/dues'
 import { getAppointmentsOn, getDaySchedule, getPendingRequests } from '@/lib/data/appointments'
@@ -47,7 +48,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
   const date = typeof d === 'string' && DATE.test(d) ? d : today
   const isToday = date === today
 
-  const [schedule, appointments, visits, requests, dues, reminders, missed, recalls, money, pause] = await Promise.all([
+  const [schedule, appointments, visits, requests, dues, reminders, missed, recalls, money, pause, clinic] = await Promise.all([
     getDaySchedule(date),
     getAppointmentsOn(date),
     getVisitsOn(date),
@@ -59,22 +60,24 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     isToday ? getRecalls(today) : Promise.resolve([] as Recall[]),
     isToday ? getMoneyOn(today) : Promise.resolve(null),
     isToday ? getBookingPause() : Promise.resolve(null),
+    // Whose name and phone the messages below carry
+    getClinic(),
   ])
   // A booked appointment whose time is over and that has no visit: the patient may not have come
   const now = new Date().getTime()
   const over = (startsAt: string, minutes: number) => new Date(startsAt).getTime() + minutes * 60_000 < now
   const reminderItems = (reminders?.items ?? []).map((r) => ({
     id: r.id, startsAt: r.starts_at, name: r.patient.name, patientId: r.patient.id, reminded: r.reminded,
-    href: r.patient.phone ? whatsappLink(r.patient.phone, reminderMessage({ name: r.patient.name, startsAt: r.starts_at, tomorrow: reminders!.tomorrow, language: messageLanguage(r.patient.language) })) : null,
+    href: r.patient.phone ? whatsappLink(r.patient.phone, reminderMessage(clinic, { name: r.patient.name, startsAt: r.starts_at, tomorrow: reminders!.tomorrow, language: messageLanguage(r.patient.language) })) : null,
   }))
   const showReminders = reminderItems.some((r) => !r.reminded && r.href)
   const missedItems = missed.map((m) => ({
     id: m.id, startsAt: m.starts_at, name: m.patient.name, patientId: m.patient.id, phone: m.patient.phone,
-    href: m.patient.phone ? whatsappLink(m.patient.phone, missedMessage({ name: m.patient.name, startsAt: m.starts_at, language: messageLanguage(m.patient.language) })) : null,
+    href: m.patient.phone ? whatsappLink(m.patient.phone, missedMessage(clinic, { name: m.patient.name, startsAt: m.starts_at, language: messageLanguage(m.patient.language) })) : null,
   }))
   const recallItems = recalls.slice(0, RECALLS_SHOWN).map((r) => ({
     patientId: r.id, name: r.name, lastVisit: r.lastVisit, recalledAt: r.recalledAt,
-    href: whatsappLink(r.phone!, recallMessage({ name: r.name, lastVisit: r.lastVisit, language: messageLanguage(r.language) })),
+    href: whatsappLink(r.phone!, recallMessage(clinic, { name: r.name, lastVisit: r.lastVisit, language: messageLanguage(r.language) })),
   }))
 
   const poolBlocks = schedule.blocks.filter((b) => b.state === 'free' || b.state === 'blocked' || b.state === 'request')
@@ -303,6 +306,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
       {next && <div className="h-52" aria-hidden="true" />}
       {next && (
         <NextPatient
+          clinic={clinic}
           next={{
             appointmentId: next.id,
             patientId: next.patient_id,

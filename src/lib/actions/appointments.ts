@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import type { ClinicContext } from '@/lib/clinic'
+import { getClinic } from '@/lib/data/clinic'
 import { BLOCK_MINUTES, DEFAULT_LENGTH, blockInstant, clinicBlockOf, clinicStartOf, formatTimeOf, isLength, lengthLabel } from '@/lib/schedule'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
 import { confirmationMessage, declineMessage, messageLanguage, movedMessage, whatsappLink } from '@/lib/whatsapp'
@@ -56,7 +58,7 @@ const HANDLED = 'This request has already been handled.'
 // A request that was handled already (a retry after a lost reply, or an old card in another tab).
 // Hands back what the doctor still needs: the confirmation for the time actually booked, or the
 // decline message. Null when there is nothing left to send.
-async function handledResult(supabase: Supabase, requestId: string): Promise<WithWhatsapp | null> {
+async function handledResult(supabase: Supabase, clinic: ClinicContext, requestId: string): Promise<WithWhatsapp | null> {
   const { data: request } = await supabase
     .from('booking_requests')
     .select('name, phone, status, patient_id, appointment_id')
@@ -64,7 +66,7 @@ async function handledResult(supabase: Supabase, requestId: string): Promise<Wit
     .maybeSingle()
   if (!request) return null
   if (request.status === 'declined') {
-    return { declined: true, whatsappUrl: whatsappLink(request.phone, declineMessage({ name: request.name })) }
+    return { declined: true, whatsappUrl: whatsappLink(request.phone, declineMessage(clinic, { name: request.name })) }
   }
   if (request.status !== 'booked' || !request.appointment_id) return null
   const { data: appointment } = await supabase
@@ -77,7 +79,7 @@ async function handledResult(supabase: Supabase, requestId: string): Promise<Wit
     patientId: request.patient_id ?? undefined,
     appointmentId: request.appointment_id,
     startsAt: appointment.starts_at,
-    whatsappUrl: whatsappLink(request.phone, confirmationMessage({ name: request.name, startsAt: appointment.starts_at })),
+    whatsappUrl: whatsappLink(request.phone, confirmationMessage(clinic, { name: request.name, startsAt: appointment.starts_at })),
   }
 }
 
@@ -96,11 +98,10 @@ export async function confirmBookingRequest(
   if (!block) return { error: DOESNT_FIT(minutes) }
 
   const supabase = await createClient()
-  const { data: request, error: requestError } = await supabase
-    .from('booking_requests')
-    .select('name, phone')
-    .eq('id', requestId)
-    .maybeSingle()
+  const [clinic, { data: request, error: requestError }] = await Promise.all([
+    getClinic(),
+    supabase.from('booking_requests').select('name, phone').eq('id', requestId).maybeSingle(),
+  ])
   if (requestError || !request) return { error: 'That request was not found.' }
 
   const { data, error } = await supabase.rpc('confirm_booking_request', {
@@ -111,7 +112,7 @@ export async function confirmBookingRequest(
   })
   if (error) {
     if (error.message === HANDLED) {
-      const handled = await handledResult(supabase, requestId)
+      const handled = await handledResult(supabase, clinic, requestId)
       if (handled) return handled
     }
     return { error: messageOf(error, 'Could not save. Please try again.') }
@@ -123,7 +124,7 @@ export async function confirmBookingRequest(
     patientId: row?.patient_id,
     appointmentId: row?.appointment_id,
     startsAt: block.iso,
-    whatsappUrl: whatsappLink(request.phone, confirmationMessage({ name: request.name, startsAt: block.iso })),
+    whatsappUrl: whatsappLink(request.phone, confirmationMessage(clinic, { name: request.name, startsAt: block.iso })),
   }
 }
 
@@ -131,6 +132,8 @@ export async function confirmBookingRequest(
 export async function declineBookingRequest(requestId: string): Promise<WithWhatsapp> {
   await getDoctor()
   if (!UUID.test(requestId)) return { error: 'Something went wrong. Please reopen the request.' }
+  // The clinic is read first: one that can't write the decline message doesn't decline the request
+  const clinic = await getClinic()
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('booking_requests')
@@ -141,12 +144,12 @@ export async function declineBookingRequest(requestId: string): Promise<WithWhat
     .maybeSingle()
   if (error) return { error: 'Could not decline the request. Please try again.' }
   if (!data) {
-    const handled = await handledResult(supabase, requestId)
+    const handled = await handledResult(supabase, clinic, requestId)
     if (handled?.declined) return handled
     return { error: handled ? 'This request is booked already. To cancel it, open the patient.' : HANDLED }
   }
   refresh()
-  return { declined: true, whatsappUrl: whatsappLink(data.phone, declineMessage({ name: data.name })) }
+  return { declined: true, whatsappUrl: whatsappLink(data.phone, declineMessage(clinic, { name: data.name })) }
 }
 
 // Phone booking from the calendar for a patient already in the app
@@ -162,11 +165,10 @@ export async function bookAppointment(
   if (!block) return { error: DOESNT_FIT(minutes) }
 
   const supabase = await createClient()
-  const { data: patient, error: patientError } = await supabase
-    .from('patients')
-    .select('name, phone, language')
-    .eq('id', patientId)
-    .maybeSingle()
+  const [clinic, { data: patient, error: patientError }] = await Promise.all([
+    getClinic(),
+    supabase.from('patients').select('name, phone, language').eq('id', patientId).maybeSingle(),
+  ])
   if (patientError || !patient) return { error: 'That patient was not found.' }
 
   const { data, error } = await supabase
@@ -195,7 +197,7 @@ export async function bookAppointment(
     appointmentId,
     patientId,
     startsAt: block.iso,
-    whatsappUrl: patient.phone ? whatsappLink(patient.phone, confirmationMessage({ name: patient.name, startsAt: block.iso, language: messageLanguage(patient.language) })) : undefined,
+    whatsappUrl: patient.phone ? whatsappLink(patient.phone, confirmationMessage(clinic, { name: patient.name, startsAt: block.iso, language: messageLanguage(patient.language) })) : undefined,
   }
 }
 
@@ -258,7 +260,10 @@ export async function moveAppointment(appointmentId: string, startsAt: string, m
   if (!UUID.test(appointmentId)) return { error: 'Something went wrong.' }
 
   const supabase = await createClient()
-  const { data: current } = await supabase.from('appointments').select('duration_min').eq('id', appointmentId).maybeSingle()
+  const [clinic, { data: current }] = await Promise.all([
+    getClinic(),
+    supabase.from('appointments').select('duration_min').eq('id', appointmentId).maybeSingle(),
+  ])
   if (!current) return { error: 'That appointment was not found.' }
   const length = minutes === undefined ? current.duration_min : clinicLength(minutes)
   const block = startFor(startsAt, length)
@@ -278,7 +283,7 @@ export async function moveAppointment(appointmentId: string, startsAt: string, m
   refresh()
   return {
     appointmentId,
-    whatsappUrl: patient.phone ? whatsappLink(patient.phone, movedMessage({ name: patient.name, startsAt: block.iso, language: messageLanguage(patient.language) })) : undefined,
+    whatsappUrl: patient.phone ? whatsappLink(patient.phone, movedMessage(clinic, { name: patient.name, startsAt: block.iso, language: messageLanguage(patient.language) })) : undefined,
   }
 }
 
@@ -427,7 +432,7 @@ export async function confirmRequestAsAsked(requestId: string): Promise<WithWhat
     .maybeSingle()
   if (!request) return { error: 'That request was not found.' }
   if (request.status !== 'new' && request.status !== 'contacted') {
-    return (await handledResult(supabase, requestId)) ?? { error: HANDLED }
+    return (await handledResult(supabase, await getClinic(), requestId)) ?? { error: HANDLED }
   }
   if (!request.requested_start) return { error: 'No time was asked for. Please choose a time.' }
 

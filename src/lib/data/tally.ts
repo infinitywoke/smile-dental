@@ -1,6 +1,6 @@
 import 'server-only'
-import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
+import type { ClinicTally } from '@/lib/clinic'
 import { createClient } from '@/lib/supabase/server'
 import { inIndia } from '@/lib/schedule'
 import { tallyTotals, type TallyEntries, type TallyPayment } from '@/lib/tally'
@@ -16,14 +16,18 @@ export type TallySettings = {
   sent_until: string | null
 }
 
-// His ledgers, known from his Tally (src/config/site.ts), until he saves others: nothing to type first
-export const defaultTallySettings: TallySettings = {
-  cash_ledger: siteConfig.tally.cashLedger,
-  bank_ledger: siteConfig.tally.bankLedger,
-  income_ledger: siteConfig.tally.incomeLedger || null,
-  entries: 'payment',
-  sent_from: null,
-  sent_until: null,
+// The clinic's ledgers, known from its Tally (the clinic's details in the database), until it saves others:
+// nothing to type first. A clinic whose Tally names aren't known has none, and types them on the screen.
+export function defaultTallySettings(tally: ClinicTally): TallySettings | null {
+  if (!tally.cashLedger || !tally.bankLedger) return null
+  return {
+    cash_ledger: tally.cashLedger,
+    bank_ledger: tally.bankLedger,
+    income_ledger: tally.incomeLedger || null,
+    entries: 'payment',
+    sent_from: null,
+    sent_until: null,
+  }
 }
 
 export async function getTallySettings(): Promise<TallySettings | null> {

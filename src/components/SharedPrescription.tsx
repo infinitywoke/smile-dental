@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
-import { drawPrescription, type PrescriptionSheet } from '@/lib/prescription-image'
+import { drawPrescription, type Letterhead, type PrescriptionSheet } from '@/lib/prescription-image'
 
 // The typed prescription on a visit link's page (src/app/r/[token]/page.tsx): drawn here, in the
-// patient's browser, from what the link keeps, on the same letterhead the dentist previews, with Save
-export function SharedPrescription({ sheet, alt, fileName, saveLabel }: { sheet: PrescriptionSheet; alt: string; fileName: string; saveLabel: string }) {
-  const key = JSON.stringify(sheet)
+// patient's browser, from what the link keeps, on the same letterhead the dentist previews, with Save.
+// The letterhead is the link's clinic and dentist (what shared_photos tells the page).
+export function SharedPrescription({ sheet, letterhead, alt, fileName, saveLabel }: { sheet: PrescriptionSheet; letterhead: Letterhead; alt: string; fileName: string; saveLabel: string }) {
+  const key = JSON.stringify([sheet, letterhead])
   const [url, setUrl] = useState<string | null>(null)
   useEffect(() => {
     let made: string | null = null
     let stale = false
-    drawPrescription(JSON.parse(key) as PrescriptionSheet)
+    const [sheetNow, letterheadNow] = JSON.parse(key) as [PrescriptionSheet, Letterhead]
+    drawPrescription(sheetNow, letterheadNow)
       .then((blob) => {
         if (stale) return
         made = URL.createObjectURL(blob)

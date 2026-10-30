@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Download, Eye, FileText, Plus, X } from 'lucide-react'
 import { formatDate } from '@/lib/dates'
 import { addPrescriptionLine, adviceText, prescriptionLines, removePrescriptionLine } from '@/lib/prescription'
-import { drawPrescription } from '@/lib/prescription-image'
+import { drawPrescription, type Letterhead } from '@/lib/prescription-image'
 import { useUndo } from './UndoBar'
 
 // The typed prescription: its medicines are the "Prescription:" lines of the notes (the smart notes
@@ -14,6 +14,7 @@ import { useUndo } from './UndoBar'
 export function PrescriptionCard({
   notes,
   edit,
+  letterhead,
   patientName,
   age,
   visitDate,
@@ -21,6 +22,8 @@ export function PrescriptionCard({
 }: {
   notes: string
   edit: (change: (text: string) => string) => void
+  // The clinic and dentist the letterhead is for (the clinic's, from the database)
+  letterhead: Letterhead
   patientName: string
   // In years, when known: printed beside the name
   age: number | null
@@ -38,12 +41,14 @@ export function PrescriptionCard({
 
   // The picture is drawn ahead, for the preview and the download
   const key = JSON.stringify([lines, advice, patientName, age, date])
+  // The letterhead too, as text: a refresh that brings the same details again doesn't draw it again
+  const letterheadKey = JSON.stringify(letterhead)
   const [image, setImage] = useState<{ key: string; blob: Blob } | null>(null)
   useEffect(() => {
     const [medicinesNow, adviceNow] = JSON.parse(key) as [string[], string]
     if (medicinesNow.length === 0) return
     let stale = false
-    drawPrescription({ patient: patientName, age, date, medicines: medicinesNow, advice: adviceNow })
+    drawPrescription({ patient: patientName, age, date, medicines: medicinesNow, advice: adviceNow }, JSON.parse(letterheadKey) as Letterhead)
       .then((blob) => {
         if (!stale) setImage({ key, blob })
       })
@@ -51,7 +56,7 @@ export function PrescriptionCard({
     return () => {
       stale = true
     }
-  }, [key, patientName, age, date])
+  }, [key, letterheadKey, patientName, age, date])
   const blob = image?.key === key ? image.blob : null
   const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob])
   useEffect(() => () => {

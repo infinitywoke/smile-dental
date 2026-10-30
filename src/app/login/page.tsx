@@ -1,13 +1,12 @@
 import { Suspense } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { siteConfig } from '@/config/site'
 import { ForgetKeptScreens } from '@/components/clinic/OfflineLock'
 import { signIn } from './actions'
 
+// Clinic OS is every clinic's, so the sign-in page names no clinic
 export const metadata: Metadata = {
-  title: `Clinic Login - ${siteConfig.name}`,
+  title: 'Sign in - Clinic OS',
   robots: { index: false },
 }
 
@@ -26,11 +25,8 @@ export default function LoginPage({ searchParams }: PageProps<'/login'>) {
       <ForgetKeptScreens />
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg ring-1 ring-gray-200">
         <div className="text-center">
-          <div className="relative mx-auto h-16 w-16">
-            <Image src={siteConfig.media.logo} alt={siteConfig.name} fill sizes="64px" className="object-contain" priority />
-          </div>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight text-gray-900">Clinic OS</h1>
-          <p className="mt-1 text-sm text-gray-500">{siteConfig.name}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Clinic OS</h1>
+          <p className="mt-1 text-sm text-gray-500">Sign in to continue</p>
         </div>
 
         <Suspense fallback={null}>

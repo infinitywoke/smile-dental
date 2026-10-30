@@ -8,7 +8,6 @@ import { isAllowedEmail } from '@/lib/allowed-email'
 export type Doctor = {
   id: string
   email: string
-  name: string
 }
 
 // Data Access Layer: every Clinic OS page and server action calls this
@@ -33,7 +32,6 @@ export const getDoctor = cache(async (): Promise<Doctor> => {
   return {
     id: claims.sub,
     email: claims.email!,
-    name: (claims.user_metadata?.full_name as string | undefined) ?? 'Dr. Rahil',
   }
 })
 

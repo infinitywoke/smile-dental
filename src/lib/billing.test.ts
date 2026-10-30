@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { newestVisitOwing, parseAmount, patientAccount, paymentsHeldMessage, summarise, sumAmounts, visitMessage, type VisitMoney } from './billing'
+import { SMILE_DENTAL } from './test-clinic'
 import { upiLink } from './upi'
 
 // A visit's money, oldest day first unless said otherwise
@@ -137,7 +138,7 @@ describe('summarise', () => {
 
 describe('upiLink', () => {
   it('points at the clinic with the amount filled in', () => {
-    const link = upiLink({ amount: 1250, note: 'Smile Dental - Prakash' })
+    const link = upiLink(SMILE_DENTAL.clinic.upi!, { amount: 1250, note: 'Smile Dental - Prakash' })
     expect(link).toMatch(/^upi:\/\/pay\?/)
     expect(link).toContain('pa=rahil.yusuf.k-1%40okhdfcbank')
     expect(link).toContain('pn=Smile%20Dental%20Clinic')
@@ -148,7 +149,7 @@ describe('upiLink', () => {
   })
 
   it('drops risky characters from the note', () => {
-    expect(upiLink({ amount: 10, note: 'a&b=c#d' })).toContain('tn=abcd')
+    expect(upiLink(SMILE_DENTAL.clinic.upi!, { amount: 10, note: 'a&b=c#d' })).toContain('tn=abcd')
   })
 })
 
@@ -156,7 +157,7 @@ describe('visitMessage', () => {
   const nextVisit = { starts_at: '2026-10-15T12:30:00.000Z' } // Thu 15 Oct, 6:00 PM in India
 
   it('is friendly and short: no clinic heading and no money, one link to the prescription, photos and bill, the next visit', () => {
-    const text = visitMessage({
+    const text = visitMessage(SMILE_DENTAL, {
       patientName: 'Prakash Shetty',
       visitDate: '2026-10-12',
       today: '2026-10-12',
@@ -189,17 +190,17 @@ describe('visitMessage', () => {
   })
 
   it('names the day when it is sent later, and leaves out what there is none of', () => {
-    const text = visitMessage({ patientName: 'Prakash Shetty', visitDate: '2026-10-12', today: '2026-10-14', nextAppointment: nextVisit })
+    const text = visitMessage(SMILE_DENTAL, { patientName: 'Prakash Shetty', visitDate: '2026-10-12', today: '2026-10-14', nextAppointment: nextVisit })
     expect(text).toContain('Thank you for coming in on 12 Oct 2026.')
     expect(text).toContain('*Your next appointment*')
     expect(text).not.toMatch(/https?:\/\//)
-    const none = visitMessage({ patientName: 'Asha Rao', visitDate: '2026-10-12', today: '2026-10-12', photoLink: null })
+    const none = visitMessage(SMILE_DENTAL, { patientName: 'Asha Rao', visitDate: '2026-10-12', today: '2026-10-12', photoLink: null })
     expect(none).not.toMatch(/https?:\/\//)
     expect(none).not.toContain('appointment')
   })
 
   it('one link, named by what it holds', () => {
-    const link = (labels: string[]) => visitMessage({ patientName: 'Asha Rao', visitDate: '2026-10-12', photoLink: { url: 'https://x/r/code', labels } })
+    const link = (labels: string[]) => visitMessage(SMILE_DENTAL, { patientName: 'Asha Rao', visitDate: '2026-10-12', photoLink: { url: 'https://x/r/code', labels } })
     expect(link(['Bill'])).toContain('Your bill is here _(the link works for 30 days)_:\nhttps://x/r/code')
     expect(link(['Prescription'])).toContain('Your prescription is here')
     expect(link(['Prescription', 'Bill'])).toContain('Your prescription and bill are here')
@@ -211,7 +212,7 @@ describe('visitMessage', () => {
   })
 
   it('uses the first name only, never anything else about the patient', () => {
-    const text = visitMessage({ patientName: 'Asha Rao', visitDate: '2026-10-12' })
+    const text = visitMessage(SMILE_DENTAL, { patientName: 'Asha Rao', visitDate: '2026-10-12' })
     expect(text).toContain('Hi Asha,')
     expect(text).not.toContain('Rao')
     expect(text).not.toMatch(/\b(Mr|Mrs|Ms|male|female)\b/i)

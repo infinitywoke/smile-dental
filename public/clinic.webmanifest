@@ -1,7 +1,7 @@
 {
-  "name": "Clinic OS — Smile Dental",
+  "name": "Clinic OS",
   "short_name": "Clinic OS",
-  "description": "Smile Dental Clinic's patient, visit and money records.",
+  "description": "A dental clinic's patient, visit and money records.",
   "id": "/app",
   "start_url": "/app",
   "scope": "/",

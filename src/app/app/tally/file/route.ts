@@ -1,6 +1,6 @@
-import { siteConfig } from '@/config/site'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { getClinic } from '@/lib/data/clinic'
 import { defaultTallySettings, getTallyItems, getTallySettings, indiaStart, monthWindow, withLedgers } from '@/lib/data/tally'
 import { tallyTotals, tallyXml } from '@/lib/tally'
 import { inIndia } from '@/lib/schedule'
@@ -16,8 +16,9 @@ export async function POST(request: Request) {
   await getDoctor()
   const form = await request.formData()
   const batch = String(form.get('batch') ?? '')
-  const saved = await getTallySettings()
-  const settings = saved ?? defaultTallySettings
+  const [{ clinic }, saved] = await Promise.all([getClinic(), getTallySettings()])
+  const settings = saved ?? defaultTallySettings(clinic.tally)
+  if (!settings) return fail('Save your Tally ledger names first: tap Change and type them.')
 
   let window
   let label: string
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
   }
 
   const perDay = settings.entries === 'day'
+  // A patient's ledger that Tally doesn't have yet is made under the clinic's patient group, so that is needed
+  if (!perDay && !clinic.tally.patientGroup) return fail("Your Tally group for patient ledgers isn't set up yet, so a file with one entry for each payment can't be made. Tap Change and choose one entry per day instead.")
   if (perDay && !settings.income_ledger) return fail('One entry per day needs your income ledger: tap Change and type it.')
   // One per day holds only money; one per payment also has the visits with nothing paid
   const items = (await getTallyItems(window)).filter((i) => !perDay || i.amount > 0)
@@ -63,7 +66,8 @@ export async function POST(request: Request) {
   }
 
   const totals = tallyTotals(payments)
-  const xml = tallyXml(payments, { cash: settings.cash_ledger, bank: settings.bank_ledger, income: settings.income_ledger }, settings.entries, siteConfig.name, siteConfig.tally.company)
+  const ledgers = { cash: settings.cash_ledger, bank: settings.bank_ledger, income: settings.income_ledger, patientGroup: clinic.tally.patientGroup }
+  const xml = tallyXml(payments, ledgers, settings.entries, clinic.name, clinic.tally.company)
   return new Response(xml, {
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',

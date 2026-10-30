@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { cleanLedger, tallyGroupNamed, tallyTotals, tallyVouchers, tallyXml, type TallyPayment } from './tally'
+import { SMILE_DENTAL } from './test-clinic'
 
-const ledgers = { cash: 'Cash', bank: 'HDFC Bank', income: 'Professional Fees' }
+const ledgers = { cash: 'Cash', bank: 'HDFC Bank', income: 'Professional Fees', patientGroup: SMILE_DENTAL.clinic.tally.patientGroup }
 const payments: TallyPayment[] = [
   // 18 Oct 2026, 7:00 PM in India
   { id: 'a', amount: 700, method: 'upi', receivedAt: '2026-10-18T13:30:00Z', patientName: 'Prakash & Sons', visitDate: '2026-10-18' },

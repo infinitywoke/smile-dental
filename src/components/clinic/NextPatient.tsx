@@ -1,6 +1,7 @@
 'use client'
 
 import { AlertTriangle } from 'lucide-react'
+import type { ClinicContext } from '@/lib/clinic'
 import { LATE_MINUTES, NO_SHOW_MINUTES, nextTiming } from '@/lib/next-patient'
 import { formatTimeOf } from '@/lib/schedule'
 import type { MessageLanguage } from '@/lib/whatsapp'
@@ -14,7 +15,7 @@ type Later = { id: string; name: string; startsAt: string; phone: string; langua
 
 // Today's next patient, docked low where the thumb is: Start visit, and Running late. Once they are a few
 // minutes late, the time and Running late turn amber; ten minutes late, Didn't come is offered too.
-export function NextPatient({ next, later }: { next: Next; later: Later[] }) {
+export function NextPatient({ clinic, next, later }: { clinic: ClinicContext; next: Next; later: Later[] }) {
   const now = useNow(30_000)
   const timing = now ? nextTiming(next.startsAt, now) : null
   const behind = (timing?.lateBy ?? 0) >= LATE_MINUTES
@@ -37,7 +38,7 @@ export function NextPatient({ next, later }: { next: Next; later: Later[] }) {
             className="flex min-h-14 w-full items-center justify-center rounded-[14px] bg-blue-600 px-5 text-[17px] font-extrabold text-white transition-transform active:scale-[0.98] disabled:opacity-70" />
           <div className="flex items-center justify-end gap-2">
             {(timing?.lateBy ?? 0) >= NO_SHOW_MINUTES && <DidntComeButton appointmentId={next.appointmentId} name={next.name} />}
-            <RunningLate patients={later} behind={behind} />
+            <RunningLate clinic={clinic} patients={later} behind={behind} />
           </div>
         </div>
       </div>
