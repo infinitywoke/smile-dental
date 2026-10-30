@@ -16,8 +16,9 @@ const chip = (on: boolean) =>
 const MAX_FILE = 5 * 1024 * 1024
 
 // A cost he paid: how much, what for, to whom and how, with a photo of the bill if he has one.
-// The photo uploads when he saves, under the cost's own id, so trying again never stores it twice.
-export function CostForm({ doctorId, today }: { doctorId: string; today: string }) {
+// The photo uploads when he saves, in the clinic's folder under the cost's own id, so trying again never
+// stores it twice.
+export function CostForm({ folder, today }: { folder: string; today: string }) {
   const router = useRouter()
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState<CostCategory>('stock')
@@ -59,7 +60,7 @@ export function CostForm({ doctorId, today }: { doctorId: string; today: string 
       if (file) {
         const blob = file.type === 'application/pdf' ? file : await resizeImage(file)
         const extension = blob.type === 'application/pdf' ? 'pdf' : blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
-        billPath = `${doctorId}/${id.current}.${extension}`
+        billPath = `${folder}/${id.current}.${extension}`
         const { error: uploadError } = await createClient().storage.from(BILL_BUCKET).upload(billPath, blob, { contentType: blob.type || 'image/jpeg' })
         // "Already exists": an earlier try uploaded it
         if (uploadError && !/exist/i.test(uploadError.message)) return setError('The bill photo didn’t upload. Try again, or remove the photo to save without it.')

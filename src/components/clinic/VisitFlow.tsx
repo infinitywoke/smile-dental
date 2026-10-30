@@ -34,7 +34,7 @@ import type { NoteSuggestions as Suggestions } from '@/lib/actions/smart-notes'
 
 // A visit is one page that saves by itself: notes, photos, bill, payment, next visit, WhatsApp.
 export function VisitFlow({
-  doctorId,
+  folder,
   visit,
   bill: serverBill,
   medicines,
@@ -42,7 +42,8 @@ export function VisitFlow({
   priceList,
   focus,
 }: {
-  doctorId: string
+  // The clinic's folder, where the visit's photos go
+  folder: string
   visit: VisitPageData
   bill: VisitBill
   // One-tap medicines for the prescription
@@ -210,7 +211,7 @@ export function VisitFlow({
       <PrescriptionCard notes={notesText} edit={editNotes} patientName={visit.patient.name} age={age} visitDate={visit.visit_date} medicines={medicines} />
 
       <div className="space-y-2">
-        <PhotoGallery visitId={visit.id} doctorId={doctorId} photos={visit.photos} kindOf={kindOf} nameOf={nameOf} onKind={markKind} onUploads={setUploads}
+        <PhotoGallery visitId={visit.id} folder={folder} photos={visit.photos} kindOf={kindOf} nameOf={nameOf} onKind={markKind} onUploads={setUploads}
           sends={visit.patient.phone ? sends : undefined}
           onSends={(photo, send) => { setTicks((t) => ({ ...t, [photo.id]: send })); sendRef.current?.reset() }} />
         {kindError && (

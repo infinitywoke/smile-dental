@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getDoctor } from '@/lib/auth'
+import { getClinicId, getDoctor } from '@/lib/auth'
+import { isBillFile } from '@/lib/clinic-files'
 import { createClient } from '@/lib/supabase/server'
 import { parseAmount } from '@/lib/billing'
 import { todayInIndia } from '@/lib/dates'
@@ -39,7 +40,7 @@ export async function addCost(input: CostInput): Promise<Result> {
   if (payee.length > 100) return failed('The name is too long.')
   const note = input.note.trim()
   if (note.length > 300) return failed('The note is too long.')
-  if (input.billPath !== null && !new RegExp(`^${doctor.id}/${input.id}\\.(jpg|png|webp|pdf)$`).test(input.billPath)) return failed(TRY_AGAIN)
+  if (input.billPath !== null && !isBillFile(input.billPath, input.id, [await getClinicId(), doctor.id])) return failed(TRY_AGAIN)
   const supabase = await createClient()
   const { error } = await supabase.from('costs').upsert({
     id: input.id, amount, category: input.category, spent_on: input.spentOn, paid_by: input.paidBy, payee, note, bill_path: input.billPath,

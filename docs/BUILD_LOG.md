@@ -712,4 +712,19 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - The failure was `stock-import.spec.ts`, where the Treatments sheet replaces the price list. It had loaded the page and set the file on the input at once, before the screen listened, so the pick was lost and the preview never came.
         - It now picks through the button and its file chooser, which opens only once the screen runs, as `costs.spec.ts` and `visit.spec.ts` already do.
         - All 4 stock-import tests pass, including the test account's price list being replaced and the website's left alone.
+- 2026-10-30 **Multi-clinic, slice 2b: the app files and saves by clinic** (owner: "continue").
+    - **New files go to the clinic's folder:**
+        - photos (`PhotoGallery.tsx`) at `<clinic id>/<visit id>/…`;
+        - recordings (`smart-notes.ts`), in the same visit folder;
+        - bill photos (`CostForm.tsx`) at `<clinic id>/<cost id>.<ext>`;
+        - the folder comes from `getClinicId()` in `auth.ts` (the database's `my_clinic_id()`), with the paths in `src/lib/clinic-files.ts`.
+    - **Files from before stay in the login's own folder:**
+        - the server accepts a new photo or bill in either folder, since a phone still running an older copy of the app uploads to the old one;
+        - deleting a visit or a patient clears both folders, and now also removes the recordings by their own saved paths, as it already did photos.
+    - **Saved per clinic:** Tally settings and what each treatment uses (`onConflict` on the clinic keys). The person who first saved a row stays its maker.
+    - **Tests:**
+        - `clinic-files.test.ts` (3);
+        - the browser helpers know the test account's clinic and look in both folders;
+        - the visit test's photo lands in the clinic's folder and its stray file in the old one, and deleting the visit clears both.
+    - **Gates:** tsc, lint, unit 340, build, and the whole browser suite against the live database (119 passed, 4 skipped).
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.

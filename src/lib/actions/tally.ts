@@ -13,7 +13,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // The dentist's Tally ledger names (typed once, exactly as in Tally) and one entry per payment or per day.
 // Each payment goes to the patient's own ledger, so the income ledger is needed only for one per day.
 export async function saveTallySettings(formData: FormData): Promise<{ error?: string }> {
-  const doctor = await getDoctor()
+  await getDoctor()
   const cash = cleanLedger(formData.get('cash'))
   const bank = cleanLedger(formData.get('bank'))
   const entries = formData.get('entries') === 'day' ? 'day' : 'payment'
@@ -27,7 +27,8 @@ export async function saveTallySettings(formData: FormData): Promise<{ error?: s
   const supabase = await createClient()
   const { error } = await supabase
     .from('tally_settings')
-    .upsert({ owner_id: doctor.id, cash_ledger: cash, bank_ledger: bank, income_ledger: income, entries }, { onConflict: 'owner_id' })
+    // One per clinic; who saved it first stays its maker
+    .upsert({ cash_ledger: cash, bank_ledger: bank, income_ledger: income, entries }, { onConflict: 'clinic_id' })
   if (error) return { error: "Couldn't save. Check the internet and try again." }
   revalidatePath('/app/tally')
   return {}

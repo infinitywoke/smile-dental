@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getDoctor } from '@/lib/auth'
+import { getClinicId } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getDaySchedule } from '@/lib/data/appointments'
 import { getTreatments } from '@/lib/data/price-list'
@@ -32,11 +32,11 @@ export type NoteSuggestions = {
 const EXTENSIONS: Record<string, string> = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/aac': 'aac', 'audio/wav': 'wav' }
 const AUDIO_BUCKET = 'visit-audio'
 
-// The visit's recording is kept by the clinic (private, under <doctor>/<visit>/), then sent to Gemini
+// The visit's recording is kept by the clinic (private, under <clinic>/<visit>/), then sent to Gemini
 // (nothing else about the patient). A retry sorts the kept recording again. Nothing is saved to the
 // notes or booked here: the doctor taps what he wants.
 export async function sortVisitNotes(formData: FormData): Promise<{ error?: string; recordingId?: string; result?: NoteSuggestions }> {
-  const doctor = await getDoctor()
+  const clinicId = await getClinicId()
   const visitId = String(formData.get('visitId') ?? '')
   const keptId = String(formData.get('recordingId') ?? '')
   if (!UUID.test(visitId)) return { error: 'Invalid visit.' }
@@ -63,7 +63,7 @@ export async function sortVisitNotes(formData: FormData): Promise<{ error?: stri
     if (!extension) return { error: 'That is not a recording.' }
     const seconds = Math.max(0, Math.min(3600, Math.round(Number(formData.get('seconds')) || 0)))
     recordingId = crypto.randomUUID()
-    const path = `${doctor.id}/${visitId}/${recordingId}.${extension}`
+    const path = `${clinicId}/${visitId}/${recordingId}.${extension}`
     const { error: uploadError } = await supabase.storage.from(AUDIO_BUCKET).upload(path, file, { contentType: type })
     if (uploadError && !/exist/i.test(uploadError.message)) return { error: "Couldn't save the recording. Check the internet and try again." }
     const { error: rowError } = await supabase.from('visit_recordings').insert({ id: recordingId, visit_id: visitId, storage_path: path, seconds })

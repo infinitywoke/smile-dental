@@ -36,3 +36,13 @@ export const getDoctor = cache(async (): Promise<Doctor> => {
     name: (claims.user_metadata?.full_name as string | undefined) ?? 'Dr. Rahil',
   }
 })
+
+// The clinic the signed-in person works in (the first they joined): the one the database shows them. Its
+// folder holds the clinic's photos, recordings and bills (src/lib/clinic-files.ts).
+export const getClinicId = cache(async (): Promise<string> => {
+  await getDoctor()
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('my_clinic_id')
+  if (error || typeof data !== 'string') throw new Error('This login is not in a clinic.')
+  return data
+})

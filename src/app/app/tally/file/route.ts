@@ -13,7 +13,7 @@ const fail = (error: string, status = 400) => Response.json({ error }, { status 
 // can start on a chosen day), then remembered as sent; "again": the last file once more; "month": every
 // payment received and visit in a month (for the accountant), which changes nothing in what counts as new.
 export async function POST(request: Request) {
-  const doctor = await getDoctor()
+  await getDoctor()
   const form = await request.formData()
   const batch = String(form.get('batch') ?? '')
   const saved = await getTallySettings()
@@ -52,14 +52,13 @@ export async function POST(request: Request) {
     const { error } = await supabase
       .from('tally_settings')
       .upsert({
-        owner_id: doctor.id,
         cash_ledger: settings.cash_ledger,
         bank_ledger: settings.bank_ledger,
         income_ledger: settings.income_ledger,
         entries: settings.entries,
         sent_from: window.after,
         sent_until: window.upTo,
-      }, { onConflict: 'owner_id' })
+      }, { onConflict: 'clinic_id' })
     if (error) return fail("Couldn't save which payments were sent. Please try again.", 500)
   }
 

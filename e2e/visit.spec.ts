@@ -451,16 +451,19 @@ test('Send leaves a later booking today booked; deleting the sent visit empties 
   await expect(page).toHaveURL(/\/app\/visits\/[0-9a-f-]{36}$/, { timeout: 30_000 })
   const id = page.url().split('/').pop()!
 
-  // A photo, and a stray file in the visit's folder (an upload that was never recorded)
+  // A photo (in the clinic's folder), and a stray file in the doctor's own folder from before the clinic's
+  // (an upload that was never recorded): deleting the visit clears both folders
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), visible(page.getByRole('button', { name: 'Gallery' })).click()])
   await chooser.setFiles(fixturePhoto)
   await expect(visible(page.getByRole('img', { name: /^Photo 1/ }))).toBeVisible({ timeout: 30_000 })
-  const { userId } = await testDb()
+  const { userId, clinicId } = await testDb()
   const { error: strayError } = await supabase.storage
     .from('visit-photos')
     .upload(`${userId}/${id}/stray.png`, readFileSync(fixturePhoto), { contentType: 'image/png' })
   expect(strayError).toBeNull()
-  expect(await photoFolderFiles(id)).toHaveLength(2)
+  const files = await photoFolderFiles(id)
+  expect(files).toHaveLength(2)
+  expect(files.filter((f) => f.startsWith(`${clinicId}/`))).toHaveLength(1)
 
   const whatsapp = await captureWhatsapp(page)
   await sendOnWhatsapp()

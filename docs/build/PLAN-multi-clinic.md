@@ -48,8 +48,12 @@ Supabase Free.
           filled in first (trigger `0_fill_clinic`, since a table's triggers fire in name order);
         - the change file's guard: each login sees exactly what it saw, row for row and file for file, or
           nothing changes.
-    - **2b, the app:** uploads go to the clinic's folder, upserts use the clinic keys, and then the
-      per-person keys go.
+    - **2a is live (30 Oct).**
+    - **2b, the app:** uploads go to the clinic's folder, and Tally settings and materials are saved on the
+      clinic keys. Paths are checked in either folder, and deletes clear both.
+    - **2c (before slice 5):** the per-person keys go. Until then they are redundant, not in the way:
+      `tally_settings` keyed by `owner_id`, `treatment_materials` and `price_list` unique per owner, and
+      `stock_items_owner_name`.
     - **Survey (30 Oct; paused for the website's AI readiness):**
         - **Rules:**
             - The 17 "Owner full access" policies become `clinic_id = (select public.my_clinic_id())`.

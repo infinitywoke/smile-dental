@@ -149,14 +149,14 @@ export async function removeStockMove(moveId: string): Promise<Result> {
 // What one price-list treatment uses: an item and how much. The treatment must be on the price list,
 // named as a visit's bill names it, so adding it to a visit takes the item off stock.
 export async function setTreatmentMaterial(input: { slug: string; description: string; itemId: string; qty: string }): Promise<Result> {
-  const doctor = await getDoctor()
+  await getDoctor()
   if (!UUID.test(input.itemId) || !priceListOptions(await getTreatments()).some((o) => o.slug === input.slug && chargeName(o) === input.description)) return failed(TRY_AGAIN)
   const qty = parseQty(input.qty)
   if (qty === null) return failed('Please write how much one treatment uses, like 1 or 0.5.')
   const supabase = await createClient()
   const { error } = await supabase.from('treatment_materials').upsert(
-    { owner_id: doctor.id, treatment_slug: input.slug, charge_description: input.description, item_id: input.itemId, qty },
-    { onConflict: 'owner_id,treatment_slug,charge_description,item_id' },
+    { treatment_slug: input.slug, charge_description: input.description, item_id: input.itemId, qty },
+    { onConflict: 'clinic_id,treatment_slug,charge_description,item_id' },
   )
   if (error) return failed(TRY_AGAIN)
   refresh()

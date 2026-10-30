@@ -35,7 +35,7 @@ export type UploadCounts = { uploading: number; failed: number }
 // Under each one, a tap marks it Prescription, X-ray or Other (and he can type what an Other one is).
 export function PhotoGallery({
   visitId,
-  doctorId,
+  folder,
   photos,
   kindOf,
   nameOf,
@@ -45,7 +45,8 @@ export function PhotoGallery({
   onSends,
 }: {
   visitId: string
-  doctorId: string
+  // The clinic's folder: a visit's photos go in <folder>/<visit id>/
+  folder: string
   photos: VisitPhoto[]
   kindOf: (photo: VisitPhoto) => PhotoKind | null
   // What a photo is called ("Prescription", or the name he typed for an Other one, else "Photo")
@@ -87,7 +88,7 @@ export function PhotoGallery({
       const blob = await resizeImage(item.file)
       const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
       // A fixed name per photo, so trying again never stores it twice
-      const path = `${doctorId}/${visitId}/${item.key}.${extension}`
+      const path = `${folder}/${visitId}/${item.key}.${extension}`
       const storage = createClient().storage.from(PHOTO_BUCKET)
       const { error } = await storage.upload(path, blob, { contentType: blob.type || 'image/jpeg' })
       // "Already exists" means an earlier try uploaded it but the reply was lost (or it timed out here)
@@ -110,7 +111,7 @@ export function PhotoGallery({
     } catch {
       setUploading((list) => list.map((u) => (u.key === item.key ? { ...u, failed: true } : u)))
     }
-  }, [doctorId, visitId])
+  }, [folder, visitId])
 
   // A failed photo is tried again by itself, as the notes are, until it uploads or is removed
   const hasFailed = uploading.some((u) => u.failed)

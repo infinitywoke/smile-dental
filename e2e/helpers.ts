@@ -22,10 +22,10 @@ export async function signIn(page: Page) {
   await expect(page).toHaveURL(/\/app$/)
 }
 
-let db: { supabase: SupabaseClient; userId: string } | null = null
+let db: { supabase: SupabaseClient; userId: string; clinicId: string } | null = null
 
-// The test account, straight to the database. It only ever sees its own rows: every table is
-// limited to its owner, so nothing here can touch Dr. Rahil's patients.
+// The test account, straight to the database. It only ever sees its own clinic's rows (a clinic of its
+// own, with nobody else in it), so nothing here can touch Dr. Rahil's patients.
 export async function testDb() {
   if (db) return db
   const supabase = createClient(appEnv.NEXT_PUBLIC_SUPABASE_URL!, appEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
@@ -33,9 +33,14 @@ export async function testDb() {
   })
   const { data, error } = await supabase.auth.signInWithPassword({ email: testLogin!.email, password: testLogin!.password })
   if (error || !data.user) throw new Error(`test login failed: ${error?.message}`)
-  db = { supabase, userId: data.user.id }
+  const { data: clinicId, error: clinicError } = await supabase.rpc('my_clinic_id')
+  if (clinicError || typeof clinicId !== 'string') throw new Error(`the test account is in no clinic: ${clinicError?.message}`)
+  db = { supabase, userId: data.user.id, clinicId }
   return db
 }
+
+// Where the account's files may be: its clinic's folder, and its own from before the clinic's (2b)
+const fileOwners = ({ userId, clinicId }: { userId: string; clinicId: string }) => [clinicId, userId]
 
 const PHOTO_BUCKET = 'visit-photos'
 
@@ -60,23 +65,26 @@ export async function cleanRun(runId: string) {
 // Removes EVERYTHING the test account owns, including leftovers from runs that crashed.
 // Only for a sweep when nobody else is running tests (the evidence tour uses it).
 export async function cleanTestAccount() {
-  const { supabase, userId } = await testDb()
+  const account = await testDb()
+  const { supabase } = account
   const { data: photos } = await supabase.from('visit_photos').select('storage_path')
   for (const table of ['booking_requests', 'appointments', 'time_off', 'patients', 'stock_items', 'costs', 'fixed_costs']) {
     const { error } = await supabase.from(table).delete().not('id', 'is', null)
     if (error) throw new Error(`cleaning ${table}: ${error.message}`)
   }
   const paths = new Set((photos ?? []).map((p) => p.storage_path as string))
-  // Files left behind without a row (an upload that never finished)
-  const { data: folders } = await supabase.storage.from(PHOTO_BUCKET).list(userId)
-  for (const folder of folders ?? []) {
-    const { data: files } = await supabase.storage.from(PHOTO_BUCKET).list(`${userId}/${folder.name}`)
-    for (const file of files ?? []) paths.add(`${userId}/${folder.name}/${file.name}`)
+  for (const owner of fileOwners(account)) {
+    // Files left behind without a row (an upload that never finished)
+    const { data: folders } = await supabase.storage.from(PHOTO_BUCKET).list(owner)
+    for (const folder of folders ?? []) {
+      const { data: files } = await supabase.storage.from(PHOTO_BUCKET).list(`${owner}/${folder.name}`)
+      for (const file of files ?? []) paths.add(`${owner}/${folder.name}/${file.name}`)
+    }
+    // Bill photos sit straight in the folder
+    const { data: bills } = await supabase.storage.from('cost-bills').list(owner)
+    if (bills?.length) await supabase.storage.from('cost-bills').remove(bills.map((f) => `${owner}/${f.name}`))
   }
   if (paths.size > 0) await supabase.storage.from(PHOTO_BUCKET).remove([...paths])
-  // Bill photos sit straight in the account's folder
-  const { data: bills } = await supabase.storage.from('cost-bills').list(userId)
-  if (bills?.length) await supabase.storage.from('cost-bills').remove(bills.map((f) => `${userId}/${f.name}`))
 }
 
 // An open clinic day at least `daysAhead` days from now
@@ -124,12 +132,16 @@ export async function createAppointmentAtFirstFree(patientId: string, day: strin
   return null
 }
 
-// The files in a visit's photo folder (`<doctor>/<visit>/`)
+// The files in a visit's photo folders (`<clinic>/<visit>/`, and `<doctor>/<visit>/` from before)
 export async function photoFolderFiles(visitId: string): Promise<string[]> {
-  const { supabase, userId } = await testDb()
-  const { data, error } = await supabase.storage.from(PHOTO_BUCKET).list(`${userId}/${visitId}`)
-  if (error) throw new Error(`listing photos: ${error.message}`)
-  return (data ?? []).map((f) => f.name).filter((name) => name !== '.emptyFolderPlaceholder')
+  const account = await testDb()
+  const names: string[] = []
+  for (const owner of fileOwners(account)) {
+    const { data, error } = await account.supabase.storage.from(PHOTO_BUCKET).list(`${owner}/${visitId}`)
+    if (error) throw new Error(`listing photos: ${error.message}`)
+    names.push(...(data ?? []).map((f) => `${owner}/${f.name}`).filter((name) => !name.endsWith('/.emptyFolderPlaceholder')))
+  }
+  return names
 }
 
 // A visit on `day` with one charge and, if `paid` is given, one cash payment

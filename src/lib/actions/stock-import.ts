@@ -24,7 +24,7 @@ export type LoadResult = { ok: true; items: number; bills: number; treatments: n
 // what each treatment uses, and the price list (the Treatments sheet replaces it, for the website too).
 // Items and bills already in Clinic OS are left as they are.
 export async function loadStockSpreadsheet(input: unknown): Promise<LoadResult> {
-  const doctor = await getDoctor()
+  await getDoctor()
   const parsed = Sheets.safeParse(input)
   if (!parsed.success) return failed('This file couldn’t be read. Please pick it again.')
   const supabase = await createClient()
@@ -86,8 +86,8 @@ export async function loadStockSpreadsheet(input: unknown): Promise<LoadResult> 
   const uses = plan.materials.filter((m) => ids.has(m.item))
   if (uses.length > 0) {
     const { error } = await supabase.from('treatment_materials').upsert(
-      uses.map((m) => ({ owner_id: doctor.id, treatment_slug: m.slug, charge_description: m.description, item_id: ids.get(m.item), qty: m.qty })),
-      { onConflict: 'owner_id,treatment_slug,charge_description,item_id' },
+      uses.map((m) => ({ treatment_slug: m.slug, charge_description: m.description, item_id: ids.get(m.item), qty: m.qty })),
+      { onConflict: 'clinic_id,treatment_slug,charge_description,item_id' },
     )
     if (error) {
       revalidatePath('/app', 'layout')

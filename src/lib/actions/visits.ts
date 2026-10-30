@@ -4,7 +4,8 @@ import { randomBytes } from 'node:crypto'
 import { RedirectType, redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { getDoctor } from '@/lib/auth'
+import { getClinicId, getDoctor } from '@/lib/auth'
+import { isVisitFile, visitFolders } from '@/lib/clinic-files'
 import { PHOTO_BUCKET } from '@/lib/visit-status'
 import { createClient } from '@/lib/supabase/server'
 import { SHARE_LINK_SECONDS, appointmentsOfVisit, findOrCreateTodaysVisit, indiaDayBounds } from '@/lib/data/visits'
@@ -55,11 +56,12 @@ export async function saveVisitNotes(visitId: string, notes: string, options: { 
   return {}
 }
 
-// Records a photo the phone has just uploaded. The path must sit in this doctor's folder for this
-// visit; a retry of the same photo is ignored (the path is unique).
+// Records a photo the phone has just uploaded. The path must sit in this visit's folder: the clinic's, or
+// the doctor's own (from a copy of the app older than the clinic's folder); a retry of the same photo is
+// ignored (the path is unique).
 export async function addVisitPhoto(visitId: string, path: string): Promise<Result> {
-  const doctor = await getDoctor()
-  if (!UUID.test(visitId) || !path.startsWith(`${doctor.id}/${visitId}/`)) return { error: 'Invalid photo.' }
+  const [doctor, clinicId] = await Promise.all([getDoctor(), getClinicId()])
+  if (!UUID.test(visitId) || !isVisitFile(path, visitFolders(clinicId, doctor.id, visitId))) return { error: 'Invalid photo.' }
   const supabase = await createClient()
   const { error } = await supabase
     .from('visit_photos')
@@ -323,13 +325,13 @@ export async function markWhatsappSent(visitId: string): Promise<Result> {
 
 // Delete visit, in this order, so nothing is lost by accident and nothing is left behind:
 // 1. a visit that holds payments is refused, naming the amounts (money is removed one payment at a time);
-// 2. every photo file in the visit's folder goes (rows and stray uploads); if storage fails, stop;
+// 2. every photo and recording of the visit goes (rows, and stray uploads in its folders); if storage fails, stop;
 // 3. the visit goes, with its notes, charges and photo rows;
 // 4. the appointment it came from, marked done by the send, is booked again (unless that time was
 //    taken since), so the patient shows on that day again.
 // A retry after a lost reply finds the visit already gone: that is success.
 export async function deleteVisit(visitId: string, patientId: string): Promise<Result> {
-  const doctor = await getDoctor()
+  const [doctor, clinicId] = await Promise.all([getDoctor(), getClinicId()])
   if (!UUID.test(visitId) || !UUID.test(patientId)) return { error: 'Invalid visit.' }
   const supabase = await createClient()
 
@@ -337,21 +339,29 @@ export async function deleteVisit(visitId: string, patientId: string): Promise<R
   if (paymentsError) return { error: 'Could not delete the visit.' }
   if (payments.length > 0) return { error: paymentsHeldMessage(payments.map((p) => ({ amount: Number(p.amount), method: p.method }))) }
 
-  const folder = `${doctor.id}/${visitId}`
-  const [rows, files, linked] = await Promise.all([
+  const [rows, recordings, linked] = await Promise.all([
     supabase.from('visit_photos').select('storage_path').eq('visit_id', visitId),
-    supabase.storage.from(PHOTO_BUCKET).list(folder, { limit: 1000 }),
+    supabase.from('visit_recordings').select('storage_path').eq('visit_id', visitId),
     supabase.from('appointments').select('id').eq('visit_id', visitId).eq('status', 'done'),
   ])
-  if (rows.error || files.error || linked.error) return { error: 'Could not delete the visit. Please try again.' }
+  if (rows.error || recordings.error || linked.error) return { error: 'Could not delete the visit. Please try again.' }
+  const paths = new Set(rows.data.map((p) => p.storage_path as string))
+  const audioPaths = new Set(recordings.data.map((r) => r.storage_path as string))
+  // …and stray uploads in the visit's folders: the clinic's, and his own from before
+  for (const folder of visitFolders(clinicId, doctor.id, visitId)) {
+    const [files, audio] = await Promise.all([
+      supabase.storage.from(PHOTO_BUCKET).list(folder, { limit: 1000 }),
+      supabase.storage.from('visit-audio').list(folder, { limit: 1000 }),
+    ])
+    if (files.error || audio.error) return { error: 'Could not delete the visit. Please try again.' }
+    files.data.forEach((f) => paths.add(`${folder}/${f.name}`))
+    audio.data.forEach((f) => audioPaths.add(`${folder}/${f.name}`))
+  }
   // Its recorded notes go too
-  const { data: audio, error: audioError } = await supabase.storage.from('visit-audio').list(folder, { limit: 1000 })
-  if (audioError) return { error: 'Could not delete the visit. Please try again.' }
-  if (audio.length > 0) {
-    const { error: removeAudioError } = await supabase.storage.from('visit-audio').remove(audio.map((f) => `${folder}/${f.name}`))
+  if (audioPaths.size > 0) {
+    const { error: removeAudioError } = await supabase.storage.from('visit-audio').remove([...audioPaths])
     if (removeAudioError) return { error: "Could not delete the visit's recordings. Please try again." }
   }
-  const paths = new Set([...rows.data.map((p) => p.storage_path as string), ...files.data.map((f) => `${folder}/${f.name}`)])
   if (paths.size > 0) {
     const { error: removeError } = await supabase.storage.from(PHOTO_BUCKET).remove([...paths])
     if (removeError) return { error: "Could not delete the visit's photos. Please try again." }
