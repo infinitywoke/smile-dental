@@ -616,3 +616,10 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **DNS:** Vercel recommends replacing the bare domain's legacy A record (`76.76.21.21`, which still works) with a CNAME `@` to `ec3e0e0f4bb756f7.vercel-dns-017.com`, proxy off (Cloudflare flattens a CNAME at the root). The owner can change it any time.
     - **Pushed 6b8836d, live within about 60 s, and checked on the live site:** the old address's `/` and `/book?utm_source=…` answer 308 to the domain with the query kept; its `/app` goes to sign-in; on the domain `/app` and `/r/…` answer 307 to Clinic OS; the bare domain answers 308 to `www`; the sitemap has 16 addresses, all on the domain; the homepage's Google data names the domain. Gates: tsc, lint, unit 329, build, the home, site and share browser tests (15), and the rules tried against a local production build with each address's Host.
     - **Owner or Rahil to do:** the Google Business Profile website → https://www.smiledentalkatapadi.com, and the appointment link → https://www.smiledentalkatapadi.com/book?utm_source=google&utm_medium=business_profile.
+- 2026-10-30 **The site's favicon is the clinic's logo** (owner asked).
+    - Three candidates were compared at 16, 32 and 48 px on light and dark tab bars. The whole round badge turned to noise at those sizes ("Smile" and "DENTAL CLINIC" became specks), so tabs and Google use the logo's own tooth and swoosh, lifted from `public/images/logo.jpg`, on a navy circle (`#012353`, the logo's navy).
+    - The files are Next.js's own icon files, applied to every page (the website, Clinic OS's sign-in, the link page):
+        - `src/app/favicon.ico`: 16, 32 and 48 px, replacing Next's default triangle;
+        - `src/app/icon.png`: 192 x 192, a multiple of 48 px as Google asks;
+        - `src/app/apple-icon.png`: 180 x 180, the whole logo on its navy square, for an iPhone home screen.
+    - Each link carries a version tag, so browsers take the new icon. Clinic OS's app icons (`public/icons`) were already the logo.
