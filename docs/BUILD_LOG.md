@@ -702,5 +702,14 @@ The owner asked for a final check before going live, a familiar colour scheme ("
             - the guard stops a change someone would see, and keeps none of it.
         - All database checks 360.
     - Found on the way, and planned: the website's free times, requests and notifications still go through app_config's login, so slice 4 must come before slice 5. The app and the website showing chairs and dentists is slice 7.
-    - **Not yet applied live:** waiting for the owner's OK.
+    - **Applied live** (owner: "Let's apply it before we continue"). The guard passed. A read-only check afterwards found:
+        - all 17 tables require a clinic; 17 owner links restrict and none cascade;
+        - 17 `0_fill_clinic` triggers, none of the old ones, the placing trigger in, and no trigger off;
+        - 17 "Clinic members" and 17 restrictive maker rules, no "Owner full access" left; 11 clinic file rules, no old ones;
+        - 2 chairs and 2 dentists (Dr. Rahil Yusuf linked to his login); all 12 appointments in a chair with a dentist of their clinic;
+        - the three one-at-a-time rules and the 4 clinic keys in; the website reads no chairs or dentists and runs no folder check; signed-in people can't add chairs.
+    - **The whole browser suite against the live database** (the test account): 118 passed, 4 skipped, 1 failed.
+        - The failure was `stock-import.spec.ts`, where the Treatments sheet replaces the price list. It had loaded the page and set the file on the input at once, before the screen listened, so the pick was lost and the preview never came.
+        - It now picks through the button and its file chooser, which opens only once the screen runs, as `costs.spec.ts` and `visit.spec.ts` already do.
+        - All 4 stock-import tests pass, including the test account's price list being replaced and the website's left alone.
 - 2026-10-30 **Security: zod 4.6.5 → 4.6.7.** GitHub reported a high-severity alert on push: zod before 4.6.6 can exhaust memory validating an oversized collection, and zod checks what the public booking form sends. 4.6.7 had been out 18 days. `npm audit` now finds 0. Gates: tsc, lint, unit 329, build.

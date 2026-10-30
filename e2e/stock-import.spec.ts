@@ -57,7 +57,15 @@ test.afterAll(async () => {
   await page.close()
 })
 
-const pickFile = (name: string, buffer: Buffer, mimeType = XLSX) => page.getByLabel('The spreadsheet').setInputFiles({ name, mimeType, buffer })
+// Through the button, as a person picks it: its file chooser opens only once the screen is running (a file
+// set on the input straight after the page loads can come before the screen listens, and is lost)
+const pickFile = (name: string, buffer: Buffer, mimeType = XLSX) => expect(async () => {
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser', { timeout: 3000 }),
+    visible(page.getByRole('button', { name: /^Pick (the spreadsheet|another file)$/ })).click(),
+  ])
+  await chooser.setFiles({ name, mimeType, buffer })
+}).toPass()
 
 test('a file that isn’t a spreadsheet is refused', async () => {
   await page.goto('/app/stock')
