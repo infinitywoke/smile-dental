@@ -3,6 +3,7 @@ import { cache } from 'react'
 import { getDoctor } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getBookingPause } from '@/lib/actions/booking'
+import { getClinic } from '@/lib/data/clinic'
 import { getDues } from '@/lib/data/dues'
 import { getMissed, getRecalls, getReminders } from '@/lib/data/follow-ups'
 import { getStock } from '@/lib/data/stock'
@@ -39,7 +40,7 @@ export const getAlerts = cache(async (): Promise<Alert[]> => {
   await getDoctor()
   const today = todayInIndia()
   const [requests, resend, missed, reminders, stock, dues, recalls, pause] = await Promise.all([
-    waitingRequests(), billsToResend(), getMissed(), getReminders(today), getStock(), getDues(1000), getRecalls(today), getBookingPause(),
+    waitingRequests(), billsToResend(), getMissed(), getReminders(today), getStock(), getDues(1000), getRecalls(today), getClinic().then(({ clinic }) => getBookingPause(clinic.slug)),
   ])
   return buildAlerts({
     today, now: Date.now(), requests, resend, missed, reminders,

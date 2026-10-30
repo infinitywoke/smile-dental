@@ -155,6 +155,7 @@ export type BookingRequest = {
 
 // Arguments of the public RPC public.submit_booking_request (returns the new id)
 export type SubmitBookingRequestArgs = {
+  p_clinic: string
   p_name: string
   p_phone: string
   p_address: string | null

@@ -59,7 +59,7 @@ async function TodayContent({ searchParams }: PageProps<'/app'>) {
     isToday ? getMissed() : Promise.resolve([] as Missed[]),
     isToday ? getRecalls(today) : Promise.resolve([] as Recall[]),
     isToday ? getMoneyOn(today) : Promise.resolve(null),
-    isToday ? getBookingPause() : Promise.resolve(null),
+    isToday ? getClinic().then(({ clinic }) => getBookingPause(clinic.slug)) : Promise.resolve(null),
     // Whose name and phone the messages below carry
     getClinic(),
   ])

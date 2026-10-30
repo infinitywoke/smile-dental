@@ -2,6 +2,7 @@
 
 import { headers } from 'next/headers'
 import { after } from 'next/server'
+import { siteConfig } from '@/config/site'
 import { createPublicClient } from '@/lib/supabase/public'
 import { notifyNewRequest } from '@/lib/push'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
@@ -14,16 +15,16 @@ import { CALL_BACK_NOTE } from '@/lib/booking-contact'
 // Public: free appointment times for the website's booking page. Start times only, no names.
 export async function getOpenSlots(): Promise<string[]> {
   const supabase = createPublicClient()
-  const { data, error } = await supabase.rpc('get_open_slots', { p_from: null, p_days: 28 })
+  const { data, error } = await supabase.rpc('get_open_slots', { p_clinic: siteConfig.clinicSlug, p_from: null, p_days: 28 })
   if (error || !data) return []
   return (data as { slot_start: string }[]).map((row) => new Date(row.slot_start).toISOString())
 }
 
-// Public: whether online booking is paused, and until when ("infinity": until the dentist turns it back
-// on). `ready` is false until supabase/pause-booking-2026-10.sql has been run; booking then counts as open.
-export async function getBookingPause(): Promise<{ ready: boolean; until: string | null }> {
+// Public: whether a clinic's online booking is paused (the website asks for its own, Clinic OS for the
+// signed-in clinic's), and until when ("infinity": until the dentist turns it back on). `ready` is false until supabase/pause-booking-2026-10.sql has been run; booking then counts as open.
+export async function getBookingPause(clinicSlug: string): Promise<{ ready: boolean; until: string | null }> {
   const supabase = createPublicClient()
-  const { data, error } = await supabase.rpc('booking_paused_until')
+  const { data, error } = await supabase.rpc('booking_paused_until', { p_clinic: clinicSlug })
   if (error) return { ready: false, until: null }
   return { ready: true, until: (data as string | null) ?? null }
 }
@@ -80,6 +81,7 @@ export async function submitBookingRequest(input: BookingInput): Promise<Booking
   const supabase = createPublicClient(forwarded)
 
   const args: SubmitBookingRequestArgs = {
+    p_clinic: siteConfig.clinicSlug,
     p_name: titleCaseName(input.name),
     p_phone: phone!,
     p_birth_year: birthYear,

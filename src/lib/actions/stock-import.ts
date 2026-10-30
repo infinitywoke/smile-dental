@@ -4,7 +4,7 @@ import { revalidatePath, updateTag } from 'next/cache'
 import { z } from 'zod'
 import { getDoctor } from '@/lib/auth'
 import { todayInIndia } from '@/lib/dates'
-import { getTreatments, PRICE_LIST_TAG } from '@/lib/data/price-list'
+import { getClinicTreatments, PRICE_LIST_TAG } from '@/lib/data/price-list'
 import { planStockImport } from '@/lib/stock-import'
 import { createClient } from '@/lib/supabase/server'
 
@@ -32,7 +32,7 @@ export async function loadStockSpreadsheet(input: unknown): Promise<LoadResult> 
     supabase.from('stock_items').select('id, name, unit').eq('archived', false),
     supabase.from('fixed_costs').select('name').is('ends_on', null),
     supabase.from('treatment_materials').select('charge_description, item_id, qty'),
-    getTreatments(),
+    getClinicTreatments(),
   ])
   if (items.error || bills.error || materials.error) return failed(TRY_AGAIN)
   const nameOf = new Map(items.data.map((i) => [i.id as string, i.name as string]))

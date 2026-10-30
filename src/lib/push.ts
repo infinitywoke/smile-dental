@@ -32,16 +32,18 @@ export async function sendPush(targets: PushTarget[], message: PushMessage): Pro
 }
 
 // Turn what the database says is due into messages, send them, and forget phones that are gone
-async function deliver(due: Due | null, secret: string, now = new Date()): Promise<number> {
-  if (!due || due.subscriptions.length === 0) return 0
+// (one Due for each member of a clinic with a phone set up: each has their own settings)
+async function deliver(all: Due[] | null, secret: string, now = new Date()): Promise<number> {
   let sent = 0
   const gone = new Set<string>()
-  for (const item of due.items) {
-    const message = messageFor(item, due.settings, now)
-    if (!message) continue
-    const result = await sendPush(due.subscriptions.filter((s) => !gone.has(s.endpoint)), message)
-    sent += result.sent
-    result.gone.forEach((endpoint) => gone.add(endpoint))
+  for (const due of all ?? []) {
+    for (const item of due.items) {
+      const message = messageFor(item, due.settings, now)
+      if (!message) continue
+      const result = await sendPush(due.subscriptions.filter((s) => !gone.has(s.endpoint)), message)
+      sent += result.sent
+      result.gone.forEach((endpoint) => gone.add(endpoint))
+    }
   }
   if (gone.size > 0) await createPublicClient().rpc('notify_gone', { p_secret: secret, p_endpoints: [...gone] })
   return sent
@@ -49,13 +51,13 @@ async function deliver(due: Due | null, secret: string, now = new Date()): Promi
 
 const secretNow = () => (pushKeysReady() ? process.env.CLINIC_OS_CRON_SECRET : undefined)
 
-// A website request was just saved: tell the dentist's phones (once, whatever calls this)
+// A website request was just saved: tell the phones of its clinic's members (once, whatever calls this)
 export async function notifyNewRequest(requestId: string): Promise<void> {
   const secret = secretNow()
   if (!secret) return
   try {
-    const { data, error } = await createPublicClient().rpc('notify_new_request', { p_secret: secret, p_request: requestId })
-    if (!error) await deliver(data as Due | null, secret)
+    const { data, error } = await createPublicClient().rpc('notify_new_request_all', { p_secret: secret, p_request: requestId })
+    if (!error) await deliver(data as Due[] | null, secret)
   } catch (e) {
     // A notification must never break a booking
     console.error('notifyNewRequest failed', e)
@@ -66,7 +68,7 @@ export async function notifyNewRequest(requestId: string): Promise<void> {
 export async function notifyDue(): Promise<{ ok: boolean; sent: number }> {
   const secret = secretNow()
   if (!secret) return { ok: false, sent: 0 }
-  const { data, error } = await createPublicClient().rpc('notify_due', { p_secret: secret })
+  const { data, error } = await createPublicClient().rpc('notify_due_all', { p_secret: secret })
   if (error) return { ok: false, sent: 0 }
-  return { ok: true, sent: await deliver(data as Due | null, secret) }
+  return { ok: true, sent: await deliver(data as Due[] | null, secret) }
 }

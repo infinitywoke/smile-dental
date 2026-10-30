@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Check } from 'lucide-react'
 import { siteConfig } from '@/config/site'
-import { getTreatments } from '@/lib/data/price-list'
+import { getWebsiteTreatments } from '@/lib/data/price-list'
 import { homeServicesFor, toothAreasFor } from '@/lib/price-list'
 import { clinicJsonLd, faqJsonLd } from '@/lib/structured-data'
 import { BookLink } from '@/components/home/BookLink'
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   // Every price on the page comes from the clinic's price list
-  const list = await getTreatments()
+  const list = await getWebsiteTreatments()
   return (
     <>
       {/* What search engines and AI assistants read: the clinic, its hours, place and prices, and the questions below */}

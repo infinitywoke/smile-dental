@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { ChevronRight } from 'lucide-react'
-import { getTreatments } from '@/lib/data/price-list'
+import { getWebsiteTreatments } from '@/lib/data/price-list'
 import { treatmentGroups } from '@/lib/price-list'
 import { priceForPatients } from '@/lib/pricing'
 import { priceListJsonLd } from '@/lib/structured-data'
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 // The whole price list, under the same headings as the homepage, and any treatment no heading names yet
 // under Other treatments (a test checks nothing is left out)
 export default async function TreatmentsPage() {
-  const list = await getTreatments()
+  const list = await getWebsiteTreatments()
   const groups = treatmentGroups(list)
   return (
     <>

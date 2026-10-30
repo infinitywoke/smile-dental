@@ -17,6 +17,8 @@ export const siteConfig = {
   // [VERIFIED] Clinic OS's address. Clinic OS stays here for now (owner, 30 Oct 2026). One deployment
   // answers on both addresses, and each shows only its own part (src/config/redirects.ts).
   clinicOsUrl: "https://smile-dental-hin3.vercel.app",
+  // [VERIFIED] This website's clinic in Clinic OS: its free times, requests, pause and price list go by this
+  clinicSlug: "smile-dental-katapadi",
   
   // --- Contact Information ---
   phone: "+91 6361816711", // [VERIFIED]

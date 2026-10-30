@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { treatments } from '../src/config/site'
+import { rowsFrom } from '../src/lib/price-list'
 import { ALL_BLOCKS, DEFAULT_LENGTH, addDays, blockInstant, inIndia, isClosedDay } from '../src/lib/schedule'
 import { appEnv, testLogin } from './env'
 
@@ -37,6 +39,17 @@ export async function testDb() {
   if (clinicError || typeof clinicId !== 'string') throw new Error(`the test account is in no clinic: ${clinicError?.message}`)
   db = { supabase, userId: data.user.id, clinicId }
   return db
+}
+
+// The test account's clinic has a price list of its own: the one in the app. Tests that use the list read it,
+// and a clinic other than the website's has no list until one is loaded. `reset` puts it back after a test
+// has loaded another.
+export async function keepPriceList(reset = false) {
+  const { supabase } = await testDb()
+  const { count } = await supabase.from('price_list').select('id', { count: 'exact', head: true })
+  if (count && !reset) return
+  const { error } = await supabase.rpc('replace_price_list', { p_items: rowsFrom(treatments) })
+  if (error) throw new Error(`loading the price list: ${error.message}`)
 }
 
 // Where the account's files may be: its clinic's folder, and its own from before the clinic's (2b)

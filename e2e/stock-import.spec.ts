@@ -3,7 +3,7 @@ import { NO_TEST_LOGIN, testLogin } from './env'
 import { treatments } from '../src/config/site'
 import { chargeName, priceListOptions } from '../src/lib/pricing'
 import { makeXlsx } from '../src/lib/xlsx-write'
-import { newRunId, signIn, testDb, visible } from './helpers'
+import { keepPriceList, newRunId, signIn, testDb, visible } from './helpers'
 
 // Loading the filled-in "Stock and costs" spreadsheet: what it adds and can't take is shown first; Load
 // adds items with their starting counts, regular bills and what a treatment uses; loading again adds nothing
@@ -52,8 +52,8 @@ test.afterAll(async () => {
   const { supabase } = await testDb()
   await supabase.from('stock_items').delete().like('name', `${runId}%`)
   await supabase.from('fixed_costs').delete().like('name', `${runId}%`)
-  // The test account's own price list (the clinic's, which the website shows, is never touched)
-  await supabase.from('price_list').delete().not('id', 'is', null)
+  // The test account's own price list back as it was (the clinic's, which the website shows, is never touched)
+  await keepPriceList(true)
   await page.close()
 })
 

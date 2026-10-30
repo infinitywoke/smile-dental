@@ -5,7 +5,7 @@ import { getClinicId } from '@/lib/auth'
 import { getClinic } from '@/lib/data/clinic'
 import { createClient } from '@/lib/supabase/server'
 import { getDaySchedule } from '@/lib/data/appointments'
-import { getTreatments } from '@/lib/data/price-list'
+import { getClinicTreatments } from '@/lib/data/price-list'
 import { formatPrice } from '@/lib/pricing'
 import { addDays, isClosedDay } from '@/lib/schedule'
 import { todayInIndia } from '@/lib/dates'
@@ -83,7 +83,7 @@ export async function sortVisitNotes(formData: FormData): Promise<{ error?: stri
 
   let sorted
   try {
-    sorted = await sortVisitRecording(await getClinic(), audio, medicines, await getTreatments())
+    sorted = await sortVisitRecording(await getClinic(), audio, medicines, await getClinicTreatments())
   } catch (e) {
     return { recordingId, error: `Couldn't sort the notes (${e instanceof Error ? e.message : 'no answer'}). The recording is saved: tap Try again.` }
   }

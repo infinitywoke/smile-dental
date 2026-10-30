@@ -5,12 +5,12 @@ import { treatments } from '@/config/site'
 import { inIndia } from '@/lib/schedule'
 import { periodBounds, summarise, type Insights, type MonthPeriods } from '@/lib/insights'
 import { getDues } from './dues'
-import { getTreatments } from './price-list'
+import { getClinicTreatments } from './price-list'
 
 // A billed treatment's name: from the clinic's price list now, or (taken off it since) the list in the app,
 // so old bills and treatments the stock spreadsheet added are both named
 const treatmentNames = async () =>
-  Object.fromEntries([...treatments, ...(await getTreatments())].map((t) => [t.slug, t.name]))
+  Object.fromEntries([...treatments, ...(await getClinicTreatments())].map((t) => [t.slug, t.name]))
 
 // The month's numbers and the month before's, from the dentist's own records. "Owed to you" is the
 // money still due right now, by the same rule as Collect on Today; it shows only for the running month.

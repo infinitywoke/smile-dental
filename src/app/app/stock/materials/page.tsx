@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { getDoctor } from '@/lib/auth'
-import { getTreatments } from '@/lib/data/price-list'
+import { getClinicTreatments } from '@/lib/data/price-list'
 import { getStock, getTreatmentMaterials } from '@/lib/data/stock'
 import { priceListOptions } from '@/lib/pricing'
 import { BackLink, ScreenLoading } from '@/components/clinic/ui'
@@ -9,7 +9,7 @@ import { TreatmentMaterials } from '@/components/clinic/TreatmentMaterials'
 // What each treatment on the price list uses from stock, and what those materials cost
 async function MaterialsContent() {
   await getDoctor()
-  const [{ ready, levels }, materials, list] = await Promise.all([getStock(), getTreatmentMaterials(), getTreatments()])
+  const [{ ready, levels }, materials, list] = await Promise.all([getStock(), getTreatmentMaterials(), getClinicTreatments()])
   return (
     <div className="space-y-4">
       <BackLink href="/app/stock" label="Stock" />

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getTreatments } from '@/lib/data/price-list'
+import { getWebsiteTreatments } from '@/lib/data/price-list'
 import { treatmentGroups } from '@/lib/price-list'
 import { priceForPatients } from '@/lib/pricing'
 import { treatmentJsonLd } from '@/lib/structured-data'
@@ -13,7 +13,7 @@ type Props = {
   params: Promise<{ slug: string }>
 }
 
-const find = async (slug: string) => (await getTreatments()).find((t) => t.slug === slug)
+const find = async (slug: string) => (await getWebsiteTreatments()).find((t) => t.slug === slug)
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const treatment = await find((await params).slug)
@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // Every treatment on the price list is built ahead; one the stock spreadsheet adds later is built the
 // first time it is asked for
 export async function generateStaticParams() {
-  return (await getTreatments()).map((t) => ({ slug: t.slug }))
+  return (await getWebsiteTreatments()).map((t) => ({ slug: t.slug }))
 }
 
 // Awaiting params outside <Suspense> keeps unknown slugs returning a real 404 instead of a streamed
@@ -38,7 +38,7 @@ export const instant = false
 // One treatment from the price list: what it is, every price, and a way to book it or ask about it
 export default async function TreatmentPage({ params }: Props) {
   const { slug } = await params
-  const list = await getTreatments()
+  const list = await getWebsiteTreatments()
   const treatment = list.find((t) => t.slug === slug)
   if (!treatment) notFound()
   const group = treatmentGroups(list).find((g) => g.items.some((t) => t.slug === treatment.slug))

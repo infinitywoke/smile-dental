@@ -1,9 +1,9 @@
 import { MetadataRoute } from 'next'
 import { siteConfig } from '@/config/site'
-import { getTreatments } from '@/lib/data/price-list'
+import { getWebsiteTreatments } from '@/lib/data/price-list'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const treatments = await getTreatments()
+  const treatments = await getWebsiteTreatments()
   const baseUrl = siteConfig.url
 
   const routes = [

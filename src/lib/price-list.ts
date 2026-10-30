@@ -1,9 +1,8 @@
-import { homeServices, toothAreas, type HomeService, type ToothArea, type Treatment } from '@/config/site'
+import { homeServices, siteConfig, toothAreas, treatments, type HomeService, type ToothArea, type Treatment } from '@/config/site'
 import { formatRupees, parsePrice } from '@/lib/pricing'
 
 // The clinic's price list lives in the database (price_list; the stock spreadsheet's Treatments sheet
-// replaces it), one row per priced option in the list's order. Until a sheet is loaded it is empty and the
-// list written into the app (src/config/site.ts `treatments`) is used.
+// replaces it), one row per priced option in the list's order.
 
 export type PriceRow = { slug: string; treatment: string; description: string; detail: string; cost: string }
 
@@ -21,6 +20,12 @@ export function treatmentsFrom(rows: PriceRow[]): Treatment[] {
 export function rowsFrom(list: Treatment[]): PriceRow[] {
   return list.flatMap((t) => (t.pricing ?? []).map((p, i) => ({ slug: t.slug, treatment: t.name, description: i === 0 ? t.shortDescription : '', detail: p.detail, cost: p.cost })))
 }
+
+// A clinic's list from its rows. With none (no sheet loaded yet, or the database out of reach), this website's
+// own clinic has the list written into the app (src/config/site.ts `treatments`); any other clinic has an
+// empty list, never another clinic's prices.
+export const listFor = (rows: PriceRow[], clinicSlug: string): Treatment[] =>
+  rows.length > 0 ? treatmentsFrom(rows) : clinicSlug === siteConfig.clinicSlug ? treatments : []
 
 // A treatment's address on the website: "Crowns & Bridges (Ceramic)" -> "crowns-bridges-ceramic"
 export const slugFor = (name: string) =>

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { patientAccount, summarise, visitMoneyOf, type BillSummary, type PatientAccount, type VisitMoney } from '@/lib/billing'
 import { priceListOptions } from '@/lib/pricing'
 import { usualCharges, type UsualCharge } from '@/lib/usual-charges'
-import { getTreatments } from './price-list'
+import { getClinicTreatments } from './price-list'
 import type { Payment, VisitCharge } from './types'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -103,7 +103,7 @@ export async function getUsualCharges(): Promise<UsualCharge[]> {
   const since = new Date(Date.now() - USUAL_WINDOW_DAYS * 86_400_000).toISOString()
   const { data, error } = await supabase.from('visit_charges').select('description').not('treatment_slug', 'is', null).gte('created_at', since)
     .order('created_at', { ascending: false }).limit(PAGE)
-  const options = priceListOptions(await getTreatments())
+  const options = priceListOptions(await getClinicTreatments())
   if (error) return usualCharges([], options)
   const counts = new Map<string, number>()
   for (const row of data) counts.set(row.description, (counts.get(row.description) ?? 0) + 1)

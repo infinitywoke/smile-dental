@@ -22,7 +22,7 @@ export const DEFAULT_NOTIFY_SETTINGS: NotifySettings = {
   quiet_until: '08:00',
 }
 
-// What the database says is due (notify_new_request, notify_due)
+// What the database says is due (notify_new_request_all, notify_due_all, for each member)
 export type NotifyItem =
   | { kind: 'new_request' | 'waiting_request'; ref: string; name: string; reason: string | null; starts_at: string | null; created_at?: string }
   | { kind: 'morning_brief'; ref: string; booked: number; first_at: string | null; waiting: number; low?: string[] }

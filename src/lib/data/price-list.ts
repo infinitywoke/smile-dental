@@ -1,23 +1,29 @@
 import 'server-only'
 import { cacheLife, cacheTag } from 'next/cache'
-import { treatments as listInApp, type Treatment } from '@/config/site'
-import { treatmentsFrom, type PriceRow } from '@/lib/price-list'
+import { siteConfig, type Treatment } from '@/config/site'
+import { getClinic } from '@/lib/data/clinic'
+import { listFor, type PriceRow } from '@/lib/price-list'
 import { createPublicClient } from '@/lib/supabase/public'
 
 export const PRICE_LIST_TAG = 'price-list'
 
-// The clinic's price list, for the website and Clinic OS alike: the one loaded from the stock
-// spreadsheet's Treatments sheet, or (none loaded yet, or the database out of reach) the list in the app.
-// Kept for an hour and made again at once when a sheet is loaded (updateTag in actions/stock-import.ts).
-export async function getTreatments(): Promise<Treatment[]> {
+// A clinic's price list, by its slug: the one loaded from the stock spreadsheet's Treatments sheet (with none
+// loaded, or the database out of reach, see listFor). Kept for an hour, per clinic, and made again at once
+// when a sheet is loaded (updateTag in actions/stock-import.ts).
+async function getTreatments(clinicSlug: string): Promise<Treatment[]> {
   'use cache'
   cacheTag(PRICE_LIST_TAG)
   cacheLife('hours')
   try {
-    const { data, error } = await createPublicClient().rpc('public_price_list')
-    if (error || !Array.isArray(data) || data.length === 0) return listInApp
-    return treatmentsFrom(data as PriceRow[])
+    const { data, error } = await createPublicClient().rpc('public_price_list', { p_clinic: clinicSlug })
+    return listFor(!error && Array.isArray(data) ? (data as PriceRow[]) : [], clinicSlug)
   } catch {
-    return listInApp
+    return listFor([], clinicSlug)
   }
 }
+
+// This website's clinic's
+export const getWebsiteTreatments = () => getTreatments(siteConfig.clinicSlug)
+
+// The signed-in person's clinic's
+export const getClinicTreatments = async () => getTreatments((await getClinic()).clinic.slug)

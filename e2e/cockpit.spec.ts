@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { NO_TEST_LOGIN, testLogin } from './env'
 import {
   billOnLink, blocksLeftToday, captureWhatsapp, cleanRun, createAppointmentAtFirstFree, createPatient, newPhone, newRunId, showMonth, signIn, testDb, visible, whatsappText,
@@ -51,18 +51,27 @@ test('Today is quiet: open status, how many seen, the money hidden until tapped,
   expect(decodeURIComponent((await send.getAttribute('href'))!)).toContain('running about 20 minutes late')
 })
 
-test('the open status holds online booking and time off; only the clinic’s own login can pause booking', async ({ page }) => {
+test('the open status holds online booking and time off; a clinic pauses its own booking', async ({ page }) => {
   await signIn(page)
   await page.goto('/app')
-  await visible(page.getByRole('button', { name: /^(Open now|Opens today|Closed)/ })).click()
+  const openStatus = () => visible(page.getByRole('button', { name: /^(Open now|Opens today|Closed)/ })).click()
+  await openStatus()
   const sheet = page.getByRole('dialog', { name: 'Today at the clinic' })
-  await expect(sheet.getByRole('region', { name: 'Online booking' })).toContainText(/Taking bookings|Paused/)
+  const booking = sheet.getByRole('region', { name: 'Online booking' })
+  await expect(booking).toContainText(/Taking bookings|Paused/)
   await expect(sheet).toContainText('Booking here in Clinic OS works as usual.')
-  // The test login is not the clinic's, so the live website never changes here
+  // The test login pauses its own clinic's booking, so the live website never changes here. The sheet closes
+  // once a change is saved.
   const turnOn = sheet.getByRole('button', { name: 'Turn online booking back on' })
-  if (await turnOn.count()) await turnOn.click()
-  else await sheet.getByRole('button', { name: /^Pause for the rest of today/ }).click()
-  await expect(sheet.getByRole('alert')).toHaveText('Only the clinic’s own login can pause online booking.')
+  const change = async (button: Locator, shows: string) => {
+    await button.click()
+    await expect(sheet).toHaveCount(0)
+    await openStatus()
+    await expect(booking).toContainText(shows)
+  }
+  if (await turnOn.count()) await change(turnOn, 'Taking bookings')
+  await change(sheet.getByRole('button', { name: /^Pause for the rest of today/ }), 'Paused')
+  await change(turnOn, 'Taking bookings')
 
   // Time off: the free times, folded on Today, open (with Close this day and blocking)
   await sheet.getByRole('button', { name: /^Block time or close this day/ }).click()
