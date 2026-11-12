@@ -855,7 +855,13 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - **Booking API v1** is live (0b703d0): free times, prices and requests by clinic slug, from any address, documented at `/api/v1/openapi.json`. The website's own form shares the same code (`src/lib/booking-request.ts`). Tested live: it answers with Smile Dental's real free times and prices.
     - **The demo clinic's name:** "Brightside Dental", not "Bright Smile Dental", which contains "Smile Dental". Slug `demo-brightside`.
     - **Then, in order:**
-        1. **Cloudflare (owner):** create the Worker from the repository (`docs/build/CLOUDFLARE.md`, step 1), then send Claude its workers.dev address to check against the live site. After that, move the domain (step 2).
+        1. **Cloudflare (owner): move the domain** (`docs/build/CLOUDFLARE.md`, step 2). The Worker is built and checked (12 Nov), at https://smile-dental-website.infinitywoke.workers.dev:
+            - every page and file matches the live site (`scripts/compare-website.py`);
+            - a booking goes to Clinic OS, caught before saving (`scripts/check-booking.mjs`), and booking links keep their reason;
+            - Clinic OS's addresses redirect, Markdown and the security headers are served, images are resized, pages answer in 0.13–0.7 s, and the card shows in 1.4 s (live: 1.3 s; 13 s on the very first, cold visit);
+            - known: a mistyped treatment address answers 200.
+
+           After the move, check the bare domain's redirect to `www`, then remove the domains from Vercel.
         1. **Owner steps for the demo** (`docs/build/DEMO-SETUP.md`): make the login, then run `supabase/demo-clinic-2026-10.sql`, then a second Vercel project for its website. With the login made and before the set-up runs, check that a login with no clinic is refused at sign-in.
         6. **Slice 6:** hours and closed days per clinic, and the clinic's message languages.
         7. **Slice 2c** (the per-person keys go), then the rest of Phase 2: operator console (needs the service-role key, or stays SQL), integrations behind switches, product address.
