@@ -16,5 +16,8 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  // Its workers.dev address stays on, for checks; no extra address for each version
+  "workers_dev": true,
+  "preview_urls": false
 }
