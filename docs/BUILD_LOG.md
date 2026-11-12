@@ -857,8 +857,8 @@ The owner asked for a final check before going live, a familiar colour scheme ("
     - **Then, in order:**
         1. **Cloudflare: the domain moved (12 Nov).** www.smiledentalkatapadi.com answers from the Worker (Cloudflare Mumbai), the bare domain redirects to `www` (308), and Clinic OS stays at smile-dental-hin3.vercel.app (Vercel bom1, the function region too). Checked on the domain: every page and file matches the Worker, a booking goes to Clinic OS (caught), Clinic OS's addresses and the vercel.app website pages redirect, and the card shows in 1.2 s (19.8 s on the first, cold visit). Left for the owner:
             - remove both domains from the Vercel project (Settings → Domains);
-            - Cloudflare Web Analytics: Cloudflare inserts its beacon into browser requests, and the site's CSP blocks it (a console error, nothing else). Either switch the automatic setup off in Cloudflare, or allow `static.cloudflareinsights.com` (script) and `cloudflareinsights.com` (connect) and add a line to the privacy policy;
-            - two pushes after 18:05 UTC (37a3bca, c028dc2) had not reached the Worker 12 minutes later: check the Worker's builds.
+            - Cloudflare Web Analytics is kept (owner, 13 Nov): the CSP allows it, and the privacy policy says what it counts (0044b70).
+            - Pushes now build on Cloudflare: its GitHub app wasn't installed, so only the setup's first build had run. Installed 13 Nov; a test push was live in about 80 s.
         1. **Owner steps for the demo** (`docs/build/DEMO-SETUP.md`): make the login, then run `supabase/demo-clinic-2026-10.sql`, then a second Vercel project for its website. With the login made and before the set-up runs, check that a login with no clinic is refused at sign-in.
         6. **Slice 6:** hours and closed days per clinic, and the clinic's message languages.
         7. **Slice 2c** (the per-person keys go), then the rest of Phase 2: operator console (needs the service-role key, or stays SQL), integrations behind switches, product address.
