@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CLINIC_OS_PATHS, hostRedirects, WEBSITE_PAGES, websiteHosts } from './redirects'
+import { CLINIC_OS_PATHS, hostRedirects, WEBSITE_PAGES, websiteHosts, websiteOnlyRedirects } from './redirects'
 import { siteConfig } from './site'
 
 // One deployment, two addresses: each shows only its own part
@@ -45,5 +45,29 @@ describe('the two addresses', () => {
     expect(rules.every((r) => r.has.length === 1 && r.has[0].type === 'host')).toBe(true)
     expect(new RegExp(`^${on('smile-dental-hin3.vercel.app')[0].has[0].value}$`).test('smile-dental-hin3Xvercel.app')).toBe(false)
     expect(rules.some((r) => /localhost/.test(r.has[0].value))).toBe(false)
+  })
+})
+
+// A deployment of the website alone (on Cloudflare): no Clinic OS of its own
+describe('the website on its own', () => {
+  const rules = websiteOnlyRedirects()
+
+  it('sends the address without www to the main one, keeping the page', () => {
+    expect(rules[0]).toEqual({
+      source: '/:path*',
+      has: [{ type: 'host', value: 'smiledentalkatapadi\\.com' }],
+      destination: 'https://www.smiledentalkatapadi.com/:path*',
+      permanent: true,
+    })
+  })
+
+  it("sends Clinic OS, sign-in, patients' links and the API to Clinic OS's address, from any address", () => {
+    const sent = rules.slice(1)
+    expect(sent.map((r) => [r.source, r.destination])).toEqual(CLINIC_OS_PATHS.map((p) => [p, `https://smile-dental-hin3.vercel.app${p}`]))
+    expect(sent.every((r) => !r.permanent && !('has' in r))).toBe(true)
+  })
+
+  it("never sends the website's own pages away", () => {
+    expect(rules.some((r) => WEBSITE_PAGES.includes(r.source))).toBe(false)
   })
 })

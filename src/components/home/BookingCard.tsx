@@ -3,10 +3,9 @@
 import { siteConfig } from '@/config/site'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeft, CalendarCheck, CalendarDays, MessageCircle, Mic, Phone, Zap } from 'lucide-react'
 import { bookingReasons, type HomeService } from '@/config/site'
-import { attachVoiceNote, submitBookingRequest } from '@/lib/actions/booking'
+import { attachVoiceNote } from '@/lib/actions/booking'
 import { checkOtherDate, dayLabel, daysWithSlots, otherTimeMessage, partOfDay, preferredTimeOptions, slotsOn } from '@/lib/booking-days'
 import { addDays, formatBlock, formatDay, formatTimeOf, inIndia } from '@/lib/schedule'
 import { formatPhone, isValidPhone, normalizePhone } from '@/lib/phone'
@@ -14,6 +13,7 @@ import { bookingRequestMessage, clinicWhatsappLink } from '@/lib/website-whatsap
 import { SOURCE_KEY } from '@/components/site/SourceTracker'
 import { useVoiceVariant } from '@/components/site/voice-variant'
 import { BOOK_EVENT, takePendingBookFor, type BookFor } from './book-events'
+import { sendBookingRequest } from './send-request'
 import { clinicOsOrigin, TEL } from './site-links'
 import { VoiceNote } from './VoiceNote'
 
@@ -28,6 +28,8 @@ type Props = {
   initialReason?: string | null
   // The homepage's rows with today's prices (src/lib/price-list.ts homeServicesFor)
   services: HomeService[]
+  // A chosen time turned out to be taken: fetch the free times again
+  onTimesTaken: () => void
 }
 
 type Step = 1 | 2 | 3 | 4
@@ -54,8 +56,7 @@ function SmoothHeight({ children }: { children: React.ReactNode }) {
 // The booking card, one step at a time: what you need, a day, a free time, then a name and a WhatsApp
 // number. Each answer moves on to the next step; the answers so far sit above it, each with Change.
 // The request is saved for the clinic; WhatsApp then opens with it written, ready to send.
-export function BookingCard({ slots, today, promise, initialReason = null, services }: Props) {
-  const router = useRouter()
+export function BookingCard({ slots, today, promise, initialReason = null, services, onTimesTaken }: Props) {
   const days = useMemo(() => daysWithSlots(slots, today), [slots, today])
   // What the visit is for (a reason id), and a note such as which tooth, from the tooth chart
   const [choice, setChoice] = useState<{ reason: string | null; note: string | null }>({ reason: initialReason, note: null })
@@ -227,7 +228,7 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
     }
     setError(null)
     startTransition(async () => {
-      const result = await submitBookingRequest({
+      const result = await sendBookingRequest({
         name, phone, age: '', gender: '', address: '', medicalAlerts: '', heardFrom, reason: reasonText, notes: '',
         requestedStart: startsAt, contact, website: trap, tooFast: !humanPace,
       })
@@ -235,7 +236,7 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
         // The time was probably taken meanwhile: fresh free times, and choose again
         if (/no longer available|available times/i.test(result.error)) {
           setPicked(null)
-          router.refresh()
+          onTimesTaken()
           goTo(3)
         }
         setError(result.error)
@@ -468,7 +469,7 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
                   <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell {siteConfig.dentist.short} what&apos;s bothering you <small>(optional)</small></span></p>
                   <p className="h-hint">
                     Which tooth or side? Since when? Does it hurt with hot, cold or sweet things, when biting, or at night? Any
-                    swelling? It helps him plan the right amount of time for you.
+                    swelling? It helps {siteConfig.dentist.pronouns.object} plan the right amount of time for you.
                   </p>
                   <VoiceNote onChange={setVoiceNote} />
                 </div>
@@ -477,8 +478,8 @@ export function BookingCard({ slots, today, promise, initialReason = null, servi
                 <div className="h-voice">
                   <p className="h-voice-title"><Mic className="h-icon-sm" aria-hidden="true" /><span>Tell {siteConfig.dentist.short} what&apos;s bothering you, in a voice note</span></p>
                   <p className="h-hint">
-                    After you tap Send in WhatsApp, hold the microphone button and tell him: which tooth or side, since when, and
-                    what makes it hurt (hot, cold, biting, at night, swelling). It helps him plan the right amount of time for you.
+                    After you tap Send in WhatsApp, hold the microphone button and tell {siteConfig.dentist.pronouns.object}: which tooth or side, since when, and
+                    what makes it hurt (hot, cold, biting, at night, swelling). It helps {siteConfig.dentist.pronouns.object} plan the right amount of time for you.
                   </p>
                 </div>
               )}

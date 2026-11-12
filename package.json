@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:website": "node scripts/build-website.mjs",
+    "preview:website": "node scripts/build-website.mjs && opennextjs-cloudflare preview",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -15,7 +17,7 @@
     "@supabase/supabase-js": "^2.117.3",
     "fflate": "0.8.3",
     "lucide-react": "^1.54.0",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "qrcode": "^1.5.4",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -24,6 +26,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.16",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^24.19.2",
@@ -33,11 +36,12 @@
     "@types/web-push": "^3.6.4",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.6",
     "supabase": "^2.120.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "wrangler": "4.157.0"
   },
   "allowScripts": {
     "supabase@2.120.0": true

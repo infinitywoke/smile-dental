@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 // The booking card on a page of its own, for links that go straight to booking: the Google profile's
 // appointment link, and Book on a treatment's page (?reason=)
-export default function BookPage({ searchParams }: PageProps<'/book'>) {
+export default function BookPage() {
   return (
     <>
       <section className="h-tide h-hero-section">
@@ -23,7 +23,7 @@ export default function BookPage({ searchParams }: PageProps<'/book'>) {
           <div className="h-hero-text">
             <h1 className="h-serif h-h1">Book a visit with {siteConfig.dentist.short}.</h1>
             <p className="h-hero-lead">
-              The free times come from his own calendar. Pick one, and WhatsApp opens with your request written; the
+              The free times come from {siteConfig.dentist.pronouns.possessive} own calendar. Pick one, and WhatsApp opens with your request written; the
               clinic confirms your time.
             </p>
             <OpenStatus />
@@ -31,7 +31,7 @@ export default function BookPage({ searchParams }: PageProps<'/book'>) {
 
           <div id="book-zone" className="h-book-zone">
             <Suspense fallback={<BookingLoading />}>
-              <Booking searchParams={searchParams} />
+              <Booking />
             </Suspense>
           </div>
 

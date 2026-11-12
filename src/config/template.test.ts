@@ -10,6 +10,8 @@ const ROOT = join(process.cwd(), 'src')
 const FOLDERS = ['app/(home)', 'components/home', 'components/site', 'app/md', 'app/llms.txt', 'app/llms-full.txt']
 const FILES = ['lib/agent-pages.ts', 'lib/structured-data.ts', 'lib/website-whatsapp.ts']
 const SMILE_DENTAL = /Rahil|Katapadi|Smile Dental|Yenepoya|Yenapoya|Shirva|6361816711/
+// The dentist's pronouns are the clinic's own too (siteConfig.dentist.pronouns)
+const PRONOUN = /\b(he|him|his|himself|she|her|herself)\b/i
 
 function sourceFiles(folder: string): string[] {
   return readdirSync(folder).flatMap((entry) => {
@@ -20,13 +22,13 @@ function sourceFiles(folder: string): string[] {
 }
 
 describe('the website template', () => {
-  it("has no clinic's words of its own (comments aside)", () => {
+  it("has no clinic's words of its own, nor its dentist's pronouns (comments aside)", () => {
     const files = [...FOLDERS.flatMap((f) => sourceFiles(join(ROOT, f))), ...FILES.map((f) => join(ROOT, f))]
     expect(files.length).toBeGreaterThan(20)
     const found = files.flatMap((path) => readFileSync(path, 'utf8').split('\n').flatMap((line, i) => {
       const words = line.trim()
       const comment = words.startsWith('//') || words.startsWith('*') || words.startsWith('{/*')
-      return !comment && SMILE_DENTAL.test(line) ? [`${relative(ROOT, path).split(sep).join('/')}:${i + 1}: ${words}`] : []
+      return !comment && (SMILE_DENTAL.test(line) || PRONOUN.test(line)) ? [`${relative(ROOT, path).split(sep).join('/')}:${i + 1}: ${words}`] : []
     }))
     expect(found).toEqual([])
   })

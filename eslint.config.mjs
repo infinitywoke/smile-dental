@@ -19,6 +19,9 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "blob-report/**",
     "playwright/.cache/**",
+    // Cloudflare build output (scripts/build-website.mjs)
+    ".open-next/**",
+    ".wrangler/**",
   ]),
 ]);
 

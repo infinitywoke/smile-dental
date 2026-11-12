@@ -27,16 +27,9 @@ export type RequestInput = {
 
 export type RequestResult = { ok: true; id: string } | { ok: false; error: string }
 
-// A clinic's free times: start times only, no names. Empty for a clinic that is paused or unknown.
-export async function openSlots(clinicSlug: string, from: string | null = null, days = 28): Promise<string[]> {
-  const { data, error } = await createPublicClient().rpc('get_open_slots', { p_clinic: clinicSlug, p_from: from, p_days: days })
-  if (error || !data) return []
-  return (data as { slot_start: string }[]).map((row) => new Date(row.slot_start).toISOString())
-}
-
-// Saves a website's request into a clinic, for its own booking form and the Booking API alike. The database
-// re-checks every rule (free block, not started yet, before 7 PM, limits per phone and device), so nothing here is
-// trusted. `visitorIp` is what those limits count.
+// Saves a website's request into a clinic: the Booking API's, where every clinic's website sends its requests
+// (src/components/home/send-request.ts). The database re-checks every rule (free block, not started yet, before
+// 7 PM, limits per phone and device), so nothing here is trusted. `visitorIp` is what those limits count.
 export async function saveBookingRequest(clinicSlug: string, input: RequestInput, visitorIp: string | null): Promise<RequestResult> {
   const phone = normalizePhone(input.phone)
   if (!isValidPhone(phone)) return { ok: false, error: 'Please enter a valid 10-digit mobile number.' }

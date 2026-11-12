@@ -39,6 +39,7 @@ export const siteConfig: typeof smile = {
   dentist: {
     name: 'Dr. Kavya Shenoy',
     short: 'Dr. Kavya',
+    pronouns: { subject: 'she', object: 'her', possessive: 'her', reflexive: 'herself' },
     years: 10,
     degree: 'BDS, MDS',
     byline: ['Manipal, 2014 · 10 years in practice', 'Sees every patient herself'],

@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 import { siteConfig } from "./src/config/site";
 import { agentHeaders, markdownRewrites } from "./src/config/agents";
-import { hostRedirects } from "./src/config/redirects";
+import { hostRedirects, websiteOnlyRedirects } from "./src/config/redirects";
+import { WEBSITE_ONLY } from "./src/config/deployment";
 
 // The browser's own guards on every page, the website's and Clinic OS's: nothing loads from other sites
 // but Supabase (the data, photos and recordings), the chair monitor's photos and the Google map in the website's footer; no other
@@ -19,8 +20,9 @@ const contentSecurityPolicy = [
   `img-src 'self' data: blob: ${supabase}`,
   `media-src 'self' blob: ${supabase}`,
   "font-src 'self' data:",
-  // …and the chair monitor on its own Wi-Fi, for the photos its QR codes point to
-  `connect-src 'self' ${supabase} ${supabase.replace(/^https:/, 'wss:')} ${siteConfig.chairMonitor.address}${dev ? ' ws:' : ''}`,
+  // …Clinic OS's Booking API (the website's free times and requests, from wherever it is hosted), and the chair
+  // monitor on its own Wi-Fi, for the photos its QR codes point to
+  `connect-src 'self' ${supabase} ${supabase.replace(/^https:/, 'wss:')} ${new URL(siteConfig.clinicOsUrl).origin} ${siteConfig.chairMonitor.address}${dev ? ' ws:' : ''}`,
   'frame-src https://www.google.com',
   "frame-ancestors 'none'",
   "object-src 'none'",
@@ -40,6 +42,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // The website on its own (scripts/build-website.mjs) sets Clinic OS's routes aside, so their route types are
+  // missing there: the full build (Vercel, `npm run build`) type-checks everything
+  typescript: { ignoreBuildErrors: WEBSITE_ONLY },
   cacheComponents: true,
   partialPrefetching: true,
   // The React Compiler: components are memoised for us, so screens redraw only what changed
@@ -64,7 +69,7 @@ const nextConfig: NextConfig = {
   // are sections of the homepage now; /preview was the new website before it went live.
   async redirects() {
     return [
-      ...hostRedirects(),
+      ...(WEBSITE_ONLY ? websiteOnlyRedirects() : hostRedirects()),
       { source: '/about', destination: '/#doctor', permanent: true },
       { source: '/contact', destination: '/#visit', permanent: true },
       { source: '/faq', destination: '/#questions', permanent: true },

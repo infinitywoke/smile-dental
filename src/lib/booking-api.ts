@@ -43,6 +43,15 @@ export const requestBody = z.object({
   website: z.string().max(200).optional().default(''),
 })
 
+// What a refused request says, by the first answer that is wrong (as the website's form says it)
+const FIELD_ERRORS: Record<string, string> = {
+  name: 'Please enter your name.',
+  phone: 'Please enter a valid 10-digit mobile number.',
+  requestedStart: 'Please choose a time.',
+}
+export const requestError = (issues: { path: PropertyKey[] }[]): string =>
+  FIELD_ERRORS[String(issues[0]?.path[0] ?? '')] ?? (issues[0]?.path.length ? 'One of the answers is too long. Please shorten it.' : 'Please check the name, phone number and time.')
+
 // The price list as rows of plain options, one treatment each
 export const pricesBody = (list: Treatment[]) => {
   const rows = rowsFrom(list)
@@ -65,7 +74,7 @@ export const OPENAPI = {
       get: {
         summary: 'Free appointment start times',
         parameters: [clinicParameter, { name: 'days', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 28 }, description: 'How many days ahead (default 28)' }],
-        responses: { 200: { description: 'Start times, soonest first; empty while online booking is paused', content: { 'application/json': { schema: { type: 'object', properties: { slots: { type: 'array', items: { type: 'string', format: 'date-time' } } } } } } }, 400: failure },
+        responses: { 200: { description: 'Start times, soonest first; empty while online booking is paused', content: { 'application/json': { schema: { type: 'object', properties: { slots: { type: 'array', items: { type: 'string', format: 'date-time' } }, paused: { type: 'boolean', description: 'Online booking is paused: ask visitors to call' } } } } } }, 400: failure },
       },
     },
     '/api/v1/clinics/{slug}/prices': {

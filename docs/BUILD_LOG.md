@@ -810,6 +810,24 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - `supabase/tests/setup.check.mjs` (13): set up twice; a missing login named; the demo filled, started over and never another clinic's; Smile Dental's own patient, visit, payment and appointment untouched; the demo login sees its clinic only; nobody signed in, nor the website, can run either.
         - All database checks: 15 files, 409 passed.
     - **Applied live.** A read-only check found both functions, run as their owner, with no execute rights for anon or signed-in users. Nothing has been set up or filled yet: that needs the demo login (below).
+- 2026-11-12 **Rahil's website ready for Cloudflare; Clinic OS stays on Vercel** (owner: "I want to migrate Rahil's website from vercel to cloudflare"; then "proceed with step 1 and 2").
+    - **The website holds no keys now.** The booking card fetches the free times from Clinic OS's Booking API and sends requests there, from the visitor's browser (`src/components/home/open-times.ts`, `send-request.ts`, `LiveBooking.tsx`). Clinic OS sends the phone notifications. The server action that saved requests is gone. The Booking API now says when online booking is paused, and names the field that is wrong in a refused request, as the form did.
+    - **The home and booking pages are built ahead** (○ in the build), with "Loading free times…" until the card fills, in about a second.
+    - **Next.js 16.4.6.** 16.4.5 was a security release (seven advisories, one a cross-tenant leak through `use cache`), and Cloudflare's adapter needs it.
+    - **The Cloudflare build** (`npm run build:website`, `scripts/build-website.mjs`, `open-next.config.ts`, `wrangler.jsonc`, `.node-version`; owner guide `docs/build/CLOUDFLARE.md`):
+        - it sets Clinic OS's routes and proxy aside, so the Worker holds the website only: 1.5 MB gzipped against the free plan's 3 MB (2.7 MB with Clinic OS in it);
+        - `NEXT_PUBLIC_WEBSITE_ONLY=1` sends Clinic OS's addresses to Clinic OS and the bare domain to `www` (`websiteOnlyRedirects`);
+        - the price list is the last deploy's (static assets cache: no revalidation on Cloudflare).
+    - **Found on the way:**
+        - Cloudflare's adapter (@opennextjs/cloudflare 1.20.16) can't finish a page that is built ahead and filled in on a visit (issue 1349; the fix, pull request 1318, isn't merged). The free times now load in the browser, which avoids the problem. Two other routes failed: making the pages dynamic (the same broken path), and classic rendering for that build only (`instant` needs Cache Components).
+        - The demo website would have said "his" for Dr. Kavya, on the booking page, the card's voice-note hints and the privacy policy. The pronouns are now each clinic's own (`siteConfig.dentist.pronouns`), and the template guard catches pronouns too.
+    - **Checked on the local Cloudflare preview:**
+        - every other page, Markdown copy, llms file, robots.txt and security.txt is identical to the live site;
+        - home and booking differ only by the card's content, which now arrives in the browser;
+        - the card shows real free times from the live API in 1.7 s, the request goes to Clinic OS (caught, nothing saved), and the browser shows no errors;
+        - Clinic OS's addresses redirect, the bare domain goes to `www`, Markdown is served by Accept, the security headers are there, images are resized (the logo 68 KB → 2.7 KB), and a booking link's reason is kept.
+        - **Known gap:** a mistyped treatment address answers 200 with the not-found page there (404 on Vercel).
+    - **Gates:** tsc, lint, unit 415, the full build, and the whole browser suite: 124 passed, 4 skipped (a new test sends a website request through the API, caught before anything is saved).
 - 2026-10-30 **Resume here** (owner: "save all progress made so that we can continue from where we left off"; "Stop using agents").
     - **How to work:**
         - Build directly, with no builder or reviewer agents, one step at a time, keeping this block current.
@@ -837,6 +855,7 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - **Booking API v1** is live (0b703d0): free times, prices and requests by clinic slug, from any address, documented at `/api/v1/openapi.json`. The website's own form shares the same code (`src/lib/booking-request.ts`). Tested live: it answers with Smile Dental's real free times and prices.
     - **The demo clinic's name:** "Brightside Dental", not "Bright Smile Dental", which contains "Smile Dental". Slug `demo-brightside`.
     - **Then, in order:**
+        1. **Cloudflare (owner):** create the Worker from the repository (`docs/build/CLOUDFLARE.md`, step 1), then send Claude its workers.dev address to check against the live site. After that, move the domain (step 2).
         1. **Owner steps for the demo** (`docs/build/DEMO-SETUP.md`): make the login, then run `supabase/demo-clinic-2026-10.sql`, then a second Vercel project for its website. With the login made and before the set-up runs, check that a login with no clinic is refused at sign-in.
         6. **Slice 6:** hours and closed days per clinic, and the clinic's message languages.
         7. **Slice 2c** (the per-person keys go), then the rest of Phase 2: operator console (needs the service-role key, or stays SQL), integrations behind switches, product address.

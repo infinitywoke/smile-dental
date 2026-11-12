@@ -58,3 +58,8 @@ supabase/.temp/
 
 # Dr. Rahil's Tally exports: patient names, ages, places and clinical notes (docs/TALLY.md)
 /docs/tally/
+
+# Cloudflare (the website on its own: scripts/build-website.mjs)
+/.open-next
+/.wrangler
+.dev.vars*

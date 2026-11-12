@@ -1,4 +1,5 @@
 import { siteConfig } from '@/config/site'
+import { WEBSITE_ONLY } from '@/config/deployment'
 import { websiteHosts } from '@/config/redirects'
 import { OPEN_SESSIONS } from '@/lib/clinic-hours'
 import { formatPhone, normalizePhone } from '@/lib/phone'
@@ -10,11 +11,11 @@ export const PHONE_SHOWN = `+91 ${formatPhone(normalizePhone(siteConfig.phone) ?
 export const WHATSAPP = `https://wa.me/${siteConfig.whatsapp.replace(/\D/g, '')}`
 export const HOURS = OPEN_SESSIONS.map(([from, until]) => `${formatBlock(from)} – ${formatBlock(until)}`)
 
-// Where links into Clinic OS go (a website request's "Open in Clinic OS"): from the clinic's own domain,
-// straight to Clinic OS's address; on a test server or a preview, where both parts share one address, there.
-// In the browser only.
+// Where links into Clinic OS go (a website request's "Open in Clinic OS"), and the Booking API: from the
+// clinic's own domain or a deployment of the website alone, straight to Clinic OS's address; on a test server
+// or a preview, where both parts share one address, there. In the browser only.
 export function clinicOsOrigin(): string {
-  return websiteHosts().includes(window.location.host) ? siteConfig.clinicOsUrl : window.location.origin
+  return WEBSITE_ONLY || websiteHosts().includes(window.location.host) ? siteConfig.clinicOsUrl : window.location.origin
 }
 
 // Where the site's links go from a page: on the homepage, to its own sections; elsewhere, to the page

@@ -1,37 +1,14 @@
 'use server'
 
-import { headers } from 'next/headers'
-import { siteConfig } from '@/config/site'
-import { openSlots, saveBookingRequest, type RequestInput, type RequestResult } from '@/lib/booking-request'
 import { createPublicClient } from '@/lib/supabase/public'
 
-// Public: free appointment times for the website's booking page. Start times only, no names.
-export const getOpenSlots = async (): Promise<string[]> => openSlots(siteConfig.clinicSlug)
-
-// Public: whether a clinic's online booking is paused (the website asks for its own, Clinic OS for the
-// signed-in clinic's), and until when ("infinity": until the dentist turns it back on). `ready` is false until supabase/pause-booking-2026-10.sql has been run; booking then counts as open.
+// Whether a clinic's online booking is paused (Clinic OS asks for the signed-in clinic's; the website learns it from
+// the Booking API), and until when ("infinity": until the dentist turns it back on). `ready` is false until supabase/pause-booking-2026-10.sql has been run; booking then counts as open.
 export async function getBookingPause(clinicSlug: string): Promise<{ ready: boolean; until: string | null }> {
   const supabase = createPublicClient()
   const { data, error } = await supabase.rpc('booking_paused_until', { p_clinic: clinicSlug })
   if (error) return { ready: false, until: null }
   return { ready: true, until: (data as string | null) ?? null }
-}
-
-export type BookingInput = RequestInput & {
-  // Bot traps: a field people never see (left empty by people), and a form sent in under a few seconds
-  website: string
-  tooFast: boolean
-}
-
-export type BookingResult = RequestResult
-
-// Public: saves the request into this website's clinic
-export async function submitBookingRequest(input: BookingInput): Promise<BookingResult> {
-  // A bot: answer as if saved, so it learns nothing, but save nothing
-  if (input.website.trim() || input.tooFast) return { ok: true, id: crypto.randomUUID() }
-  // The first address in X-Forwarded-For is the visitor
-  const forwarded = (await headers()).get('x-forwarded-for')?.split(',')[0]?.trim() || null
-  return saveBookingRequest(siteConfig.clinicSlug, input, forwarded)
 }
 
 // Which way the visitor was asked to describe their problem (the voice note test), and for the page

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { treatments } from '@/config/site'
-import { apiJson, OPENAPI, pricesBody, requestBody, SLUG } from './booking-api'
+import { apiJson, OPENAPI, pricesBody, requestBody, requestError, SLUG } from './booking-api'
 
 const good = { name: 'Asha Rao', phone: '9000000001', requestedStart: '2027-01-05T04:30:00.000Z' }
 
@@ -18,6 +18,18 @@ describe('Booking API v1', () => {
     expect(requestBody.safeParse({ ...good, requestedStart: 'tomorrow' }).success).toBe(false)
     expect(requestBody.safeParse(null).success).toBe(false)
     expect(requestBody.parse(good)).toMatchObject({ reason: '', contact: 'whatsapp', website: '' })
+  })
+
+  it('says what is wrong, as the form would', () => {
+    const why = (body: unknown) => {
+      const parsed = requestBody.safeParse(body)
+      return parsed.success ? null : requestError(parsed.error.issues)
+    }
+    expect(why({ ...good, phone: '123' })).toBe('Please enter a valid 10-digit mobile number.')
+    expect(why({ ...good, name: '' })).toBe('Please enter your name.')
+    expect(why({ ...good, requestedStart: 'soon' })).toBe('Please choose a time.')
+    expect(why({ ...good, notes: 'x'.repeat(1001) })).toBe('One of the answers is too long. Please shorten it.')
+    expect(why(null)).toBe('Please check the name, phone number and time.')
   })
 
   it('refuses oversized fields before they reach the database', () => {

@@ -23,6 +23,20 @@ export function websiteHosts(): string[] {
   return [...new Set([main, main.replace(/^www\./, '')])]
 }
 
+// A deployment of the website alone (src/config/deployment.ts): Clinic OS's paths go to Clinic OS's address
+// whatever the host, and the address without "www" goes to the main one, for good
+export function websiteOnlyRedirects() {
+  return [
+    ...websiteHosts().slice(1).map((host) => ({
+      source: '/:path*',
+      has: [{ type: 'host' as const, value: exactly(host) }],
+      destination: `${siteConfig.url}/:path*`,
+      permanent: true,
+    })),
+    ...CLINIC_OS_PATHS.map((source) => ({ source, destination: `${siteConfig.clinicOsUrl}${source}`, permanent: false })),
+  ]
+}
+
 export function hostRedirects() {
   const clinicOsHost = hostOf(siteConfig.clinicOsUrl)
   if (websiteHosts().includes(clinicOsHost)) return []

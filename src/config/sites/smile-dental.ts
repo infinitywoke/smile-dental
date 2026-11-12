@@ -77,6 +77,7 @@ export const siteConfig = {
   dentist: {
     name: "Dr. Rahil Yusuf", // [VERIFIED]
     short: "Dr. Rahil", // [VERIFIED]
+    pronouns: { subject: "he", object: "him", possessive: "his", reflexive: "himself" }, // [VERIFIED]
     years: 5, // [VERIFIED]
     degree: "BDS", // [VERIFIED]
     byline: ["Yenepoya, 2020 · India and the Middle East", "Sees every patient himself"], // [VERIFIED]

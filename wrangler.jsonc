@@ -1,0 +1,20 @@
+{
+  // The clinic's website on Cloudflare Workers, built by `npm run build:website` (docs/build/CLOUDFLARE.md).
+  // Clinic OS stays on Vercel. The name must match the Worker's name in the Cloudflare dashboard.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "smile-dental-website",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-20",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // Photos sized for each screen (Cloudflare Images; without it the original photo is sent)
+  "images": {
+    "binding": "IMAGES"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

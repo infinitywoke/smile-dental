@@ -64,9 +64,9 @@ export default function PrivacyPage() {
 
             <Part title="3. AI">
               <p>
-                The dentist may record his notes about your visit by voice. The recording is sent to Google&apos;s Gemini
+                The dentist may record {siteConfig.dentist.pronouns.possessive} notes about your visit by voice. The recording is sent to Google&apos;s Gemini
                 service, which writes it out as text and sorts it (complaint, findings, treatment, prescription, advice) and
-                may suggest a charge or a next visit for him to check. Nothing else about you is sent: not your name, phone
+                may suggest a charge or a next visit for {siteConfig.dentist.pronouns.object} to check. Nothing else about you is sent: not your name, phone
                 number, address, age or history. The clinic keeps the recording privately with your visit (only the dentist
                 can play it), and it is deleted with your record. While the clinic uses Gemini&apos;s free version, Google
                 may use what it receives to improve its services.
@@ -90,15 +90,15 @@ export default function PrivacyPage() {
               </p>
               <p>
                 So that the clinic&apos;s app keeps working when the phone has no signal, the dentist&apos;s phone keeps a copy of
-                the screens he opened, such as the day&apos;s appointments, for up to one day. With no signal they open only after
-                the phone&apos;s own fingerprint or PIN, and they are deleted when he signs out.
+                the screens {siteConfig.dentist.pronouns.subject} opened, such as the day&apos;s appointments, for up to one day. With no signal they open only after
+                the phone&apos;s own fingerprint or PIN, and they are deleted when {siteConfig.dentist.pronouns.subject} signs out.
               </p>
             </Part>
 
             <Part title="5. WhatsApp messages">
               <p>
                 Bills, prescriptions, appointment details and reminders are sent to you on WhatsApp from the clinic&apos;s
-                phone. The dentist sends each message himself, one at a time. We do not use automated or bulk messaging.
+                phone. The dentist sends each message {siteConfig.dentist.pronouns.reflexive}, one at a time. We do not use automated or bulk messaging.
                 Prescription and X-ray photos come in the message as a private link that works for 30 days, then stops.
                 Anyone you forward the link to can see the photos until then, so share it only with your pharmacist or
                 another doctor. If you would rather not receive reminders, just tell us.

@@ -1,5 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test'
 import { addDays, inIndia, weekday } from '../src/lib/schedule'
+import { captureWhatsapp, whatsappText } from './helpers'
 
 // The homepage (website D). Nothing is sent: public requests go to the clinic's own account, so the
 // test stops before a request would be saved, and reads the WhatsApp links instead.
@@ -19,6 +20,8 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Book an appointment' })).toBeVisible()
   // React is running once the open status (worked out in the browser) shows, so no tap is lost
   await expect(page.locator('.h-status').first()).toHaveText(/\S/)
+  // The free times come from the Booking API in the browser: the card takes the place of "Loading free times…"
+  await expect(page.locator('#book').getByText('Step 1 of 4')).toBeVisible()
 })
 
 test('on a phone the header is one row (clinic, call, menu), the menu holds the rest, and a bar keeps Book close', async ({ page }) => {
@@ -227,4 +230,28 @@ test('questions open in place, and the visit section has the map', async ({ page
   await page.getByText('Are you open on Sundays?').click()
   await expect(sundays.getByText(/We are only closed on Fridays/)).toBeVisible()
   await expect(page.locator('iframe[title="Map of Smile Dental Clinic, Katapadi"]')).toHaveAttribute('src', /google\.com\/maps\/embed/)
+})
+
+test("a request goes to Clinic OS's Booking API, and WhatsApp opens with the link to it (stopped before anything is saved)", async ({ page }) => {
+  // Caught before it reaches the server: the website's requests go to the clinic's own account
+  let sent: Record<string, string> | null = null
+  await page.route('**/api/v1/clinics/*/requests', (route) => {
+    sent = route.request().postDataJSON()
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ id: '00000000-0000-4000-8000-0000000000e2' }) })
+  })
+  const whatsapp = await captureWhatsapp(page)
+  const card = page.locator('#book')
+  await card.getByRole('group', { name: 'What do you need?' }).getByRole('button', { name: 'Check-up' }).click()
+  await card.getByRole('group', { name: 'Pick a day' }).getByRole('button').first().click()
+  await card.getByRole('button', { name: timeButton }).first().click()
+  await card.getByLabel('WhatsApp number').fill('9845021763')
+  await card.getByLabel('Name').fill('Asha Rao')
+  // A person takes more than a few seconds; a faster card is treated as a bot and sends nothing
+  await page.waitForTimeout(3_200)
+  await card.getByRole('button', { name: 'Request this appointment' }).click()
+
+  await expect.poll(() => whatsapp.url).toContain('https://wa.me/916361816711')
+  expect(sent).toMatchObject({ name: 'Asha Rao', phone: '9845021763', reason: 'Check-up', contact: 'whatsapp' })
+  expect(sent).not.toHaveProperty('website')
+  expect(whatsappText(whatsapp.url)).toContain('/app/requests/00000000-0000-4000-8000-0000000000e2/received')
 })
