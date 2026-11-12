@@ -33,6 +33,7 @@ Cloudflare Workers, built from the same GitHub repository.
 | Build command | `npm run build:website` |
 | Deploy command | `npx opennextjs-cloudflare deploy` |
 | Root directory | leave empty |
+| API token | leave as it is: Cloudflare makes one for its builds and keeps it (Settings → Build → API token) |
 
 5. **Advanced settings → Build variables**, add two (the same values as in Vercel: the project's Settings →
    Environment Variables; or Supabase: Project Settings → API Keys):
