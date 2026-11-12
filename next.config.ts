@@ -15,14 +15,15 @@ const dev = process.env.NODE_ENV === 'development'
 const contentSecurityPolicy = [
   "default-src 'self'",
   // Development's hot reload evaluates code and talks over a socket
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ''}`,
+  // Cloudflare Web Analytics (cookie-free visit counts) on the website, which Cloudflare serves
+  `script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com${dev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${supabase}`,
   `media-src 'self' blob: ${supabase}`,
   "font-src 'self' data:",
   // …Clinic OS's Booking API (the website's free times and requests, from wherever it is hosted), and the chair
   // monitor on its own Wi-Fi, for the photos its QR codes point to
-  `connect-src 'self' ${supabase} ${supabase.replace(/^https:/, 'wss:')} ${new URL(siteConfig.clinicOsUrl).origin} ${siteConfig.chairMonitor.address}${dev ? ' ws:' : ''}`,
+  `connect-src 'self' ${supabase} ${supabase.replace(/^https:/, 'wss:')} ${new URL(siteConfig.clinicOsUrl).origin} https://cloudflareinsights.com ${siteConfig.chairMonitor.address}${dev ? ' ws:' : ''}`,
   'frame-src https://www.google.com',
   "frame-ancestors 'none'",
   "object-src 'none'",

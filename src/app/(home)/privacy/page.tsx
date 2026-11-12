@@ -43,6 +43,11 @@ export default function PrivacyPage() {
                 you instead, it calls the number you gave. We keep these details in the same private records as our
                 patients&apos; details, and only the clinic can see them.
               </p>
+              <p>
+                <strong>Visits to this website.</strong> Cloudflare, which serves this website, counts visits for us: which
+                pages are opened, how fast they load, and the kind of device and country. It uses no cookies and does not
+                identify you.
+              </p>
               <p><strong>At the clinic.</strong> When you visit us, we record:</p>
               <ul>
                 <li>your details: name, gender, date of birth, address, phone or WhatsApp number, any medical alerts or allergies, and how you heard about us;</li>
