@@ -855,13 +855,10 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - **Booking API v1** is live (0b703d0): free times, prices and requests by clinic slug, from any address, documented at `/api/v1/openapi.json`. The website's own form shares the same code (`src/lib/booking-request.ts`). Tested live: it answers with Smile Dental's real free times and prices.
     - **The demo clinic's name:** "Brightside Dental", not "Bright Smile Dental", which contains "Smile Dental". Slug `demo-brightside`.
     - **Then, in order:**
-        1. **Cloudflare (owner): move the domain** (`docs/build/CLOUDFLARE.md`, step 2). The Worker is built and checked (12 Nov), at https://smile-dental-website.infinitywoke.workers.dev:
-            - every page and file matches the live site (`scripts/compare-website.py`);
-            - a booking goes to Clinic OS, caught before saving (`scripts/check-booking.mjs`), and booking links keep their reason;
-            - Clinic OS's addresses redirect, Markdown and the security headers are served, images are resized, pages answer in 0.13–0.7 s, and the card shows in 1.4 s (live: 1.3 s; 13 s on the very first, cold visit);
-            - known: a mistyped treatment address answers 200.
-
-           After the move, check the bare domain's redirect to `www`, then remove the domains from Vercel.
+        1. **Cloudflare: the domain moved (12 Nov).** www.smiledentalkatapadi.com answers from the Worker (Cloudflare Mumbai), the bare domain redirects to `www` (308), and Clinic OS stays at smile-dental-hin3.vercel.app (Vercel bom1, the function region too). Checked on the domain: every page and file matches the Worker, a booking goes to Clinic OS (caught), Clinic OS's addresses and the vercel.app website pages redirect, and the card shows in 1.2 s (19.8 s on the first, cold visit). Left for the owner:
+            - remove both domains from the Vercel project (Settings → Domains);
+            - Cloudflare Web Analytics: Cloudflare inserts its beacon into browser requests, and the site's CSP blocks it (a console error, nothing else). Either switch the automatic setup off in Cloudflare, or allow `static.cloudflareinsights.com` (script) and `cloudflareinsights.com` (connect) and add a line to the privacy policy;
+            - two pushes after 18:05 UTC (37a3bca, c028dc2) had not reached the Worker 12 minutes later: check the Worker's builds.
         1. **Owner steps for the demo** (`docs/build/DEMO-SETUP.md`): make the login, then run `supabase/demo-clinic-2026-10.sql`, then a second Vercel project for its website. With the login made and before the set-up runs, check that a login with no clinic is refused at sign-in.
         6. **Slice 6:** hours and closed days per clinic, and the clinic's message languages.
         7. **Slice 2c** (the per-person keys go), then the rest of Phase 2: operator console (needs the service-role key, or stays SQL), integrations behind switches, product address.
