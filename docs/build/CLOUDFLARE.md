@@ -69,6 +69,9 @@ back in Vercel.
 - `npm run preview:website` builds the website alone and serves it at http://localhost:8787, as Cloudflare would.
   OpenNext warns that Windows is not fully supported; Cloudflare builds on Linux.
 - After it, `npm run build` (the full build) puts the route types back for `npx tsc`.
+- `python scripts/compare-website.py <address>` compares a copy of the website (the preview, or the Worker's
+  workers.dev address) with the live one, and `node scripts/check-booking.mjs <address>` books on it in a browser
+  (the request is caught, so nothing is saved).
 
 ## The demo clinic's website
 The same project type works for Brightside Dental: a second Worker from the same repository, with the build
