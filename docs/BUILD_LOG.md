@@ -870,3 +870,9 @@ The owner asked for a final check before going live, a familiar colour scheme ("
         - the Google Business Profile links;
         - Rahil checking the Kannada words;
         - a native Hindi speaker for the Hindi messages.
+
+## 22 Nov 2026: website down (500, error 1101), fixed
+- Since about 20 Nov every page answered 500. The pre-built pages are dated to the build, and the footer's year was cached for `days`, which Next.js lets expire after a week; an expired page is rendered on the visit, and on the Worker that render hangs ("This promise was created by a request that has since ended").
+- Fix (6cf0d07): `WEBSITE_CACHE` in `src/config/deployment.ts` for the footer's year and the price list: never stale on the Cloudflare build (a deploy updates them), hourly on Vercel. Also @opennextjs/cloudflare 1.20.18, wrangler 4.166.
+- Proved locally: the bundle's build time set back 14 days (`__BUILD_TIMESTAMP_MS__` in `.open-next/cloudflare/init.js`) gives the old code the live error on every page; the fix serves them all. Live again at 10:45 UTC; pages, redirects and the booking card (request caught) checked.
+- Rule: on the Cloudflare build, nothing on a website page may expire (no `cacheLife` with an `expire`, no request-time data).
