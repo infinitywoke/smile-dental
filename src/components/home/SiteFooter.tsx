@@ -1,14 +1,16 @@
 import Link from 'next/link'
 import { cacheLife } from 'next/cache'
+import { WEBSITE_CACHE } from '@/config/deployment'
 import { siteConfig } from '@/config/site'
 import { BookButton } from './BookButton'
 import { OpenStatus } from './OpenStatus'
 import { Waves } from './Waves'
 import { HOURS, PHONE_SHOWN, TEL, WHATSAPP } from './site-links'
 
+// On Cloudflare it is the deploy's year (WEBSITE_CACHE in config/deployment.ts)
 async function Year() {
   'use cache'
-  cacheLife('days')
+  cacheLife(WEBSITE_CACHE)
   return new Date().getFullYear()
 }
 

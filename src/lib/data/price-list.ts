@@ -1,5 +1,6 @@
 import 'server-only'
 import { cacheLife, cacheTag } from 'next/cache'
+import { WEBSITE_CACHE } from '@/config/deployment'
 import { siteConfig, type Treatment } from '@/config/site'
 import { getClinic } from '@/lib/data/clinic'
 import { listFor, type PriceRow } from '@/lib/price-list'
@@ -8,12 +9,13 @@ import { createPublicClient } from '@/lib/supabase/public'
 export const PRICE_LIST_TAG = 'price-list'
 
 // A clinic's price list, by its slug: the one loaded from the stock spreadsheet's Treatments sheet (with none
-// loaded, or the database out of reach, see listFor). Kept for an hour, per clinic, and made again at once
-// when a sheet is loaded (updateTag in actions/stock-import.ts).
+// loaded, or the database out of reach, see listFor). Kept for an hour, per clinic (until the next deploy on
+// the website on Cloudflare: WEBSITE_CACHE in config/deployment.ts), and made again at once when a sheet
+// is loaded (updateTag in actions/stock-import.ts).
 export async function getTreatments(clinicSlug: string): Promise<Treatment[]> {
   'use cache'
   cacheTag(PRICE_LIST_TAG)
-  cacheLife('hours')
+  cacheLife(WEBSITE_CACHE)
   try {
     const { data, error } = await createPublicClient().rpc('public_price_list', { p_clinic: clinicSlug })
     return listFor(!error && Array.isArray(data) ? (data as PriceRow[]) : [], clinicSlug)
